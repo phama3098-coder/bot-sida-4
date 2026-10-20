@@ -83,6 +83,10 @@ class CameraAdapter(ABC):
         """Lấy khung hình xem trước (Live View) định dạng JPEG bytes."""
         pass
 
+    def get_liveview_rgb_frame(self) -> Optional[Any]:
+        """Lấy khung hình xem trước định dạng numpy array RGB (tối ưu hiệu năng, bỏ qua nén JPEG)."""
+        return None
+
     @abstractmethod
     def get_parameters(self) -> Dict[str, Any]:
         """Đọc thông số hiện tại (ISO, Shutter speed, Aperture, White balance)."""

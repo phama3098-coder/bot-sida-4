@@ -212,6 +212,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Dừng các luồng an toàn khi đóng ứng dụng."""
+        if hasattr(self.kiosk_page, "live_view_worker"):
+            self.kiosk_page.live_view_worker.stop()
         self.kiosk_page.stop_live_view()
         self.camera_mgr.close()
         event.accept()

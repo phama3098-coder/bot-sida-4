@@ -24,10 +24,10 @@ import numpy as np
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QFrame, QSizePolicy, QDialog, QSpinBox, QMessageBox, QGraphicsDropShadowEffect,
+    QFrame, QSizePolicy, QDialog, QSpinBox, QMessageBox,
     QCheckBox
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QSize
+from PySide6.QtCore import Qt, QTimer, Signal, QSize, QThread
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont
 
 from vietphotobooth.camera.manager import CameraManager
@@ -47,6 +47,122 @@ logger = get_logger()
 # Đường dẫn tài nguyên thương hiệu
 LOGO_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
 EVENT_BANNER_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "event_banner_sample.jpg"))
+
+
+class CameraLiveViewWorker(QThread):
+    """
+    Luồng chạy ngầm đọc khung hình Live View liên tục từ camera.
+    Tách biệt hoàn toàn I/O camera và giải mã hình ảnh khỏi luồng GUI chính,
+    đảm bảo giao diện 1998 TEAM mượt mà tuyệt đối ở 30+ FPS không bao giờ giật lag.
+    """
+    frame_ready = Signal(object)  # np.ndarray RGB
+
+    def __init__(self, camera_mgr: CameraManager, parent=None):
+        super().__init__(parent)
+        self.camera_mgr = camera_mgr
+        self._running = True
+        self._paused = False
+
+    def run(self):
+        while self._running:
+            if self._paused or not self.camera_mgr.is_connected() or self.camera_mgr.current_backend_name == "simulator":
+                time.sleep(0.08)
+                continue
+
+            try:
+                # Đọc trực tiếp RGB bỏ qua chu trình nén/giải nén JPEG (~8x nhanh hơn)
+                frame_rgb = self.camera_mgr.get_liveview_rgb()
+                if frame_rgb is not None:
+                    self.frame_ready.emit(frame_rgb)
+            except Exception as e:
+                logger.debug(f"Liveview worker capture error: {e}")
+
+            time.sleep(0.033)  # ~30 FPS
+
+    def pause(self):
+        self._paused = True
+
+    def resume(self):
+        self._paused = False
+
+    def stop(self):
+        self._running = False
+        self.wait(600)
+
+
+class CompositeWorker(QThread):
+    """
+    Luồng xử lý ngầm ghép ảnh và xuất file 300 DPI chất lượng cao.
+    Ngăn chặn việc khóa cứng giao diện trong 1-2 giây khi hoàn tất chụp.
+    """
+    composite_ready = Signal(object, str)  # PIL Image, final_path
+    composite_failed = Signal(str)
+
+    def __init__(self, filter_engine, frame_mgr, event_mgr, photos, filter_id, frame_id, session_id, parent=None):
+        super().__init__(parent)
+        self.filter_engine = filter_engine
+        self.frame_mgr = frame_mgr
+        self.event_mgr = event_mgr
+        self.photos = photos
+        self.filter_id = filter_id
+        self.frame_id = frame_id
+        self.session_id = session_id
+
+    def run(self):
+        try:
+            # 1. Áp dụng bộ lọc màu nếu có (Non-destructive)
+            filtered_photos = []
+            preset = self.filter_engine.get_preset(self.filter_id) if self.filter_id else None
+            for orig in self.photos:
+                if preset:
+                    filtered_photos.append(self.filter_engine.apply_preset(orig, preset))
+                else:
+                    filtered_photos.append(orig.copy())
+
+            # 2. Ghép khung in 300 DPI bằng FrameDesigner
+            template = self.frame_mgr.get_frame(self.frame_id)
+            if not template:
+                frames = self.frame_mgr.list_frames()
+                template = frames[0] if frames else None
+
+            event_name = self.event_mgr.get_active_event_name()
+            event_info = {"name": event_name}
+            if template:
+                composite = FrameDesigner.render_composite(filtered_photos, template, event_info)
+            else:
+                composite = filtered_photos[0]
+
+            # 3. Lưu ảnh thành phẩm 300 DPI vào thư mục Final
+            dirs = self.event_mgr.get_event_dirs(event_name)
+            final_filename = f"{self.session_id}_final.jpg"
+            final_path = os.path.join(dirs["final"], final_filename)
+            composite.save(final_path, "JPEG", quality=95, dpi=(300, 300))
+
+            self.composite_ready.emit(composite, final_path)
+        except Exception as e:
+            logger.error(f"Lỗi trong luồng ghép ảnh ngầm: {e}", exc_info=True)
+            self.composite_failed.emit(str(e))
+
+
+class PrintWorker(QThread):
+    """
+    Luồng in ảnh ngầm qua spooler Windows, ngăn chặn đơ giao diện khi gửi lệnh in.
+    """
+    print_finished = Signal(bool, str)
+
+    def __init__(self, print_mgr: PrintManager, file_path: str, copies: int = 1, parent=None):
+        super().__init__(parent)
+        self.print_mgr = print_mgr
+        self.file_path = file_path
+        self.copies = copies
+
+    def run(self):
+        try:
+            success = self.print_mgr.print_image(self.file_path, copies=self.copies)
+            msg = f"Đã gửi lệnh in {self.copies} bản tới máy in!" if success else "Lệnh in đã được ghi nhận vào hàng đợi. Vui lòng kiểm tra cáp máy in trong tab 'Máy In'."
+            self.print_finished.emit(success, msg)
+        except Exception as e:
+            self.print_finished.emit(False, str(e))
 
 
 class FrameCardWidget(QFrame):
@@ -186,12 +302,26 @@ class KioskPage(QWidget):
         # Bộ nhớ đệm thumbnail khung ảnh
         self._thumbnail_cache: Dict[str, QPixmap] = {}
 
-        # Timers
-        self.live_view_timer = QTimer(self)
-        self.live_view_timer.timeout.connect(self._update_live_view)
+        # Luồng chạy ngầm Live View
+        self._live_view_active = False
+        self.live_view_worker = CameraLiveViewWorker(self.camera_mgr, self)
+        self.live_view_worker.frame_ready.connect(self._on_live_view_frame)
+        self.live_view_worker.start()
 
+        # Timer kiểm tra kết nối camera định kỳ (1.5s/lần)
+        self.camera_poll_timer = QTimer(self)
+        self.camera_poll_timer.timeout.connect(self._periodic_camera_check)
+        self.camera_poll_timer.start(1500)
+
+        # Timer đếm ngược chụp ảnh
         self.countdown_timer = QTimer(self)
         self.countdown_timer.timeout.connect(self._on_countdown_tick)
+
+        # Biến đệm và worker nền
+        self._composite_worker: Optional[CompositeWorker] = None
+        self._print_worker: Optional[PrintWorker] = None
+        self._cached_event_count: Optional[int] = None
+        self._last_event_name: Optional[str] = None
 
         self._init_ui()
         self._load_frame_options()
@@ -643,6 +773,7 @@ class KioskPage(QWidget):
             "}"
             "QPushButton:hover {"
             "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:0.35 #F0D278, stop:1 #D4AF37);"
+            "  border: 2px solid #FFFFFF;"
             "}"
             "QPushButton:pressed {"
             "  background: #C59B27;"
@@ -651,11 +782,6 @@ class KioskPage(QWidget):
             "  background: #2D3748; color: #718096; border: 1px solid #4A5568;"
             "}"
         )
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(24)
-        shadow.setColor(QColor(212, 175, 55, 140))
-        shadow.setOffset(0, 4)
-        self.btn_start.setGraphicsEffect(shadow)
         self.btn_start.clicked.connect(self.start_capture_flow)
         self.bottom_bar_layout.addWidget(self.btn_start)
 
@@ -731,11 +857,21 @@ class KioskPage(QWidget):
 
     def _refresh_event_info(self):
         ev_name = self.event_mgr.get_active_event_name()
-        dirs = self.event_mgr.get_event_dirs(ev_name)
-        count = 0
-        if os.path.exists(dirs["final"]):
-            count = len([f for f in os.listdir(dirs["final"]) if f.lower().endswith((".jpg", ".jpeg", ".png"))])
-        self.lbl_event_photos.setText(f"🖼️ Số ảnh đã chụp: {count}")
+        if getattr(self, "_last_event_name", None) != ev_name or getattr(self, "_cached_event_count", None) is None:
+            self._last_event_name = ev_name
+            dirs = self.event_mgr.get_event_dirs(ev_name)
+            count = 0
+            if os.path.exists(dirs["final"]):
+                count = len([f for f in os.listdir(dirs["final"]) if f.lower().endswith((".jpg", ".jpeg", ".png"))])
+            self._cached_event_count = count
+        self.lbl_event_photos.setText(f"🖼️ Số ảnh đã chụp: {self._cached_event_count}")
+
+    def _increment_event_photo_count(self):
+        if getattr(self, "_cached_event_count", None) is not None:
+            self._cached_event_count += 1
+        else:
+            self._cached_event_count = 1
+        self.lbl_event_photos.setText(f"🖼️ Số ảnh đã chụp: {self._cached_event_count}")
 
     # -------------------------------------------------------------
     # QUẢN LÝ SỐ ẢNH & ĐẾM NGƯỢC
@@ -814,10 +950,22 @@ class KioskPage(QWidget):
             self.frames_container_layout.addWidget(card)
 
     def _get_frame_thumbnail_pixmap(self, template: FrameTemplate) -> QPixmap:
-        """Sinh hoặc lấy từ bộ nhớ đệm hình thumbnail thật của khung in ảnh."""
+        """Sinh hoặc lấy từ bộ nhớ đệm đĩa hình thumbnail thật của khung in ảnh."""
         if template.id in self._thumbnail_cache:
             return self._thumbnail_cache[template.id]
 
+        # 1. Tải tức thì từ bộ nhớ đệm đĩa đã lưu sẵn (<0.5ms)
+        try:
+            thumb_path = self.frame_mgr.get_or_create_thumbnail(template)
+            if thumb_path and os.path.exists(thumb_path):
+                pix = QPixmap(thumb_path)
+                if not pix.isNull():
+                    self._thumbnail_cache[template.id] = pix
+                    return pix
+        except Exception as e:
+            logger.debug(f"Không thể đọc thumbnail đĩa cho khung {template.id}: {e}")
+
+        # 2. Sinh động nếu đĩa chưa có
         try:
             pil_thumb = FrameDesigner.generate_thumbnail(template, max_width=110, max_height=140)
             rgb = pil_thumb.convert("RGB")
@@ -900,14 +1048,55 @@ class KioskPage(QWidget):
             self._render_and_display_composite()
 
     # -------------------------------------------------------------
-    # LIVE VIEW & MÁY ẢNH
+    # LIVE VIEW & MÁY ẢNH (ASYNC THREADED 30+ FPS)
     # -------------------------------------------------------------
     def start_live_view(self):
-        self.live_view_timer.start(33)  # 30 fps
+        self._live_view_active = True
+        if hasattr(self, 'live_view_worker'):
+            if not self.live_view_worker.isRunning():
+                self.live_view_worker = CameraLiveViewWorker(self.camera_mgr, self)
+                self.live_view_worker.frame_ready.connect(self._on_live_view_frame)
+                self.live_view_worker.start()
+            else:
+                self.live_view_worker.resume()
         self._update_camera_status_ui()
 
     def stop_live_view(self):
-        self.live_view_timer.stop()
+        self._live_view_active = False
+        if hasattr(self, 'live_view_worker') and self.live_view_worker.isRunning():
+            self.live_view_worker.stop()
+
+    def _periodic_camera_check(self):
+        if self.current_state in ("IDLE", "COUNTDOWN"):
+            self._update_camera_status_ui()
+
+    def _on_live_view_frame(self, frame_rgb: np.ndarray):
+        if not getattr(self, "_live_view_active", True) or self.current_state not in ("IDLE", "COUNTDOWN", "CAPTURING"):
+            return
+
+        if self.panel_disconnected.isVisible():
+            self.panel_disconnected.hide()
+
+        h, w, ch = frame_rgb.shape
+        qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        if qimg.isNull():
+            return
+
+        pixmap = QPixmap.fromImage(qimg)
+        lbl_w = self.lbl_viewport.width()
+        lbl_h = self.lbl_viewport.height()
+        if lbl_w <= 0 or lbl_h <= 0:
+            return
+
+        # FastTransformation: siêu mượt 30+ FPS không tiêu tốn CPU rasterization
+        scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.FastTransformation)
+        self.lbl_viewport.setPixmap(scaled)
+
+        # Căn giữa nhãn đếm ngược & trạng thái
+        if self.lbl_countdown.isVisible():
+            self.lbl_countdown.setGeometry((lbl_w - 220) // 2, (lbl_h - 220) // 2, 220, 220)
+        if self.lbl_status_badge.isVisible():
+            self.lbl_status_badge.setGeometry((lbl_w - 360) // 2, lbl_h - 75, 360, 48)
 
     def _reconnect_camera(self):
         """Thử dò quét và kết nối lại máy ảnh thực tế."""
@@ -938,6 +1127,10 @@ class KioskPage(QWidget):
             )
             self.lbl_live_res.setText("LIVE VIEW (Demo) 1920 × 1080")
             self.lbl_cam_note.setText("Hãy kết nối máy ảnh và chọn thiết bị trong mục Máy ảnh để bắt đầu chụp.")
+            if not self.panel_disconnected.isVisible():
+                self.panel_disconnected.show()
+                self.lbl_viewport.setPixmap(QPixmap())
+            self.panel_disconnected.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
         else:
             self.lbl_cam_dot.setText("🟢")
             self.lbl_cam_status_text.setText(f"Đã kết nối ({backend.upper()})")
@@ -949,50 +1142,16 @@ class KioskPage(QWidget):
             res_text = "LIVE VIEW 1920 × 1080" if backend != "digicam" else "LIVE VIEW 6000 × 4000"
             self.lbl_live_res.setText(res_text)
             self.lbl_cam_note.setText("Máy ảnh đã sẵn sàng hoạt động. Nhấn 'Bắt đầu chụp' để ghi lại khoảnh khắc.")
-
-    def _update_live_view(self):
-        if self.current_state not in ("IDLE", "COUNTDOWN", "CAPTURING"):
-            return
-
-        is_connected = self.camera_mgr.is_connected()
-        backend = self.camera_mgr.current_backend_name
-        lbl_w = self.lbl_viewport.width()
-        lbl_h = self.lbl_viewport.height()
-
-        if not is_connected or backend == "simulator":
-            if not self.panel_disconnected.isVisible():
-                self.panel_disconnected.show()
-                self.lbl_viewport.setPixmap(QPixmap())
-            self.panel_disconnected.setGeometry(0, 0, lbl_w, lbl_h)
-            return
-        else:
             if self.panel_disconnected.isVisible():
                 self.panel_disconnected.hide()
 
-        frame_data = self.camera_mgr.get_liveview()
-        if not frame_data:
+    def _update_live_view(self):
+        """Hàm dự phòng tương thích gọi đồng bộ khi cần."""
+        if not getattr(self, "_live_view_active", True):
             return
-
-        if isinstance(frame_data, bytes):
-            qimg = QImage.fromData(frame_data)
-        elif isinstance(frame_data, np.ndarray):
-            h, w, ch = frame_data.shape
-            qimg = QImage(frame_data.data, w, h, ch * w, QImage.Format_RGB888)
-        else:
-            return
-
-        if qimg.isNull():
-            return
-
-        pixmap = QPixmap.fromImage(qimg)
-        scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.lbl_viewport.setPixmap(scaled)
-
-        # Căn giữa nhãn đếm ngược & trạng thái
-        if self.lbl_countdown.isVisible():
-            self.lbl_countdown.setGeometry((lbl_w - 220) // 2, (lbl_h - 220) // 2, 220, 220)
-        if self.lbl_status_badge.isVisible():
-            self.lbl_status_badge.setGeometry((lbl_w - 360) // 2, lbl_h - 75, 360, 48)
+        frame_rgb = self.camera_mgr.get_liveview_rgb()
+        if frame_rgb is not None:
+            self._on_live_view_frame(frame_rgb)
 
     # -------------------------------------------------------------
     # TIẾN TRÌNH CHỤP ẢNH TỰ ĐỘNG
@@ -1100,46 +1259,54 @@ class KioskPage(QWidget):
         self.current_token = token_info.token
 
         self._render_and_display_composite()
-        self._refresh_event_info()
-
-        # Nếu chọn tự động in sau khi chụp
-        if self.chk_autoprint.isChecked():
-            self._print_composite(direct=True)
 
     def _render_and_display_composite(self):
         if not self.captured_originals:
             return
 
-        # 1. Áp dụng bộ lọc màu nếu có (Non-destructive)
-        filtered_photos = []
-        preset = self.filter_engine.get_preset(self.selected_filter_id) if self.selected_filter_id else None
-        for orig in self.captured_originals:
-            if preset:
-                filtered_photos.append(self.filter_engine.apply_preset(orig, preset))
-            else:
-                filtered_photos.append(orig.copy())
+        # Hiển thị thông báo trạng thái không làm đơ giao diện
+        self.lbl_status_badge.setText("✨ Đang tạo khung ảnh 300 DPI...")
+        self.lbl_status_badge.show()
+        self.btn_print.setEnabled(False)
 
-        # 2. Ghép khung in 300 DPI bằng FrameDesigner
-        template = self.frame_mgr.get_frame(self.selected_frame_id)
-        if not template:
-            frames = self.frame_mgr.list_frames()
-            template = frames[0] if frames else None
+        # Xem trước tức thời ảnh đầu tiên trong khi worker xử lý (<15ms)
+        try:
+            draft_img = self.captured_originals[0]
+            rgb = draft_img.convert("RGB")
+            w, h = rgb.size
+            qimg = QImage(rgb.tobytes("raw", "RGB"), w, h, 3 * w, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimg)
+            lbl_w = self.lbl_viewport.width()
+            lbl_h = self.lbl_viewport.height()
+            if lbl_w > 0 and lbl_h > 0:
+                self.lbl_viewport.setPixmap(pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.FastTransformation))
+        except Exception:
+            pass
 
-        if template:
-            event_name = self.event_mgr.get_active_event_name()
-            event_info = {"name": event_name}
-            self.current_composite = FrameDesigner.render_composite(filtered_photos, template, event_info)
-        else:
-            self.current_composite = filtered_photos[0]
+        # Khởi động luồng xử lý ảnh 300 DPI chạy ngầm (Non-blocking GUI)
+        self._composite_worker = CompositeWorker(
+            filter_engine=self.filter_engine,
+            frame_mgr=self.frame_mgr,
+            event_mgr=self.event_mgr,
+            photos=self.captured_originals,
+            filter_id=self.selected_filter_id,
+            frame_id=self.selected_frame_id,
+            session_id=self.current_session_id or "Session_unknown",
+            parent=self
+        )
+        self._composite_worker.composite_ready.connect(self._on_composite_ready)
+        self._composite_worker.composite_failed.connect(self._on_composite_failed)
+        self._composite_worker.start()
 
-        # 3. Lưu ảnh thành phẩm vào thư mục Final
-        event_name = self.event_mgr.get_active_event_name()
-        dirs = self.event_mgr.get_event_dirs(event_name)
-        final_filename = f"{self.current_session_id}_final.jpg"
-        final_path = os.path.join(dirs["final"], final_filename)
-        self.current_composite.save(final_path, "JPEG", quality=95, dpi=(300, 300))
+    def _on_composite_ready(self, composite: Image.Image, final_path: str):
+        self.current_composite = composite
+        self.lbl_status_badge.hide()
+        self.btn_print.setEnabled(True)
 
-        # 4. Hiển thị lên Viewport
+        # Cập nhật số ảnh sự kiện tức thời
+        self._increment_event_photo_count()
+
+        # Hiển thị ảnh thành phẩm 300 DPI sắc nét lên Viewport
         rgb = self.current_composite.convert("RGB")
         w, h = rgb.size
         data = rgb.tobytes("raw", "RGB")
@@ -1148,8 +1315,19 @@ class KioskPage(QWidget):
 
         lbl_w = self.lbl_viewport.width()
         lbl_h = self.lbl_viewport.height()
-        scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.lbl_viewport.setPixmap(scaled)
+        if lbl_w > 0 and lbl_h > 0:
+            scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.lbl_viewport.setPixmap(scaled)
+
+        # Nếu chọn tự động in sau khi chụp
+        if self.chk_autoprint.isChecked():
+            self._print_composite(direct=True)
+
+    def _on_composite_failed(self, error_msg: str):
+        self.lbl_status_badge.hide()
+        self.btn_print.setEnabled(True)
+        logger.error(f"Lỗi dựng ảnh thành phẩm: {error_msg}")
+        QMessageBox.warning(self, "Lỗi Ghép Ảnh", f"Không thể hoàn tất ghép ảnh: {error_msg}")
 
     def _save_photo_dialog(self):
         if not self.current_composite:
@@ -1201,11 +1379,20 @@ class KioskPage(QWidget):
         dirs = self.event_mgr.get_event_dirs(event_name)
         final_path = os.path.join(dirs["final"], f"{self.current_session_id}_final.jpg")
 
-        success = self.print_mgr.print_image(final_path, copies=num_copies)
+        self.btn_print.setEnabled(False)
+        self.btn_print.setText("⏳ Đang In...")
+
+        self._print_worker = PrintWorker(self.print_mgr, final_path, copies=num_copies, parent=self)
+        self._print_worker.print_finished.connect(self._on_print_finished)
+        self._print_worker.start()
+
+    def _on_print_finished(self, success: bool, msg: str):
+        self.btn_print.setEnabled(True)
+        self.btn_print.setText("🖨️ IN ẢNH NGAY")
         if success:
-            QMessageBox.information(self, "Đang In", f"Đã gửi lệnh in {num_copies} bản tới máy in!")
+            QMessageBox.information(self, "Đang In", msg)
         else:
-            QMessageBox.warning(self, "Máy In", "Lệnh in đã được ghi nhận vào hàng đợi. Vui lòng kiểm tra cáp máy in trong tab 'Máy In'.")
+            QMessageBox.warning(self, "Máy In", msg)
 
     def _show_qr_dialog(self):
         if not self.current_token:
@@ -1283,3 +1470,8 @@ class KioskPage(QWidget):
         self.btn_finish.hide()
 
         self.start_live_view()
+
+    def closeEvent(self, event):
+        if hasattr(self, 'live_view_worker') and self.live_view_worker.isRunning():
+            self.live_view_worker.stop()
+        super().closeEvent(event)

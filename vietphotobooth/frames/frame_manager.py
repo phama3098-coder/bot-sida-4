@@ -29,6 +29,8 @@ class FrameManager:
     def __init__(self, base_dir: str = DEFAULT_FRAMES_DIR, user_dir: str = DEFAULT_USER_FRAMES_DIR):
         self.base_dir = os.path.abspath(base_dir)
         self.user_dir = os.path.abspath(user_dir)
+        self.thumb_dir = os.path.join(get_user_data_dir(), "Thumbnails", "frames")
+        os.makedirs(self.thumb_dir, exist_ok=True)
 
         for cat in CATEGORIES:
             os.makedirs(os.path.join(self.base_dir, cat), exist_ok=True)
@@ -216,8 +218,37 @@ class FrameManager:
         """Lấy một khung theo ID."""
         return self._templates.get(frame_id)
 
+    def get_thumbnail_path(self, frame_id: str) -> str:
+        """Đường dẫn tệp PNG thumbnail trên đĩa cho khung ảnh."""
+        return os.path.join(self.thumb_dir, f"{frame_id}_thumb.png")
+
+    def get_or_create_thumbnail(self, template: FrameTemplate, max_width: int = 110, max_height: int = 140) -> str:
+        """Trả về đường dẫn tệp thumbnail PNG của khung (nạp từ cache đĩa nếu có, sinh mới nếu chưa có)."""
+        thumb_path = self.get_thumbnail_path(template.id)
+        if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+            return thumb_path
+
+        try:
+            from vietphotobooth.frames.frame_designer import FrameDesigner
+            pil_thumb = FrameDesigner.generate_thumbnail(template, max_width=max_width, max_height=max_height)
+            pil_thumb.save(thumb_path, "PNG", optimize=True)
+            return thumb_path
+        except Exception as e:
+            logger.warning(f"Không thể tạo thumbnail lưu đĩa cho khung {template.id}: {e}")
+            return ""
+
+    def invalidate_thumbnail(self, frame_id: str) -> None:
+        """Xóa thumbnail đệm khi khung bị sửa đổi hoặc xóa."""
+        p = self.get_thumbnail_path(frame_id)
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
     def save_frame(self, template: FrameTemplate) -> bool:
         """Lưu khung ảnh vào thư mục người dùng để bảo toàn khi nâng cấp ứng dụng."""
+        self.invalidate_thumbnail(template.id)
         cat_dir = os.path.join(self.user_dir, template.category)
         os.makedirs(cat_dir, exist_ok=True)
         target_json = os.path.join(cat_dir, f"{template.id}.json")
@@ -229,6 +260,7 @@ class FrameManager:
 
     def delete_frame(self, frame_id: str) -> bool:
         """Xóa một khung ảnh từ thư mục người dùng hoặc thư mục gốc."""
+        self.invalidate_thumbnail(frame_id)
         tmpl = self.get_frame(frame_id)
         if not tmpl:
             return False

@@ -98,6 +98,27 @@ class CameraManager:
             except Exception:
                 return self._last_liveview_frame
 
+    def get_liveview_rgb(self) -> Optional[Any]:
+        """Lấy khung hình xem trước RGB numpy array phục vụ desktop GUI tối ưu hiệu năng."""
+        with self._lock:
+            try:
+                if hasattr(self._adapter, "get_liveview_rgb_frame"):
+                    rgb = self._adapter.get_liveview_rgb_frame()
+                    if rgb is not None:
+                        return rgb
+                # Fallback qua JPEG bytes nếu adapter chỉ trả về bytes
+                frame_bytes = self._adapter.get_liveview_frame()
+                if frame_bytes:
+                    import cv2
+                    import numpy as np
+                    nparr = np.frombuffer(frame_bytes, np.uint8)
+                    bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    if bgr is not None:
+                        return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                return None
+            except Exception:
+                return None
+
     @property
     def current_backend_name(self) -> str:
         return self.backend_name
