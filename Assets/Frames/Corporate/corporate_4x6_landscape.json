@@ -1,0 +1,93 @@
+{
+  "id": "corporate_4x6_landscape",
+  "name": "Sự Kiện Doanh Nghiệp (Khổ Ngang 4x6 - 3 Ảnh)",
+  "category": "Corporate",
+  "type": "4x6_landscape",
+  "canvas_size": [
+    1800,
+    1200
+  ],
+  "bg_color": "#0F172A",
+  "bg_image_path": null,
+  "overlay_png_path": null,
+  "slots": [
+    {
+      "id": 1,
+      "x": 60,
+      "y": 60,
+      "w": 520,
+      "h": 680,
+      "rotation": 0,
+      "corner_radius": 12,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 0
+    },
+    {
+      "id": 2,
+      "x": 640,
+      "y": 60,
+      "w": 520,
+      "h": 680,
+      "rotation": 0,
+      "corner_radius": 12,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 1
+    },
+    {
+      "id": 3,
+      "x": 1220,
+      "y": 60,
+      "w": 520,
+      "h": 680,
+      "rotation": 0,
+      "corner_radius": 12,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 2
+    }
+  ],
+  "text_layers": [
+    {
+      "id": "title",
+      "text": "{event_name}",
+      "x": 900,
+      "y": 830,
+      "font_size": 52,
+      "font_color": "#38BDF8",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "date",
+      "text": "Sự Kiện Thường Niên • {date}",
+      "x": 900,
+      "y": 930,
+      "font_size": 32,
+      "font_color": "#94A3B8",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "thanks",
+      "text": "Thank you for joining our team!",
+      "x": 900,
+      "y": 1020,
+      "font_size": 28,
+      "font_color": "#E2E8F0",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    }
+  ],
+  "logo_layers": [],
+  "bleed_px": 15,
+  "safe_zone_px": 40,
+  "is_dual_strip": false,
+  "has_cut_line": false,
+  "version": "1.0",
+  "author": "VietPhotoBooth"
+}

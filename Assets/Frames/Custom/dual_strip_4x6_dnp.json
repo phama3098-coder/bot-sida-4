@@ -1,0 +1,93 @@
+{
+  "id": "dual_strip_4x6_dnp",
+  "name": "Khổ 4x6 Ghép Đôi 2 Dải 2x6 (Cắt Tự Động DNP RX1HS)",
+  "category": "Custom",
+  "type": "4x6_dual",
+  "canvas_size": [
+    1200,
+    1800
+  ],
+  "bg_color": "#FFFFFF",
+  "bg_image_path": null,
+  "overlay_png_path": null,
+  "slots": [
+    {
+      "id": 1,
+      "x": 45,
+      "y": 60,
+      "w": 510,
+      "h": 380,
+      "rotation": 0,
+      "corner_radius": 10,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 0
+    },
+    {
+      "id": 2,
+      "x": 45,
+      "y": 470,
+      "w": 510,
+      "h": 380,
+      "rotation": 0,
+      "corner_radius": 10,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 1
+    },
+    {
+      "id": 3,
+      "x": 45,
+      "y": 880,
+      "w": 510,
+      "h": 380,
+      "rotation": 0,
+      "corner_radius": 10,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 2
+    }
+  ],
+  "text_layers": [
+    {
+      "id": "title",
+      "text": "{event_name}",
+      "x": 300,
+      "y": 1340,
+      "font_size": 42,
+      "font_color": "#2C3E50",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "date",
+      "text": "{date}",
+      "x": 300,
+      "y": 1430,
+      "font_size": 28,
+      "font_color": "#7F8C8D",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "footer",
+      "text": "VietPhotoBooth Kiosk",
+      "x": 300,
+      "y": 1650,
+      "font_size": 24,
+      "font_color": "#BDC3C7",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    }
+  ],
+  "logo_layers": [],
+  "bleed_px": 15,
+  "safe_zone_px": 40,
+  "is_dual_strip": true,
+  "has_cut_line": true,
+  "version": "1.0",
+  "author": "VietPhotoBooth"
+}

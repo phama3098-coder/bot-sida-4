@@ -237,3 +237,30 @@ class PrintManager:
         img.save(output_path, "JPEG", dpi=(300, 300), quality=100)
         logger.info(f"Đã tạo file in thử tại {output_path}")
         return output_path
+
+    def print_image(self, image_path: str, copies: int = 1, paper_size: str = "4x6", event_name: str = "") -> bool:
+        """Đưa ảnh vào hàng đợi in."""
+        try:
+            job = self.submit_job(image_path=image_path, copies=copies, paper_size=paper_size, event_name=event_name)
+            return job is not None
+        except Exception as e:
+            logger.error(f"Lỗi khi gửi lệnh in ảnh {image_path}: {e}")
+            return False
+
+    def print_test_page(self) -> bool:
+        """Tạo thẻ in kiểm tra màu sắc & độ căn lề rồi gửi trực tiếp tới máy in."""
+        import tempfile
+        tmp_dir = tempfile.gettempdir()
+        test_card_path = os.path.join(tmp_dir, "vietphotobooth_test_card.jpg")
+        self.create_test_print_card(test_card_path)
+        return self.print_image(test_card_path, copies=1, paper_size="4x6")
+
+    def get_job_queue(self) -> List[Dict[str, Any]]:
+        """Lấy danh sách các lệnh in trong hàng đợi."""
+        return self.get_queue()
+
+    def clear_completed_jobs(self):
+        """Xóa các lệnh in đã hoàn tất khỏi hàng đợi hiển thị."""
+        with self._lock:
+            self.jobs = [j for j in self.jobs if j.status not in (STATUS_COMPLETED, STATUS_CANCELLED)]
+

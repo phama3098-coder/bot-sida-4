@@ -98,6 +98,32 @@ class CameraManager:
             except Exception:
                 return self._last_liveview_frame
 
+    @property
+    def current_backend_name(self) -> str:
+        return self.backend_name
+
+    def capture_photo(self, save_path: Optional[str] = None) -> tuple[bool, Optional[Image.Image]]:
+        """Chụp ảnh chất lượng cao và tùy chọn lưu vào file đĩa."""
+        img = self.capture()
+        if img:
+            if save_path:
+                try:
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    img.save(save_path, "JPEG", quality=95)
+                except Exception as e:
+                    logger.error(f"Không thể lưu ảnh vào {save_path}: {e}")
+            return True, img
+        return False, None
+
+    def close(self):
+        """Đóng kết nối an toàn với máy ảnh."""
+        with self._lock:
+            if self._adapter:
+                try:
+                    self._adapter.disconnect()
+                except Exception:
+                    pass
+
     def get_parameters(self) -> Dict[str, Any]:
         with self._lock:
             return self._adapter.get_parameters()

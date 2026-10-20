@@ -1,0 +1,105 @@
+{
+  "id": "birthday_2x6_strip4",
+  "name": "Sinh Nhật Rực Rỡ (Dải 2x6 - 4 Ảnh)",
+  "category": "Birthday",
+  "type": "2x6",
+  "canvas_size": [
+    600,
+    1800
+  ],
+  "bg_color": "#FFF8E7",
+  "bg_image_path": null,
+  "overlay_png_path": "C:\\Users\\Admin\\Documents\\photobooth\\Assets\\Frames\\Birthday\\birthday_2x6_strip4_overlay.png",
+  "slots": [
+    {
+      "id": 1,
+      "x": 45,
+      "y": 50,
+      "w": 510,
+      "h": 330,
+      "rotation": 0,
+      "corner_radius": 16,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 0
+    },
+    {
+      "id": 2,
+      "x": 45,
+      "y": 410,
+      "w": 510,
+      "h": 330,
+      "rotation": 0,
+      "corner_radius": 16,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 1
+    },
+    {
+      "id": 3,
+      "x": 45,
+      "y": 770,
+      "w": 510,
+      "h": 330,
+      "rotation": 0,
+      "corner_radius": 16,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 2
+    },
+    {
+      "id": 4,
+      "x": 45,
+      "y": 1130,
+      "w": 510,
+      "h": 330,
+      "rotation": 0,
+      "corner_radius": 16,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 3
+    }
+  ],
+  "text_layers": [
+    {
+      "id": "title",
+      "text": "HAPPY BIRTHDAY!",
+      "x": 300,
+      "y": 1520,
+      "font_size": 40,
+      "font_color": "#E74C3C",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "subtitle",
+      "text": "Tuổi Mới Tỏa Sáng",
+      "x": 300,
+      "y": 1585,
+      "font_size": 30,
+      "font_color": "#F39C12",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "date",
+      "text": "{date}",
+      "x": 300,
+      "y": 1660,
+      "font_size": 24,
+      "font_color": "#7F8C8D",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    }
+  ],
+  "logo_layers": [],
+  "bleed_px": 15,
+  "safe_zone_px": 40,
+  "is_dual_strip": false,
+  "has_cut_line": false,
+  "version": "1.0",
+  "author": "VietPhotoBooth"
+}

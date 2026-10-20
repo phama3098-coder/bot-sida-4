@@ -29,7 +29,12 @@ def get_logger(log_dir: str = None) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # Console handler
+    # Console handler with safe UTF-8 encoding on Windows
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)

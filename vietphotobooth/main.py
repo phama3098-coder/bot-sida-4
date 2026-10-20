@@ -1,13 +1,12 @@
 """
-VietPhotoBooth Main Entrypoint
-Starts the backend server and launches the kiosk web interface on Windows.
+VietPhotoBooth Main Desktop Entrypoint
+Launches the native Windows PySide6 Desktop GUI as the primary interface,
+with an auxiliary FastAPI background service for LAN QR mobile downloads.
 """
 
 import os
 import sys
-import time
-import socket
-import webbrowser
+import argparse
 import threading
 import uvicorn
 
@@ -16,50 +15,59 @@ root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+
 from vietphotobooth.core.logger import get_logger
 from vietphotobooth.core.config import ConfigManager
 from vietphotobooth.server import create_app
+from vietphotobooth.desktop.main_window import MainWindow
 
 logger = get_logger()
 
-def wait_for_server(host: str, port: int, timeout: float = 8.0) -> bool:
-    """Chờ cho đến khi server mở cổng TCP thành công."""
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            with socket.create_connection((host, port), timeout=0.5):
-                return True
-        except (ConnectionRefusedError, OSError):
-            time.sleep(0.15)
-    return False
-
-def open_browser(url: str) -> None:
-    """Mở trình duyệt sau khi máy chủ đã sẵn sàng."""
-    if wait_for_server("127.0.0.1", 8080):
-        logger.info(f"Đang mở giao diện Kiosk tại: {url}")
-        try:
-            webbrowser.open(url)
-        except Exception as e:
-            logger.warning(f"Không thể mở trình duyệt tự động: {e}")
+def run_sharing_server(host: str, port: int):
+    """Chạy máy chủ chia sẻ ảnh nội bộ qua QR dưới dạng tiến trình nền daemon."""
+    try:
+        app = create_app()
+        logger.info(f"Khởi động máy chủ chia sẻ ảnh LAN tại http://{host}:{port}")
+        uvicorn.run(app, host=host, port=port, log_level="warning", access_log=False)
+    except Exception as e:
+        logger.warning(f"Không thể khởi động máy chủ chia sẻ LAN: {e}")
 
 def main():
-    print("=" * 60)
-    print("      VIETPHOTOBOOTH - HỆ THỐNG PHOTOBOOTH CHUYÊN NGHIỆP")
-    print("                 DÀNH CHO WINDOWS 10 / 11")
-    print("=" * 60)
+    parser = argparse.ArgumentParser(description="VietPhotoBooth - Phần Mềm Photobooth Chuyên Nghiệp Windows")
+    parser.add_argument("--kiosk", action="store_true", help="Khởi động trực tiếp ở chế độ toàn màn hình Kiosk")
+    parser.add_argument("--no-server", action="store_true", help="Không khởi động máy chủ chia sẻ LAN")
+    parser.add_argument("--port", type=int, default=8000, help="Cổng máy chủ chia sẻ LAN (mặc định: 8000)")
+    args = parser.parse_args()
+
+    print("=" * 65)
+    print("      VIETPHOTOBOOTH - ỨNG DỤNG PHOTOBOOTH CHUYÊN NGHIỆP")
+    print("             NATIVE DESKTOP GUI DÀNH CHO WINDOWS 10 / 11")
+    print("=" * 65)
 
     config = ConfigManager()
-    port = int(config.get("lan_server_port", 8080))
-    host = "0.0.0.0"
+    lan_port = args.port or int(config.get("lan_server_port", 8000))
 
-    logger.info(f"Khởi động VietPhotoBooth trên {host}:{port}...")
+    # Khởi động máy chủ LAN chia sẻ QR phụ trợ trong luồng nền
+    if not args.no_server:
+        server_thread = threading.Thread(
+            target=run_sharing_server,
+            args=("0.0.0.0", lan_port),
+            daemon=True
+        )
+        server_thread.start()
 
-    # Chạy luồng mở trình duyệt
-    kiosk_url = f"http://localhost:{port}/"
-    threading.Thread(target=open_browser, args=(kiosk_url,), daemon=True).start()
+    # Khởi chạy giao diện Desktop Native PySide6
+    qt_app = QApplication(sys.argv)
+    qt_app.setApplicationName("VietPhotoBooth")
+    qt_app.setOrganizationName("VietPhotoBooth Team")
 
-    app = create_app()
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    window = MainWindow(start_in_kiosk=args.kiosk)
+    window.show()
+
+    logger.info("Giao diện Desktop VietPhotoBooth đã sẵn sàng.")
+    sys.exit(qt_app.exec())
 
 if __name__ == "__main__":
     main()

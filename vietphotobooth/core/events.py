@@ -13,12 +13,19 @@ from vietphotobooth.core.logger import get_logger
 logger = get_logger()
 
 class EventManager:
-    def __init__(self, storage_root: str, current_event: str = "SuKien_MacDinh"):
+    def __init__(self, storage_root: Optional[str] = None, current_event: str = "SuKien_MacDinh"):
+        if not storage_root:
+            base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+            storage_root = os.path.join(base_dir, "VietPhotoBooth")
         self.storage_root = os.path.abspath(storage_root)
         self.events_root = os.path.join(self.storage_root, "Events")
         os.makedirs(self.events_root, exist_ok=True)
         self.current_event = current_event
         self.ensure_event_structure(self.current_event)
+
+    def get_active_event_name(self) -> str:
+        """Lấy tên sự kiện đang được chọn để chụp ảnh."""
+        return self.current_event
 
     def get_event_path(self, event_name: str) -> str:
         safe_name = "".join(c for c in event_name if c.isalnum() or c in ("-", "_", " ")).strip()
@@ -31,6 +38,7 @@ class EventManager:
         event_dir = self.get_event_path(event_name)
         subdirs = {
             "root": event_dir,
+            "base": event_dir,
             "originals": os.path.join(event_dir, "Originals"),
             "final": os.path.join(event_dir, "Final"),
             "thumbnails": os.path.join(event_dir, "Thumbnails"),
@@ -40,6 +48,10 @@ class EventManager:
         for d in subdirs.values():
             os.makedirs(d, exist_ok=True)
         return subdirs
+
+    def get_event_dirs(self, event_name: Optional[str] = None) -> Dict[str, str]:
+        """Lấy danh sách các thư mục con của sự kiện chỉ định (hoặc sự kiện hiện tại)."""
+        return self.ensure_event_structure(event_name or self.current_event)
 
     def get_current_dirs(self) -> Dict[str, str]:
         return self.ensure_event_structure(self.current_event)

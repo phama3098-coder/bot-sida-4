@@ -1,130 +1,128 @@
-# HƯỚNG DẪN CÀI ĐẶT VÀ SỬ DỤNG PHẦN MỀM VIETPHOTOBOOTH
+# HƯỚNG DẪN VẬN HÀNH PHẦN MỀM VIETPHOTOBOOTH
 
-Chào mừng bạn đến với **VietPhotoBooth** — phần mềm Photobooth chuyên nghiệp dành riêng cho hệ điều hành **Windows 10 và Windows 11 (64-bit)**.
-
-Phần mềm được thiết kế tối ưu cho:
-- Tiệc cưới, sinh nhật, thôi nôi.
-- Sự kiện doanh nghiệp, hội nghị, triển lãm.
-- Kiosk booth chụp ảnh tự động.
-- In ảnh lấy liền chuẩn màu trên máy in nhiệt thăng hoa (DNP DS-RX1HS, Citizen, HiTi...).
-- Chia sẻ ảnh tốc độ cao qua mã QR trong mạng nội bộ (LAN) không cần Internet.
+> **Ứng dụng Desktop Native chuyên nghiệp dành cho Windows 10 & 11 (64-bit)**  
+> Phát triển trên nền tảng **PySide6 (Qt 6)**, tối ưu cho màn hình cảm ứng Kiosk, tích hợp máy ảnh DSLR/Mirrorless/Webcam, in nhiệt DNP tự động cắt và chia sẻ ảnh QR qua mạng nội bộ.
 
 ---
 
-## 1. YÊU CẦU HỆ THỐNG VÀ CÀI ĐẶT
+## 1. CÀI ĐẶT & KHỞI CHẠY
 
-### 1.1. Cấu hình phần cứng & phần mềm đề xuất
-- **Hệ điều hành**: Windows 10 64-bit hoặc Windows 11 64-bit.
-- **Bộ vi xử lý (CPU)**: Intel Core i3 thế hệ 6 trở lên hoặc AMD Ryzen 3 trở lên.
-- **Bộ nhớ RAM**: Tối thiểu 4 GB (khuyến nghị 8 GB trở lên).
-- **Ổ cứng**: Còn trống tối thiểu 5 GB (khuyến nghị dùng ổ SSD).
-- **Màn hình**: Hỗ trợ cảm ứng (Touchscreen) với độ phân giải tối thiểu 1920x1080 (Full HD).
-- **Cổng kết nối**: Cổng USB 3.0 / USB-C tốc độ cao để cắm máy ảnh DSLR/Mirrorless và máy in.
+### 1.1. Cài đặt bằng file bộ cài (.exe)
+- Chạy file: `dist_installer\VietPhotoBooth-Setup.exe`.
+- Trình cài đặt tự động cài đặt vào máy tính mà **không yêu cầu quyền Administrator**.
+- Tự động tạo biểu tượng ngoài màn hình Desktop và trong Start Menu: **VietPhotoBooth**.
 
-### 1.2. Hướng dẫn cài đặt bằng file Setup
-1. Tải bộ cài `VietPhotoBooth-Setup.exe` từ thư mục:
-   `C:\Users\Admin\Documents\photobooth\dist_installer\VietPhotoBooth-Setup.exe`
-2. Nhấp đúp chuột vào file `VietPhotoBooth-Setup.exe`.
-3. Trình cài đặt sẽ tự động:
-   - Cài đặt toàn bộ ứng dụng vào thư mục của người dùng (`%LOCALAPPDATA%\Programs\VietPhotoBooth`).
-   - Không yêu cầu quyền Administrator nếu cài cho tài khoản cá nhân.
-   - Tạo biểu tượng **VietPhotoBooth** trên màn hình Desktop.
-   - Tạo lối tắt trong Start Menu.
-4. Tích chọn **"Khởi động VietPhotoBooth ngay bây giờ"** và bấm **Hoàn tất (Finish)**.
-5. Phần mềm sẽ tự động khởi chạy và mở giao diện cảm ứng Kiosk trên trình duyệt mặc định tại địa chỉ: `http://localhost:8080/`.
+### 1.2. Khởi chạy từ mã nguồn Python
+```powershell
+# Chạy ứng dụng giao diện Desktop tiêu chuẩn
+py -3.12 -m vietphotobooth.main
+
+# Hoặc khởi động trực tiếp vào chế độ Kiosk toàn màn hình
+py -3.12 -m vietphotobooth.main --kiosk
+```
 
 ---
 
-## 2. QUY TRÌNH VẬN HÀNH DÀNH CHO KHÁCH HÀNG
+## 2. HƯỚNG DẪN CÁC PHÂN HỆ CHỨC NĂNG
 
-Giao diện được thiết kế 100% bằng tiếng Việt với các nút bấm to, rõ ràng, cảm ứng siêu nhạy:
-
-### Bước 1: Màn hình chờ (Idle)
-- Khách nhìn thấy thông điệp chào mừng, tên cặp đôi hoặc tên sự kiện.
-- Khách nhìn thấy khung ngắm camera trực tiếp (Live View) để chỉnh trang trang phục, đầu tóc.
-- Khách chạm tay vào nút tròn lớn: **📸 BẮT ĐẦU CHỤP ẢNH**.
-
-### Bước 2: Đếm ngược và tạo dáng (Countdown)
-- Phần mềm kiểm tra độ sẵn sàng của máy ảnh.
-- Đồng hồ đếm ngược hiển thị số lớn (5, 4, 3, 2, 1) kèm âm thanh nhắc nhở.
-- Máy ảnh nháy sáng (Flash) chụp ảnh số 1.
-- Nghỉ 2 giây để khách đổi dáng.
-- Tiếp tục đếm ngược và chụp các kiểu tiếp theo (tổng cộng 3 hoặc 4 kiểu tùy cài đặt).
-
-### Bước 3: Xem trước và thành phẩm (Preview)
-- Sau khi chụp xong kiểu cuối cùng, hệ thống tự động ghép loạt ảnh vào khung ảnh (Template 2x6 hoặc 4x6) với độ phân giải chuẩn 300 DPI.
-- Trên màn hình xuất hiện:
-  - Bản xem trước của bức ảnh hoàn chỉnh.
-  - Mã QR để tải ảnh về điện thoại.
-  - Tùy chọn in ảnh: Chọn 1 bản hoặc 2 bản.
-
-### Bước 4: In ảnh và Quét mã QR
-- **In ảnh**: Chạm vào nút màu xanh **"IN ẢNH NGAY"**. Lệnh in được chuyển tức thì vào Windows Print Spooler. Máy in ảnh nhiệt (ví dụ DNP DS-RX1HS) sẽ in ra trong vòng 12-15 giây.
-- **Quét QR**: Khách dùng camera điện thoại quét mã QR hiển thị góc phải màn hình để tải ngay ảnh chất lượng cao về điện thoại mà không cần 4G hay Internet.
-- Chạm nút **"✅ Hoàn Tất"** để quay về màn hình chờ đón lượt khách tiếp theo.
+### A. Màn Hình Photobooth Kiosk (`Tab: 📸 Chụp Ảnh`)
+Màn hình phục vụ khách chụp ảnh trực tiếp tại sự kiện:
+1. **Xem trước trực tiếp (Live View)**: Hiển thị mượt mà 30 FPS từ máy ảnh hoặc webcam.
+2. **Chọn đếm ngược**: Tùy chọn 3 giây, 5 giây hoặc 10 giây.
+3. **Nút BẮT ĐẦU CHỤP**: Nút bấm cảm ứng cỡ lớn. Khi bấm, hệ thống kích hoạt chuỗi chụp tuần tự (3 hoặc 4 ảnh) với nhịp đếm ngược và hiệu ứng chớp flash trực quan.
+4. **Màn hình xem kết quả (Review State)**:
+   - **Dải bộ lọc màu (Filter Strip)**: Khách hàng chạm vào các thẻ bộ lọc (`Tự Nhiên`, `Ấm Áp`, `Cổ Điển`, `Trắng Đen`, `Mịn Da Rạng Rỡ`, `Điện Ảnh Cinematic`...) để đổi hiệu ứng tức thì mà **không làm mất ảnh gốc**.
+   - **Dải khung ảnh (Frame Strip)**: Chạm đổi giữa các mẫu khung tiệc cưới, sinh nhật, doanh nghiệp hoặc dải đôi 2x6.
+   - **Nút IN ẢNH NGAY**: Chọn số lượng bản in (1 - 10 bản) và gửi trực tiếp tới máy in Windows Spooler.
+   - **Nút QUÉT MÃ QR**: Hiển thị popup chứa mã QR độ nét cao và địa chỉ IP LAN để khách dùng smartphone tải ảnh gốc và ảnh khung về máy.
+   - **Chụp lại (Retake)** & **Hoàn tất (Finish)**: Cho phép chụp lại nếu chưa ưng ý hoặc quay về màn hình chờ đón lượt khách tiếp theo.
 
 ---
 
-## 3. HƯỚNG DẪN QUẢN TRỊ VIÊN (ADMIN DASHBOARD)
+### B. Studio Chỉnh Sửa Bộ Lọc Màu & 3D LUT (`Tab: 🎨 Bộ Lọc Màu`)
+Bộ công cụ chuyên sâu cho chuyên viên kỹ thuật thiết kế và tùy biến tông màu ảnh:
+1. **14 Thanh trượt tham số xử lý ảnh số**:
+   - **Phơi sáng (Exposure)**: Bù trừ sáng -100 đến +100 (-1.5 EV đến +1.5 EV).
+   - **Độ sáng (Brightness)**: Cân chỉnh tổng thể vùng sáng.
+   - **Độ tương phản (Contrast)**: Tăng giảm chiều sâu khối hình.
+   - **Vùng sáng (Highlights)** & **Vùng tối (Shadows)**: Tinh chỉnh chi tiết ngược sáng hoặc bóng tối.
+   - **Gamma**: Tinh chỉnh dải sắc độ từ 0.2 đến 3.0.
+   - **Độ bão hòa (Saturation)**: Đậm đà hoặc nhạt màu.
+   - **Nhiệt độ màu (Temperature)**: Tông xanh mát (< 0) hoặc vàng ấm (> 0).
+   - **Sắc độ (Tint)**: Xanh lá (< 0) hoặc hồng tím (> 0).
+   - **Chuyển Trắng Đen (Grayscale)** & **Tông Nâu Cổ Điển (Sepia)**.
+   - **Làm mịn da (Soft Skin)**: Thuật toán lọc song phương kết hợp nhận diện vùng da người (YCbCr Skin Mask), làm mịn nốt mụn và khuyết điểm nhưng vẫn giữ nguyên khối mũi và nét mí mắt.
+   - **Độ sắc nét (Sharpness)**, **Mờ phim nâng đen (Fade)**, **Tối 4 góc (Vignette)**.
+2. **Hỗ trợ bảng tra màu chuẩn điện ảnh 3D LUT (.cube)**:
+   - Tự động nạp các file `.cube` trong thư mục `Assets/Filters/LUTs/`.
+   - Hỗ trợ nút **Nhập File .cube Ngoài** từ DaVinci Resolve / Photoshop / Lightroom.
+   - Thanh trượt điều chỉnh cường độ hòa trộn LUT từ 0% đến 100%.
+3. **Quản lý Preset**:
+   - **Tạo mới**, **Nhân bản**, **Lưu thay đổi**, **Xóa**.
+   - **Xuất file JSON** để chia sẻ preset giữa các máy booth hoặc **Nhập JSON** từ bên ngoài.
 
-Tại màn hình chờ, chạm vào nút **⚙️ Quản Trị** ở góc trên bên phải.
-- Màn hình hiển thị bàn phím số cảm ứng yêu cầu mã PIN.
-- Mã PIN mặc định ban đầu là: **`1234`**.
+---
 
-Bảng quản trị gồm 10 phân hệ chuyên sâu:
+### C. Trình Thiết Kế Khung Ảnh (`Tab: 🖼️ Khung Ảnh`)
+Hệ thống thiết kế và bố cục khung in ảnh chuẩn mực 300 DPI:
+1. **Khổ in hỗ trợ**:
+   - `2x6`: Dải dọc truyền thống (600 x 1800 px tại 300 DPI).
+   - `4x6_portrait`: Khổ đứng 4x6 inch (1200 x 1800 px).
+   - `4x6_landscape`: Khổ ngang 4x6 inch (1800 x 1200 px).
+   - `4x6_dual`: Ghép đôi 2 dải 2x6 trên một khổ giấy 4x6 (chuẩn in cho máy in nhiệt DNP DS-RX1HS tự động cắt đôi thành 2 dải rời).
+2. **Nhập khung PNG ngoài (Overlay Import)**:
+   - Bấm **Nhập Khung PNG Ngoài** -> Chọn file PNG do Photoshop thiết kế có viền trong suốt (Alpha Channel).
+   - Hệ thống tự động tạo mẫu khung mới, căn chỉnh tỷ lệ 300 DPI và gán các ô ảnh tương thích.
+3. **Chỉnh sửa các ô ảnh (Slots) & Bo góc**:
+   - Tự do thêm/xóa ô ảnh, thay đổi tọa độ `X, Y, W, H`, độ bo góc tròn `Corner Radius`, viền ảnh `Border Width/Color`.
+4. **Văn bản nghệ thuật & Logo**:
+   - Thêm các dòng chữ như `{event_name}`, `{date}`, tên cô dâu chú rể, lời chúc mừng sinh nhật với font chữ tiếng Việt sắc nét.
+5. **Cảnh báo mép xén (Bleed) & Vùng an toàn (Safe Zone)**:
+   - Hệ thống tự động phân tích và đưa ra cảnh báo thời gian thực nếu ô ảnh hoặc chữ nằm sát mép cắt máy in.
 
-### 1. Tổng Quan (Overview)
-- Xem nhanh tình trạng kết nối máy ảnh, máy in, tên sự kiện đang hoạt động và dung lượng ổ cứng còn trống.
+---
 
-### 2. Cài Đặt Máy Ảnh (Camera Settings)
-- **Chọn nguồn máy ảnh**:
-  - `Camera Simulator`: Bộ giả lập phần mềm (dùng khi chạy thử hoặc dựng sự kiện trước khi cắm máy ảnh thật).
-  - `DirectShow UVC Webcam`: Dành cho Webcam USB (Logitech C920, Brio...) hoặc thẻ thu hình Clean HDMI (Elgato Cam Link 4K).
-  - `digiCamControl DSLR`: Dành cho máy ảnh chuyên nghiệp DSLR/Mirrorless Canon, Nikon, Sony.
-- Xem khung ngắm Live View thực tế để căn chỉnh góc máy trong booth.
+### D. Quản Lý Máy Ảnh (`Tab: 📷 Máy Ảnh`)
+1. **Lựa chọn Trình điều khiển (Backend)**:
+   - `Simulator`: Bộ giả lập máy ảnh tích hợp sẵn ảnh chân dung mẫu, cho phép kiểm thử toàn bộ tính năng mà không cần cắm máy ảnh thật.
+   - `DirectShow Webcam (USB UVC)`: Hỗ trợ tất cả các dòng webcam USB chuẩn Windows (Logitech C920/C930e/Brio, Razer Kiyo...).
+   - `digiCamControl`: Điều khiển các dòng máy ảnh DSLR và Mirrorless qua cổng USB (Canon EOS, Nikon D/Z-series, Sony Alpha).
+2. **Kiểm tra khả năng & Chụp thử**:
+   - Bảng chẩn đoán tính năng thực tế: Live View, Chụp độ phân giải cao, Căn chỉnh thông số.
+   - Nút **Chụp Thử Nghiệm** để kiểm tra ngay chất lượng ánh sáng và tiêu cự.
 
-### 3. Kiểm Tra Tương Thích (Compatibility Matrix)
-- Tra cứu danh sách hơn 30 model máy ảnh phổ biến trên thị trường.
-- Xem rõ model nào đã kiểm thử thực tế, model nào cần driver hoặc hạn chế đã biết.
+---
 
-### 4. Máy In & Hàng Đợi (Printer & Queue)
-- Liệt kê toàn bộ máy in Windows.
-- Chọn máy in sự kiện và khổ giấy (4x6 inch hoặc 2x6 inch).
-- Nút **"In Thử (Test Card)"**: In một thẻ kiểm tra chuẩn 300 DPI có thước căn lề, dải màu sRGB và đường cắt 2x6 inch để kiểm tra độ sắc nét và dao cắt của máy in.
-- Bảng hàng đợi in (Print Queue): Hiển thị trạng thái từng lệnh in (Đang chờ, Đang gửi tới Spooler, Đã tiếp nhận, Hoàn thành, Lỗi). Quản trị viên có thể bấm "Thử lại" hoặc "Hủy" lệnh in bị kẹt.
+### E. Quản Lý Máy In & Hàng Đợi (`Tab: 🖨️ Máy In`)
+1. **Nhận diện Driver Windows Spooler**:
+   - Tự động liệt kê mọi máy in đã cài đặt trên Windows (`DNP DS-RX1HS`, `Citizen CY-02`, `Hiti P525L`, `Canon SELPHY`...).
+2. **Cấu hình cắt đôi 2x6 inch (DNP Cut Mode)**:
+   - Tích hợp profile điều khiển dao cắt tự động cho máy in nhiệt thăng hoa DNP DS-RX1HS.
+3. **In thẻ kiểm tra (Test Print Card)**:
+   - Tạo và in thẻ thử nghiệm chuẩn 300 DPI gồm: dải màu kiểm tra đầu in (Color Bar), thước đo căn lề, đường chỉ cắt dao đôi.
+4. **Hàng đợi in thời gian thực (Print Queue)**:
+   - Theo dõi từng lệnh in: Mã lệnh, tên file, số bản, trạng thái `SPOOLING`, `COMPLETED`, `ERROR`. Hỗ trợ xóa lịch sử hoặc thử lại lệnh in bị lỗi.
 
-### 5. Khung Ảnh (Templates)
-- Chọn mẫu khung ảnh mặc định:
-  - `Dải Photobooth 2x6 inch (3 Ảnh)`: Dải dọc 600x1800 px.
-  - `Dải Photobooth 2x6 inch (4 Ảnh)`: Dải dọc 600x1800 px.
-  - `Ghép Đôi 2 Dải 2x6 trên Khổ 4x6 (3 Ảnh)`: Chuẩn in 1200x1800 px có đường cắt đôi dành cho máy DNP DS-RX1HS.
-  - `Khổ 4x6 Lưới 4 Ảnh (2x2 Grid)`.
-  - `Khổ 4x6 Ngang (Landscape) 3 Ảnh`.
+---
 
-### 6. Quản Lý Sự Kiện (Events)
-- **Tạo sự kiện mới**: Nhập tên sự kiện (ví dụ `DamCuoi_MinhLinh_2026`). Phần mềm tự động tạo cấu trúc 5 thư mục chuẩn:
-  - `Originals/`: Chứa toàn bộ file ảnh gốc chưa qua chỉnh sửa.
-  - `Final/`: Chứa file ảnh thành phẩm độ phân giải cao 300 DPI.
-  - `Thumbnails/`: Chứa ảnh thu nhỏ để tải thư viện nhanh.
-  - `Templates/`: Mẫu khung riêng của sự kiện.
-  - `Logs/`: Nhật ký hoạt động của sự kiện.
-- **Xuất ZIP**: Cho phép nén toàn bộ ảnh sự kiện thành 1 file ZIP duy nhất để bàn giao ngay cho khách hàng hoặc cô dâu chú rể.
+### F. Quản Lý Sự Kiện & Thư Viện (`Tab: 📁 Sự Kiện & Thư Viện`)
+1. **Quản lý sự kiện**:
+   - Tạo sự kiện mới (ví dụ: `DamCuoi_TuanLan`, `SinhNhat_BaoNgoc`).
+   - Tự động tạo cấu trúc thư mục chuẩn: `Originals/`, `Final/`, `Thumbnails/`, `Templates/`, `Logs/`.
+2. **Thư viện ảnh đã chụp**:
+   - Danh sách toàn bộ các lượt chụp trong sự kiện.
+   - Hỗ trợ **In lại (Reprint)** cho khách muốn in thêm ảnh lưu niệm.
+   - Hỗ trợ **Xem lại mã QR** cho từng lượt chụp.
+   - **Xuất File ZIP**: Nén toàn bộ ảnh gốc và ảnh thành phẩm của sự kiện vào 1 file `.zip` duy nhất để bàn giao cho khách hàng hoặc cô dâu chú rể.
 
-### 7. Thư Viện Ảnh (Photo Library)
-- Duyệt toàn bộ ảnh đã chụp của sự kiện.
-- Bấm vào ảnh để xem kích thước lớn hoặc tải file gốc về máy.
+---
 
-### 8. QR & Mạng LAN (Local Sharing)
-- Hiển thị địa chỉ IP nội bộ của máy chủ Photobooth (ví dụ `192.168.1.150:8080`).
-- Danh sách các token chia sẻ ảnh đang hoạt động.
-- Nút **"Thu hồi"**: Hủy ngay quyền truy cập của một bức ảnh nếu cần bảo mật.
-
-### 9. Cài Đặt Hệ Thống (Settings)
-- Đổi tiêu đề sự kiện, phụ đề, ngày tháng.
-- Cấu hình thời gian đếm ngược: 3 giây, 5 giây hoặc 10 giây.
-- Cấu hình số kiểu ảnh mỗi phiên: 3 hoặc 4 kiểu.
-- Cấu hình thời gian nghỉ giữa các kiểu: 1 đến 5 giây.
-- Đổi mã PIN quản trị mới.
-
-### 10. Nhật Ký & Chẩn Đoán (Diagnostics)
-- Xem log hệ thống thời gian thực từ file `vietphotobooth.log` để phát hiện lỗi camera, máy in hoặc sự cố mạng.
+### G. Cài Đặt Hệ Thống & Bảo Mật PIN (`Tab: ⚙️ Cài Đặt`)
+1. **Bảo mật mã PIN**:
+   - Khi bật bảo mật PIN, khách hàng tại booth không thể tự ý thoát ra ngoài màn hình Windows hoặc can thiệp vào các tab cấu hình quản trị.
+   - Mã PIN mặc định khi xuất xưởng: `1234`. Có thể đổi mã PIN mới dễ dàng.
+2. **Toàn màn hình Kiosk (F11)**:
+   - Bấm `F11` hoặc nút **Bật Toàn Màn Hình** để đưa ứng dụng vào chế độ Kiosk chuyên nghiệp, ẩn thanh tiêu đề và thanh tác vụ Windows.
+3. **Máy chủ chia sẻ ảnh mạng LAN**:
+   - Hiển thị địa chỉ IP trạm và cổng dịch vụ (mặc định: `8000`).
+   - Khách hàng kết nối chung mạng WiFi với trạm Photobooth là có thể quét mã QR để tải ảnh trực tiếp về smartphone.

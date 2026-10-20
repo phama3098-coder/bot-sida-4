@@ -8,6 +8,7 @@ import io
 import time
 import socket
 import secrets
+import tempfile
 from datetime import datetime
 from typing import Dict, Any, Optional
 import qrcode
@@ -108,6 +109,21 @@ class TokenManager:
         ip = self.get_local_ip()
         return f"http://{ip}:{self.port}/s/{token}"
 
+    @property
+    def lan_ip(self) -> str:
+        return self.get_local_ip()
+
+    def create_token(self, event_name: str, session_id: str, file_path: str = "") -> ShareToken:
+        """Tạo token chia sẻ nhanh cho lượt chụp."""
+        token_str = secrets.token_urlsafe(16)
+        dummy_path = file_path or os.path.join(tempfile.gettempdir(), f"{session_id}.jpg")
+        token_obj = ShareToken(token=token_str, file_path=dummy_path, event_name=event_name)
+        self._tokens[token_str] = token_obj
+        return token_obj
+
+    def get_sharing_url(self, token: str) -> str:
+        return self.get_share_url(token)
+
     def generate_qr_bytes(self, url: str) -> bytes:
         """Tạo ảnh mã QR định dạng PNG bytes chất lượng cao."""
         qr = qrcode.QRCode(
@@ -122,3 +138,11 @@ class TokenManager:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return buf.getvalue()
+
+    def generate_qr_code(self, token: str) -> "Image.Image":
+        """Tạo ảnh PIL.Image của mã QR từ token."""
+        url = self.get_share_url(token)
+        qr_bytes = self.generate_qr_bytes(url)
+        from PIL import Image
+        return Image.open(io.BytesIO(qr_bytes))
+

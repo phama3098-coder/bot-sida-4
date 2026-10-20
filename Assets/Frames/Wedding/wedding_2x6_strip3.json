@@ -1,0 +1,104 @@
+{
+  "id": "wedding_2x6_strip3",
+  "name": "Tiệc Cưới Lãng Mạn (Dải 2x6 - 3 Ảnh)",
+  "category": "Wedding",
+  "type": "2x6",
+  "canvas_size": [
+    600,
+    1800
+  ],
+  "bg_color": "#FFFDF9",
+  "bg_image_path": null,
+  "overlay_png_path": "C:\\Users\\Admin\\Documents\\photobooth\\Assets\\Frames\\Wedding\\wedding_2x6_strip3_overlay.png",
+  "slots": [
+    {
+      "id": 1,
+      "x": 45,
+      "y": 60,
+      "w": 510,
+      "h": 380,
+      "rotation": 0,
+      "corner_radius": 12,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 0
+    },
+    {
+      "id": 2,
+      "x": 45,
+      "y": 470,
+      "w": 510,
+      "h": 380,
+      "rotation": 0,
+      "corner_radius": 12,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 1
+    },
+    {
+      "id": 3,
+      "x": 45,
+      "y": 880,
+      "w": 510,
+      "h": 380,
+      "rotation": 0,
+      "corner_radius": 12,
+      "border_width": 0,
+      "border_color": "#FFFFFF",
+      "photo_index": 2
+    }
+  ],
+  "text_layers": [
+    {
+      "id": "title",
+      "text": "Happy Wedding",
+      "x": 300,
+      "y": 1340,
+      "font_size": 42,
+      "font_color": "#8B6508",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "names",
+      "text": "Chú Rể & Cô Dâu",
+      "x": 300,
+      "y": 1420,
+      "font_size": 34,
+      "font_color": "#4A3B32",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "date",
+      "text": "{date}",
+      "x": 300,
+      "y": 1490,
+      "font_size": 26,
+      "font_color": "#7F8C8D",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    },
+    {
+      "id": "footer",
+      "text": "Cảm ơn bạn đã đến chung vui!",
+      "x": 300,
+      "y": 1680,
+      "font_size": 22,
+      "font_color": "#A08060",
+      "font_name": "arial.ttf",
+      "alignment": "center",
+      "is_variable": false
+    }
+  ],
+  "logo_layers": [],
+  "bleed_px": 15,
+  "safe_zone_px": 35,
+  "is_dual_strip": false,
+  "has_cut_line": false,
+  "version": "1.0",
+  "author": "VietPhotoBooth"
+}
