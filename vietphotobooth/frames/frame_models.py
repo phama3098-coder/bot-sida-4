@@ -29,6 +29,7 @@ class PhotoSlot:
     border_width: int = 0         # Độ dày viền ảnh
     border_color: str = "#FFFFFF" # Màu viền
     photo_index: int = 0          # Chỉ số ảnh chụp được gán (0, 1, 2, 3...)
+    z_order: int = 0              # Thứ tự lớp (lớp cao hơn vẽ đè lên lớp thấp hơn)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -101,8 +102,9 @@ class FrameTemplate:
     safe_zone_px: int = 40        # Vùng an toàn không đặt chữ/mặt người
     is_dual_strip: bool = False   # Nhân đôi dải 2x6 sang bên phải (chuẩn máy in DNP DS-RX1HS)
     has_cut_line: bool = False    # Vẽ đường đứt nét căn cắt giữa 2 dải
+    notes: str = ""               # Ghi chú hướng dẫn sử dụng khung
     version: str = "1.0"
-    author: str = "VietPhotoBooth"
+    author: str = "1998 TEAM"
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

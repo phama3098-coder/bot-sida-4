@@ -17,6 +17,7 @@ a = Analysis(
         'PySide6.QtCore',
         'PySide6.QtGui',
         'PySide6.QtWidgets',
+        'PySide6.QtSvg',
         'uvicorn.logging',
         'uvicorn.loops',
         'uvicorn.loops.auto',

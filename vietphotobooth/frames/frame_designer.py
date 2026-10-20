@@ -72,13 +72,20 @@ class FrameDesigner:
             except Exception as e:
                 logger.warning(f"Không thể tải ảnh nền {template.bg_image_path}: {e}")
 
-        # 3. Đặt các ảnh vào từng ô PhotoSlot
-        for slot in template.slots:
+        # 3. Đặt các ảnh vào từng ô PhotoSlot (sắp xếp theo thứ tự lớp z_order)
+        sorted_slots = sorted(template.slots, key=lambda s: getattr(s, 'z_order', 0))
+        for slot in sorted_slots:
             idx = slot.photo_index % len(photos)
             raw_photo = photos[idx].convert("RGBA")
 
             # Cắt và thu phóng ảnh chuẩn tỷ lệ ô chứa
             slot_photo = ImageProcessor.crop_and_resize(raw_photo, slot.w, slot.h)
+
+            # Xoay ảnh theo thuộc tính rotation nếu có (90, 180, 270 hoặc góc bất kỳ)
+            if getattr(slot, 'rotation', 0) != 0:
+                rot = slot.rotation % 360
+                slot_photo = slot_photo.rotate(-rot, expand=True, resample=Image.Resampling.BICUBIC)
+                slot_photo = ImageProcessor.crop_and_resize(slot_photo, slot.w, slot.h)
 
             # Bo góc tròn nếu yêu cầu
             if slot.corner_radius > 0:

@@ -250,6 +250,143 @@ class FrameManager:
             return True
         return False
 
+    def import_external_frame(
+        self,
+        file_path: str,
+        template_name: str,
+        category: str = "Custom",
+        strip_type: str = "2x6",
+        layer_mode: str = "overlay", # "overlay" (ảnh nằm dưới khung) hoặc "background" (ảnh nằm trên nền)
+        notes: str = "",
+        num_slots: int = 3
+    ) -> Optional[FrameTemplate]:
+        """
+        Nhập một file ảnh (PNG trong suốt, JPG nền kín hoặc SVG vector) làm khung viền cho Photobooth.
+        Tự động chuyển đổi SVG sang ảnh raster 300 DPI độ nét cao.
+        Lưu tệp vào thư mục người dùng (USER_DATA_DIR) để bảo toàn vĩnh viễn khi cập nhật ứng dụng.
+        """
+        if not os.path.exists(file_path):
+            logger.error(f"File khung không tồn tại: {file_path}")
+            return None
+
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in (".png", ".jpg", ".jpeg", ".svg"):
+            logger.error(f"Định dạng tệp không được hỗ trợ: {ext}. Hỗ trợ: PNG, JPG, JPEG, SVG.")
+            return None
+
+        cat_dir = os.path.join(self.user_dir, category)
+        os.makedirs(cat_dir, exist_ok=True)
+
+        safe_id = "".join(c if c.isalnum() else "_" for c in template_name.lower()).strip("_")
+        if not safe_id:
+            safe_id = f"frame_{int(os.path.getmtime(file_path))}"
+
+        canvas_size = list(DPI_300_SIZES.get(strip_type, (600, 1800)))
+        w, h = canvas_size[0], canvas_size[1]
+
+        dest_image_path = None
+        overlay_path = None
+        bg_image_path = None
+
+        try:
+            if ext == ".svg":
+                # Chuyển đổi SVG an toàn sang PNG 300 DPI
+                dest_image_path = os.path.join(cat_dir, f"{safe_id}_vector.png")
+                success = self.convert_svg_to_png(file_path, dest_image_path, w, h)
+                if not success:
+                    return None
+                if layer_mode == "background":
+                    bg_image_path = dest_image_path
+                else:
+                    overlay_path = dest_image_path
+            elif ext in (".jpg", ".jpeg"):
+                dest_image_path = os.path.join(cat_dir, f"{safe_id}_bg{ext}")
+                shutil.copy2(file_path, dest_image_path)
+                bg_image_path = dest_image_path
+            else: # .png
+                dest_image_path = os.path.join(cat_dir, f"{safe_id}_overlay.png")
+                shutil.copy2(file_path, dest_image_path)
+                if layer_mode == "background":
+                    bg_image_path = dest_image_path
+                else:
+                    overlay_path = dest_image_path
+
+            # Khởi tạo các ô PhotoSlot ban đầu phù hợp với khổ in và số lượng ảnh
+            slots = []
+            if strip_type == "2x6":
+                if num_slots == 4:
+                    slot_h = 320
+                    gap = 25
+                    start_y = 50
+                    for i in range(4):
+                        slots.append(PhotoSlot(id=i+1, x=45, y=start_y + i * (slot_h + gap), w=510, h=slot_h, corner_radius=10, photo_index=i))
+                elif num_slots == 2:
+                    slots.append(PhotoSlot(id=1, x=45, y=80, w=510, h=560, corner_radius=10, photo_index=0))
+                    slots.append(PhotoSlot(id=2, x=45, y=680, w=510, h=560, corner_radius=10, photo_index=1))
+                elif num_slots == 1:
+                    slots.append(PhotoSlot(id=1, x=45, y=100, w=510, h=1100, corner_radius=12, photo_index=0))
+                else: # 3 slots
+                    slots = [
+                        PhotoSlot(id=1, x=45, y=60, w=510, h=380, corner_radius=10, photo_index=0),
+                        PhotoSlot(id=2, x=45, y=470, w=510, h=380, corner_radius=10, photo_index=1),
+                        PhotoSlot(id=3, x=45, y=880, w=510, h=380, corner_radius=10, photo_index=2),
+                    ]
+                text_layers = [
+                    TextLayer(id="title", text=template_name, x=300, y=1340, font_size=38, alignment="center"),
+                    TextLayer(id="date", text="{date}", x=300, y=1420, font_size=26, alignment="center")
+                ]
+            elif strip_type == "4x6_landscape":
+                if num_slots == 2:
+                    slots = [
+                        PhotoSlot(id=1, x=60, y=80, w=800, h=800, corner_radius=12, photo_index=0),
+                        PhotoSlot(id=2, x=940, y=80, w=800, h=800, corner_radius=12, photo_index=1),
+                    ]
+                else: # 3 slots
+                    slots = [
+                        PhotoSlot(id=1, x=60, y=80, w=520, h=680, corner_radius=12, photo_index=0),
+                        PhotoSlot(id=2, x=640, y=80, w=520, h=680, corner_radius=12, photo_index=1),
+                        PhotoSlot(id=3, x=1220, y=80, w=520, h=680, corner_radius=12, photo_index=2),
+                    ]
+                text_layers = [
+                    TextLayer(id="title", text=template_name, x=900, y=840, font_size=46, alignment="center"),
+                    TextLayer(id="date", text="{date}", x=900, y=930, font_size=30, alignment="center")
+                ]
+            else: # 4x6_portrait or 4x6_dual
+                slots = [
+                    PhotoSlot(id=1, x=60, y=60, w=520, h=520, corner_radius=10, photo_index=0),
+                    PhotoSlot(id=2, x=620, y=60, w=520, h=520, corner_radius=10, photo_index=1),
+                    PhotoSlot(id=3, x=60, y=620, w=520, h=520, corner_radius=10, photo_index=2),
+                    PhotoSlot(id=4, x=620, y=620, w=520, h=520, corner_radius=10, photo_index=3),
+                ]
+                text_layers = [
+                    TextLayer(id="title", text=template_name, x=600, y=1220, font_size=44, alignment="center"),
+                    TextLayer(id="date", text="{date}", x=600, y=1300, font_size=28, alignment="center")
+                ]
+
+            is_dual = (strip_type == "4x6_dual")
+            new_template = FrameTemplate(
+                id=safe_id,
+                name=template_name,
+                category=category,
+                type=strip_type,
+                canvas_size=canvas_size,
+                overlay_png_path=overlay_path,
+                bg_image_path=bg_image_path,
+                is_dual_strip=is_dual,
+                has_cut_line=is_dual,
+                notes=notes,
+                slots=slots,
+                text_layers=text_layers
+            )
+
+            self.save_frame(new_template)
+            logger.info(f"Đã nhập thành công khung: {template_name} ({ext})")
+            return new_template
+
+        except Exception as e:
+            logger.error(f"Lỗi khi nhập khung từ {file_path}: {e}")
+            return None
+
     def import_external_png_overlay(
         self,
         png_path: str,
@@ -257,70 +394,127 @@ class FrameManager:
         category: str = "Custom",
         strip_type: str = "2x6"
     ) -> Optional[FrameTemplate]:
-        """
-        Nhập một file ảnh PNG bên ngoài làm khung viền overlay cho Photobooth.
-        Lưu vào thư mục người dùng (USER_DATA_DIR) để bảo toàn vĩnh viễn khi cập nhật phần mềm.
-        """
-        if not os.path.exists(png_path):
-            logger.error(f"File PNG không tồn tại: {png_path}")
+        """Tương thích ngược với các lệnh gọi cũ."""
+        return self.import_external_frame(
+            file_path=png_path,
+            template_name=template_name,
+            category=category,
+            strip_type=strip_type,
+            layer_mode="overlay"
+        )
+
+    def duplicate_frame(self, frame_id: str, new_name: str) -> Optional[FrameTemplate]:
+        """Nhân bản một khung ảnh thành khung mới."""
+        source = self.get_frame(frame_id)
+        if not source:
             return None
+
+        safe_id = "".join(c if c.isalnum() else "_" for c in new_name.lower()).strip("_")
+        if not safe_id or safe_id == source.id:
+            safe_id = f"{source.id}_copy_{int(os.path.getmtime(self.user_dir))}"
+
+        cat_dir = os.path.join(self.user_dir, source.category)
+        os.makedirs(cat_dir, exist_ok=True)
+
+        new_overlay = None
+        if source.overlay_png_path and os.path.exists(source.overlay_png_path):
+            new_overlay = os.path.join(cat_dir, f"{safe_id}_overlay.png")
+            shutil.copy2(source.overlay_png_path, new_overlay)
+
+        new_bg = None
+        if source.bg_image_path and os.path.exists(source.bg_image_path):
+            ext = os.path.splitext(source.bg_image_path)[1]
+            new_bg = os.path.join(cat_dir, f"{safe_id}_bg{ext}")
+            shutil.copy2(source.bg_image_path, new_bg)
+
+        import copy
+        new_slots = copy.deepcopy(source.slots)
+        new_texts = copy.deepcopy(source.text_layers)
+        new_logos = copy.deepcopy(source.logo_layers)
+
+        new_frame = FrameTemplate(
+            id=safe_id,
+            name=new_name,
+            category=source.category,
+            type=source.type,
+            canvas_size=list(source.canvas_size),
+            bg_color=source.bg_color,
+            bg_image_path=new_bg,
+            overlay_png_path=new_overlay,
+            slots=new_slots,
+            text_layers=new_texts,
+            logo_layers=new_logos,
+            is_dual_strip=source.is_dual_strip,
+            has_cut_line=source.has_cut_line,
+            notes=source.notes,
+            version=source.version,
+            author=source.author
+        )
+
+        self.save_frame(new_frame)
+        logger.info(f"Đã nhân bản khung '{source.name}' thành '{new_name}' ({safe_id})")
+        return new_frame
+
+    def rename_frame(self, frame_id: str, new_name: str) -> bool:
+        """Đổi tên một khung ảnh."""
+        f = self.get_frame(frame_id)
+        if not f:
+            return False
+        f.name = new_name.strip()
+        return self.save_frame(f)
+
+    def backup_frames_to_zip(self, zip_path: str) -> bool:
+        """Sao lưu toàn bộ khung ảnh người dùng và tài nguyên ra file ZIP."""
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(zip_path)), exist_ok=True)
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                if os.path.exists(self.user_dir):
+                    for root, dirs, files in os.walk(self.user_dir):
+                        for file in files:
+                            full_path = os.path.join(root, file)
+                            rel_path = os.path.relpath(full_path, self.user_dir)
+                            zf.write(full_path, arcname=rel_path)
+            logger.info(f"Đã sao lưu toàn bộ khung ảnh vào: {zip_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Lỗi khi sao lưu khung ảnh ra ZIP: {e}")
+            return False
+
+    def restore_frames_from_zip(self, zip_path: str) -> bool:
+        """Khôi phục dữ liệu khung ảnh từ file ZIP sao lưu."""
+        if not os.path.exists(zip_path) or not zipfile.is_zipfile(zip_path):
+            logger.error(f"File ZIP khôi phục không hợp lệ: {zip_path}")
+            return False
 
         try:
-            with Image.open(png_path) as img:
-                if img.mode not in ("RGBA", "LA") and "transparency" not in img.info:
-                    logger.warning(f"File {png_path} không có kênh trong suốt (Alpha). Vẫn tiếp tục xử lý dưới dạng ảnh viền.")
-
-                w, h = img.size
-                canvas_size = DPI_300_SIZES.get(strip_type, [w, h])
-
-            cat_dir = os.path.join(self.user_dir, category)
-            os.makedirs(cat_dir, exist_ok=True)
-
-            safe_id = "".join(c if c.isalnum() else "_" for c in template_name.lower()).strip("_")
-            if not safe_id:
-                safe_id = f"custom_frame_{int(os.path.getmtime(png_path))}"
-
-            dest_png = os.path.join(cat_dir, f"{safe_id}_overlay.png")
-            shutil.copy2(png_path, dest_png)
-
-            # Tạo các ô slots mẫu dựa trên kiểu khung
-            if strip_type == "2x6":
-                slots = [
-                    PhotoSlot(id=1, x=45, y=60, w=510, h=380, corner_radius=8, photo_index=0),
-                    PhotoSlot(id=2, x=45, y=470, w=510, h=380, corner_radius=8, photo_index=1),
-                    PhotoSlot(id=3, x=45, y=880, w=510, h=380, corner_radius=8, photo_index=2),
-                ]
-                text_layers = [
-                    TextLayer(id="title", text=template_name, x=300, y=1340, font_size=38, alignment="center"),
-                    TextLayer(id="date", text="{date}", x=300, y=1420, font_size=26, alignment="center")
-                ]
-            else: # 4x6
-                slots = [
-                    PhotoSlot(id=1, x=60, y=60, w=520, h=520, corner_radius=8, photo_index=0),
-                    PhotoSlot(id=2, x=620, y=60, w=520, h=520, corner_radius=8, photo_index=1),
-                    PhotoSlot(id=3, x=60, y=620, w=520, h=520, corner_radius=8, photo_index=2),
-                    PhotoSlot(id=4, x=620, y=620, w=520, h=520, corner_radius=8, photo_index=3),
-                ]
-                text_layers = [
-                    TextLayer(id="title", text=template_name, x=600, y=1220, font_size=44, alignment="center"),
-                    TextLayer(id="date", text="{date}", x=600, y=1300, font_size=28, alignment="center")
-                ]
-
-            new_template = FrameTemplate(
-                id=safe_id,
-                name=template_name,
-                category=category,
-                type=strip_type,
-                canvas_size=list(canvas_size),
-                overlay_png_path=dest_png,
-                slots=slots,
-                text_layers=text_layers
-            )
-
-            self.save_frame(new_template)
-            logger.info(f"Đã nhập thành công khung ngoài: {template_name}")
-            return new_template
-
+            os.makedirs(self.user_dir, exist_ok=True)
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(self.user_dir)
+            self.reload_all_frames()
+            logger.info(f"Đã khôi phục thành công khung ảnh từ {zip_path}")
+            return True
         except Exception as e:
-            logger.error(f"Lỗi khi nhập khung PNG từ {png_path}: {e}")
-            return None
+            logger.error(f"Lỗi khi khôi phục khung ảnh: {e}")
+            return False
+
+    @staticmethod
+    def convert_svg_to_png(svg_path: str, out_png_path: str, width: int, height: int) -> bool:
+        """Chuyển đổi an toàn tệp SVG vector thành ảnh raster PNG chuẩn in 300 DPI."""
+        try:
+            from PySide6.QtSvg import QSvgRenderer
+            from PySide6.QtGui import QImage, QPainter
+            from PySide6.QtCore import Qt
+            renderer = QSvgRenderer(svg_path)
+            if not renderer.isValid():
+                logger.error(f"Tệp SVG không hợp lệ: {svg_path}")
+                return False
+
+            qimg = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
+            qimg.fill(Qt.transparent)
+            painter = QPainter(qimg)
+            renderer.render(painter)
+            painter.end()
+            return qimg.save(out_png_path, "PNG")
+        except Exception as e:
+            logger.error(f"Lỗi khi chuyển đổi SVG sang PNG: {e}")
+            return False
