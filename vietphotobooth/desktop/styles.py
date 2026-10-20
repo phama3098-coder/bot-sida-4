@@ -19,36 +19,39 @@ QMainWindow {
 }
 
 /* === Thanh Tiêu Đề & Navigation Bar === */
+QTabBar {
+    background: transparent;
+    qproperty-drawBase: 0;
+}
+
 QTabBar::tab {
-    background: #0E1629;
-    color: #94A3B8;
-    padding: 14px 28px;
-    font-size: 16px;
+    background: #10192C;
+    color: #E2E8F0;
+    padding: 8px 12px;
+    font-size: 14px;
     font-weight: 600;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    border: 1px solid #1E2D4A;
-    border-bottom: none;
-    margin-right: 4px;
-    min-width: 140px;
+    border-radius: 8px;
+    border: 1px solid #223354;
+    margin: 3px 2px;
+    min-width: 80px;
 }
 
 QTabBar::tab:selected {
-    background: #15223D;
-    color: #D4AF37; /* Vàng Champagne */
-    border-top: 3px solid #D4AF37;
-    font-weight: bold;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.35 #E5C158, stop:1 #C59B27);
+    color: #070A12;
+    border: 1.5px solid #FDF4DC;
+    font-weight: 800;
 }
 
 QTabBar::tab:hover:!selected {
-    background: #121D36;
+    background: #17243E;
     color: #F7E7CE;
+    border: 1px solid #D4AF37;
 }
 
 QTabWidget::pane {
-    border: 1px solid #1E2D4A;
-    background: #0D1527;
-    border-radius: 10px;
+    border: none;
+    background: #070A12;
 }
 
 /* === Nút Bấm Cảm Ứng (Touch Buttons) === */
@@ -199,6 +202,32 @@ QComboBox QAbstractItemView {
     selection-background-color: #1A284A;
     selection-color: #D4AF37;
     border: 1px solid #28395E;
+}
+
+/* === Hộp Kiểm (QCheckBox) === */
+QCheckBox {
+    color: #E2E8F0;
+    font-size: 14px;
+    font-weight: 500;
+    spacing: 8px;
+    background: transparent;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #28395E;
+    border-radius: 4px;
+    background-color: #0B1322;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #D4AF37;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #D4AF37;
+    border-color: #F7E7CE;
 }
 
 /* === Thanh Trượt Tham Số Bộ Lọc (Sliders) === */

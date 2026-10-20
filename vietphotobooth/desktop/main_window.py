@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar
 )
 from PySide6.QtCore import Qt, QKeyCombination
-from PySide6.QtGui import QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut, QPixmap
 
 from vietphotobooth.core.config import ConfigManager
 from vietphotobooth.core.events import EventManager
@@ -55,6 +55,21 @@ class MainWindow(QMainWindow):
         self.print_mgr = PrintManager()
         self.token_mgr = TokenManager(port=int(self.config_mgr.get("lan_server_port", 8080)))
 
+        # Tối ưu hóa font chữ Windows cho tiếng Việt và emoji chuẩn
+        from PySide6.QtGui import QFontDatabase, QFont
+        for fpath in (
+            "C:/Windows/Fonts/segoeui.ttf",
+            "C:/Windows/Fonts/segoeuib.ttf",
+            "C:/Windows/Fonts/seguiemj.ttf",
+            "C:/Windows/Fonts/seguisym.ttf",
+            "C:/Windows/Fonts/arial.ttf"
+        ):
+            if os.path.exists(fpath):
+                QFontDatabase.addApplicationFont(fpath)
+
+        QFont.insertSubstitution("Segoe UI", "Segoe UI Emoji")
+        QFont.insertSubstitution("Segoe UI", "Segoe UI Symbol")
+
         # Áp dụng giao diện cảm ứng Kiosk Dark Theme
         self.setStyleSheet(KIOSK_STYLE)
 
@@ -76,6 +91,28 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
 
+        # Thanh thương hiệu Logo 1998 Studio bên trái hàng tab
+        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
+        brand_widget = QWidget()
+        brand_layout = QHBoxLayout(brand_widget)
+        brand_layout.setContentsMargins(14, 4, 18, 4)
+        brand_layout.setSpacing(12)
+
+        lbl_logo = QLabel()
+        if os.path.exists(logo_path):
+            pix = QPixmap(logo_path)
+            lbl_logo.setPixmap(pix.scaledToHeight(46, Qt.SmoothTransformation))
+        else:
+            lbl_logo.setText("1998 STUDIO")
+            lbl_logo.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 18px;")
+        brand_layout.addWidget(lbl_logo)
+
+        lbl_title = QLabel("<b>1998 TEAM</b> — Photobooth")
+        lbl_title.setStyleSheet("color: #F7E7CE; font-size: 17px; font-weight: bold;")
+        brand_layout.addWidget(lbl_title)
+
+        self.tabs.setCornerWidget(brand_widget, Qt.TopLeftCorner)
+
         # 1. Chụp ảnh (Kiosk Photobooth)
         self.kiosk_page = KioskPage(
             camera_mgr=self.camera_mgr,
@@ -86,6 +123,8 @@ class MainWindow(QMainWindow):
             token_mgr=self.token_mgr,
             config_mgr=self.config_mgr
         )
+        self.kiosk_page.request_tab_switch.connect(self.switch_to_tab)
+        self.kiosk_page.request_fullscreen.connect(self.toggle_fullscreen)
         self.tabs.addTab(self.kiosk_page, "📸 Chụp Ảnh")
 
         # 2. Khung ảnh (Trình Thiết Kế Khung Ảnh)
@@ -114,6 +153,13 @@ class MainWindow(QMainWindow):
         self.tabs.tabBarClicked.connect(self._on_tab_bar_clicked)
 
         main_layout.addWidget(self.tabs)
+
+    def switch_to_tab(self, target_index: int):
+        """Chuyển tab theo yêu cầu từ các trang con (kiểm tra mã PIN nếu rời Kiosk)."""
+        if self.tabs.currentIndex() == 0 and target_index > 0:
+            if not self._verify_admin_pin():
+                return
+        self.tabs.setCurrentIndex(target_index)
 
     def _setup_shortcuts(self):
         # F11 để bật/tắt chế độ toàn màn hình Kiosk

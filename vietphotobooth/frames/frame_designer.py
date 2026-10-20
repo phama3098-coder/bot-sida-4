@@ -214,20 +214,46 @@ class FrameDesigner:
     ) -> Image.Image:
         """Tạo ảnh xem trước nhanh (preview thu nhỏ) để hiển thị trong ứng dụng GUI."""
         if not sample_photos:
-            # Tạo các ảnh mẫu màu pastel với số thứ tự
-            sample_photos = []
-            colors = ["#FFEAA7", "#81ECEC", "#74B9FF", "#A29BFE"]
-            for i in range(4):
-                sample_img = Image.new("RGB", (600, 450), color=colors[i % len(colors)])
-                d = ImageDraw.Draw(sample_img)
-                f = get_windows_font("arial.ttf", 60)
-                d.text((250, 190), f"Ảnh {i+1}", font=f, fill="#2D3436")
-                sample_photos.append(sample_img)
+            sample_portrait_path = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), "..", "..", "Assets", "Branding", "sample_slot_portrait.jpg"
+            ))
+            if os.path.exists(sample_portrait_path):
+                try:
+                    loaded_sample = Image.open(sample_portrait_path).convert("RGB")
+                    sample_photos = [loaded_sample] * max(len(template.slots), 1)
+                except Exception:
+                    sample_photos = []
 
-        full_render = FrameDesigner.render_composite(sample_photos, template)
+            if not sample_photos:
+                sample_photos = []
+                colors = ["#FFEAA7", "#81ECEC", "#74B9FF", "#A29BFE"]
+                for i in range(4):
+                    sample_img = Image.new("RGB", (600, 450), color=colors[i % len(colors)])
+                    d = ImageDraw.Draw(sample_img)
+                    f = get_windows_font("arial.ttf", 60)
+                    d.text((250, 190), f"Ảnh {i+1}", font=f, fill="#2D3436")
+                    sample_photos.append(sample_img)
+
+        if not template.slots:
+            dummy = Image.new("RGB", (400, 400), (240, 240, 240))
+            full_render = FrameDesigner.render_composite([dummy], template)
+        else:
+            full_render = FrameDesigner.render_composite(sample_photos, template)
+
         scale = max_height / float(full_render.height)
-        new_w = int(full_render.width * scale)
-        return full_render.resize((new_w, max_height), Image.Resampling.BILINEAR)
+        new_w = max(int(full_render.width * scale), 1)
+        return full_render.resize((new_w, max_height), Image.Resampling.LANCZOS)
+
+    @staticmethod
+    def generate_thumbnail(
+        template: FrameTemplate,
+        max_width: int = 140,
+        max_height: int = 180
+    ) -> Image.Image:
+        """Tạo ảnh thumbnail xem trước thực tế của mẫu khung dựa trên chính tệp khung."""
+        preview = FrameDesigner.render_preview(template, max_height=max_height)
+        preview.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+        return preview
 
     @staticmethod
     def validate_template(template: FrameTemplate) -> List[str]:
