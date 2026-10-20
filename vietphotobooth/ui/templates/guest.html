@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VietPhotoBooth - Tải Ảnh Kỷ Niệm</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { max-width: 500px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 20px; }
+        
+        .header { margin-top: 10px; }
+        .header h1 { font-size: 1.6rem; font-weight: 800; background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header p { font-size: 0.95rem; color: #94a3b8; margin-top: 4px; }
+
+        .photo-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 12px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .photo-card img { width: 100%; max-height: 520px; object-fit: contain; border-radius: 10px; background: black; }
+
+        .download-btn { width: 100%; background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; text-decoration: none; font-size: 1.25rem; font-weight: 700; padding: 16px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4); }
+        .download-btn:active { transform: scale(0.98); }
+
+        .notice-card { background: rgba(30, 41, 59, 0.6); border: 1px dashed #475569; border-radius: 12px; padding: 16px; font-size: 0.85rem; color: #94a3b8; line-height: 1.5; text-align: left; }
+        .notice-card strong { color: #38bdf8; display: block; margin-bottom: 4px; }
+
+        .error-card { background: #450a0a; border: 1px solid #b91c1c; border-radius: 12px; padding: 24px; color: #fca5a5; width: 100%; margin-top: 40px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% if error %}
+            <div class="error-card">
+                <h3 style="font-size: 1.3rem; margin-bottom: 8px;">Thông Báo</h3>
+                <p>{{ error }}</p>
+            </div>
+        {% else %}
+            <div class="header">
+                <h1>VietPhotoBooth</h1>
+                <p>Sự Kiện: {{ event_name }} • {{ created_at }}</p>
+            </div>
+
+            <div class="photo-card">
+                <img src="/download/{{ token }}" alt="Ảnh Photobooth">
+            </div>
+
+            <a href="/download/{{ token }}" class="download-btn" download>📥 TẢI ẢNH GỐC ĐỘ NÉT CAO</a>
+
+            <div class="notice-card">
+                <strong>💡 Lưu ý khi tải ảnh qua mạng nội bộ:</strong>
+                • Ảnh được tải trực tiếp từ máy chủ Photobooth tại sự kiện, hoàn toàn không tốn dung lượng 4G/Internet của bạn.<br>
+                • Nếu không tải được ảnh, vui lòng kiểm tra xem điện thoại đã kết nối vào cùng mạng Wi-Fi của Photobooth chưa.<br>
+                • Đường dẫn bảo mật này sẽ hết hạn sau khi sự kiện kết thúc.
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

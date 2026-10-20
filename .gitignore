@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller
+build/
+dist/
+*.manifest
+*.spec.bak
+
+# Testing
+.pytest_cache/
+
+# User Data / Logs
+*.log
+install.log
+installed_test/
+test_app_dir/
+
+# Node / Upstream dependencies
+upstream_photobooth/node_modules/
+upstream_photobooth/vendor/
