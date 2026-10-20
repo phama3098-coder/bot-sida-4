@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
         self.filter_engine = FilterEngine()
         self.frame_mgr = FrameManager()
         self.print_mgr = PrintManager()
-        self.token_mgr = TokenManager()
+        self.token_mgr = TokenManager(port=int(self.config_mgr.get("lan_server_port", 8080)))
 
         # Áp dụng giao diện cảm ứng Kiosk Dark Theme
         self.setStyleSheet(KIOSK_STYLE)

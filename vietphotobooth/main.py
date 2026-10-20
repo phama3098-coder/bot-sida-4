@@ -41,7 +41,7 @@ def main():
     parser = argparse.ArgumentParser(description="1998 TEAM — Photobooth | Ứng Dụng Photobooth Chuyên Nghiệp Windows")
     parser.add_argument("--kiosk", action="store_true", help="Khởi động trực tiếp ở chế độ toàn màn hình Kiosk")
     parser.add_argument("--no-server", action="store_true", help="Không khởi động máy chủ chia sẻ LAN")
-    parser.add_argument("--port", type=int, default=8000, help="Cổng máy chủ chia sẻ LAN (mặc định: 8000)")
+    parser.add_argument("--port", type=int, default=None, help="Cổng máy chủ chia sẻ LAN (mặc định: 8080)")
     args = parser.parse_args()
 
     # Đăng ký AppUserModelID cho Windows Taskbar hiển thị đúng icon

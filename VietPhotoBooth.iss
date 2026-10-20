@@ -24,7 +24,7 @@ DisableProgramGroupPage=yes
 
 ; Packaging and Output
 OutputDir=c:\Users\Admin\Documents\photobooth\dist_installer
-OutputBaseFilename=1998-Team-Photobooth-Setup
+OutputBaseFilename=1998-TEAM-Setup
 SetupIconFile=c:\Users\Admin\Documents\photobooth\Assets\Branding\app_icon.ico
 Compression=lzma2/max
 SolidCompression=yes

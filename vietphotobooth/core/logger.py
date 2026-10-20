@@ -43,11 +43,11 @@ def get_logger(log_dir: str = None) -> logging.Logger:
     # Determine log directory
     if not log_dir:
         base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-        log_dir = os.path.join(base_dir, "VietPhotoBooth", "Logs")
+        log_dir = os.path.join(base_dir, "1998TeamPhotobooth", "Logs")
     
     try:
         os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, "vietphotobooth.log")
+        log_file = os.path.join(log_dir, "1998team_photobooth.log")
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=10 * 1024 * 1024,  # 10 MB
