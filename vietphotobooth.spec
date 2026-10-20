@@ -60,7 +60,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='VietPhotoBooth',
+    name='1998TeamPhotobooth',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -71,6 +71,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='Assets/Branding/app_icon.ico',
 )
 
 coll = COLLECT(
@@ -81,5 +82,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='VietPhotoBooth',
+    name='1998TeamPhotobooth',
 )

@@ -13,17 +13,17 @@ from vietphotobooth.core.logger import get_logger
 logger = get_logger()
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "app_name": "VietPhotoBooth",
+    "app_name": "1998 TEAM — Photobooth",
     "version": "1.0.0",
     "admin_pin_hash": hashlib.sha256("1234".encode()).hexdigest(),
     "current_event": "SuKien_MacDinh",
-    "storage_dir": os.path.join(os.path.expanduser("~"), "Documents", "VietPhotoBooth"),
+    "storage_dir": os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "1998TeamPhotobooth"),
     "countdown_seconds": 5,
     "delay_between_shots": 2,
     "photos_per_session": 3,
     "template_type": "2x6",
-    "template_id": "strip_2x6_3photos",
-    "camera_backend": "simulator",
+    "template_id": "wedding_2x6_strip3",
+    "camera_backend": "directshow",
     "camera_device_index": 0,
     "printer_name": "",
     "printer_paper_size": "4x6",
@@ -35,17 +35,22 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "disk_warning_gb": 2.0,
     "dark_mode": True,
     "show_guide_on_start": True,
-    "event_title": "Kỷ Niệm Ngày Cưới",
-    "event_subtitle": "Chúc Mừng Hạnh Phúc",
+    "event_title": "1998 Studio Phóng Sự Cưới",
+    "event_subtitle": "Lưu Giữ Khoảnh Khắc Hạnh Phúc",
     "event_date": "2026-10-20"
 }
+
+def get_user_data_dir() -> str:
+    """Trả về thư mục lưu trữ tài nguyên người dùng ngoài thư mục cài đặt để bảo toàn dữ liệu khi cập nhật."""
+    base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    user_dir = os.path.join(base_dir, "1998TeamPhotobooth")
+    os.makedirs(user_dir, exist_ok=True)
+    return user_dir
 
 class ConfigManager:
     def __init__(self, config_path: str = None):
         if not config_path:
-            base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-            app_dir = os.path.join(base_dir, "VietPhotoBooth")
-            os.makedirs(app_dir, exist_ok=True)
+            app_dir = get_user_data_dir()
             config_path = os.path.join(app_dir, "config.json")
         
         self.config_path = config_path

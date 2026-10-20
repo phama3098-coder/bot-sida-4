@@ -34,12 +34,17 @@ from vietphotobooth.desktop.widgets.settings_page import SettingsPage
 logger = get_logger()
 
 class MainWindow(QMainWindow):
-    """Cửa sổ chính của ứng dụng Desktop VietPhotoBooth."""
+    """Cửa sổ chính của ứng dụng Desktop 1998 TEAM — Photobooth."""
 
     def __init__(self, start_in_kiosk: bool = False):
         super().__init__()
-        self.setWindowTitle("VietPhotoBooth — Phần Mềm Photobooth Chuyên Nghiệp Windows")
+        self.setWindowTitle("1998 TEAM — Photobooth")
         self.setMinimumSize(1024, 720)
+
+        # Cài đặt biểu tượng icon ứng dụng chính thức
+        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Branding", "app_icon.ico"))
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # 1. Khởi tạo các hệ thống lõi
         self.config_mgr = ConfigManager()
@@ -66,11 +71,12 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Tab Widget quản lý các phân hệ
+        # Tab Widget quản lý các phân hệ theo thứ tự yêu cầu:
+        # Chụp ảnh, Khung ảnh, Máy ảnh, Máy in, Sự kiện & Thư viện, Cài đặt
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
 
-        # 1. Màn hình Kiosk Photobooth
+        # 1. Chụp ảnh (Kiosk Photobooth)
         self.kiosk_page = KioskPage(
             camera_mgr=self.camera_mgr,
             filter_engine=self.filter_engine,
@@ -80,32 +86,27 @@ class MainWindow(QMainWindow):
             token_mgr=self.token_mgr,
             config_mgr=self.config_mgr
         )
-        self.tabs.addTab(self.kiosk_page, "📸 Chụp Ảnh (Kiosk)")
+        self.tabs.addTab(self.kiosk_page, "📸 Chụp Ảnh")
 
-        # 2. Bộ Chỉnh Sửa Bộ Lọc Màu
-        self.filter_page = FilterEditorPage(self.filter_engine)
-        self.filter_page.preset_changed.connect(lambda pid: self.kiosk_page._load_initial_templates())
-        self.tabs.addTab(self.filter_page, "🎨 Bộ Lọc Màu (Filter Studio)")
-
-        # 3. Trình Thiết Kế Khung Ảnh
+        # 2. Khung ảnh (Trình Thiết Kế Khung Ảnh)
         self.frame_page = FrameDesignerPage(self.frame_mgr)
-        self.frame_page.frame_changed.connect(lambda fid: self.kiosk_page._load_initial_templates())
-        self.tabs.addTab(self.frame_page, "🖼️ Khung Ảnh (Frame Designer)")
+        self.frame_page.frame_changed.connect(lambda fid: self.kiosk_page._load_frame_options())
+        self.tabs.addTab(self.frame_page, "🖼️ Khung Ảnh")
 
-        # 4. Quản Lý Máy Ảnh
+        # 3. Máy ảnh (Quản Lý Máy Ảnh & Thiết Lập Cảm Biến)
         self.camera_page = CameraPage(self.camera_mgr)
         self.tabs.addTab(self.camera_page, "📷 Máy Ảnh")
 
-        # 5. Quản Lý Máy In
+        # 4. Máy in (Quản Lý Máy In & Driver In Nhiệt)
         self.printing_page = PrintingPage(self.print_mgr)
         self.tabs.addTab(self.printing_page, "🖨️ Máy In")
 
-        # 6. Sự Kiện & Thư Viện
+        # 5. Sự kiện & Thư viện (Quản Lý Album, Mã QR, Sự Kiện)
         self.events_page = EventsPage(self.event_mgr, self.print_mgr, self.token_mgr)
         self.tabs.addTab(self.events_page, "📁 Sự Kiện & Thư Viện")
 
-        # 7. Cài Đặt Hệ Thống
-        self.settings_page = SettingsPage(self.config_mgr, self.token_mgr)
+        # 6. Cài đặt (Bảo Mật PIN, Kiosk, Quản Lý Bộ Lọc Màu & Bản Quyền)
+        self.settings_page = SettingsPage(self.config_mgr, self.token_mgr, self.filter_engine)
         self.settings_page.toggle_fullscreen_requested.connect(self.toggle_fullscreen)
         self.tabs.addTab(self.settings_page, "⚙️ Cài Đặt")
 
@@ -155,8 +156,9 @@ class MainWindow(QMainWindow):
                 self.tabs.tabBar().show()
         else:
             self.showFullScreen()
-            # Ở chế độ Kiosk toàn màn hình, chuyển về tab Chụp Ảnh
+            # Ở chế độ Kiosk toàn màn hình, chuyển về tab Chụp Ảnh và ẩn thanh Tab bar
             self.tabs.setCurrentIndex(0)
+            self.tabs.tabBar().hide()
 
     def _handle_escape_kiosk(self):
         if self.isFullScreen():

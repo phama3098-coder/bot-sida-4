@@ -14,19 +14,25 @@ from PIL import Image
 from vietphotobooth.core.logger import get_logger
 from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLayer, LogoLayer, DPI_300_SIZES
 
+from vietphotobooth.core.config import get_user_data_dir
+
 logger = get_logger()
 
 DEFAULT_FRAMES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Frames"))
+DEFAULT_USER_FRAMES_DIR = os.path.join(get_user_data_dir(), "Frames")
 
 CATEGORIES = ["Wedding", "Birthday", "Corporate", "Custom"]
 
 class FrameManager:
     """Quản lý danh viện khung in ảnh, nhập khung từ file PNG bên ngoài và sao lưu."""
 
-    def __init__(self, base_dir: str = DEFAULT_FRAMES_DIR):
+    def __init__(self, base_dir: str = DEFAULT_FRAMES_DIR, user_dir: str = DEFAULT_USER_FRAMES_DIR):
         self.base_dir = os.path.abspath(base_dir)
+        self.user_dir = os.path.abspath(user_dir)
+
         for cat in CATEGORIES:
             os.makedirs(os.path.join(self.base_dir, cat), exist_ok=True)
+            os.makedirs(os.path.join(self.user_dir, cat), exist_ok=True)
 
         self._templates: Dict[str, FrameTemplate] = {}
         self._init_default_templates()
@@ -171,17 +177,32 @@ class FrameManager:
         img.save(out_path, "PNG")
 
     def reload_all_frames(self):
-        """Quét và tải lại toàn bộ khung từ tất cả các danh mục."""
+        """Quét và tải lại toàn bộ khung từ tất cả các danh mục (cả thư mục hệ thống và thư mục người dùng)."""
         self._templates.clear()
-        for cat in os.listdir(self.base_dir):
-            cat_dir = os.path.join(self.base_dir, cat)
-            if not os.path.isdir(cat_dir):
-                continue
-            for fname in os.listdir(cat_dir):
-                if fname.endswith(".json"):
-                    tmpl = FrameTemplate.load_from_json(os.path.join(cat_dir, fname))
-                    if tmpl:
-                        self._templates[tmpl.id] = tmpl
+
+        # 1. Quét thư mục gốc kèm theo ứng dụng
+        if os.path.exists(self.base_dir):
+            for cat in os.listdir(self.base_dir):
+                cat_dir = os.path.join(self.base_dir, cat)
+                if not os.path.isdir(cat_dir):
+                    continue
+                for fname in os.listdir(cat_dir):
+                    if fname.endswith(".json"):
+                        tmpl = FrameTemplate.load_from_json(os.path.join(cat_dir, fname))
+                        if tmpl:
+                            self._templates[tmpl.id] = tmpl
+
+        # 2. Quét thư mục người dùng (ghi đè hoặc bổ sung khung riêng)
+        if os.path.exists(self.user_dir):
+            for cat in os.listdir(self.user_dir):
+                cat_dir = os.path.join(self.user_dir, cat)
+                if not os.path.isdir(cat_dir):
+                    continue
+                for fname in os.listdir(cat_dir):
+                    if fname.endswith(".json"):
+                        tmpl = FrameTemplate.load_from_json(os.path.join(cat_dir, fname))
+                        if tmpl:
+                            self._templates[tmpl.id] = tmpl
 
         logger.info(f"Đã nạp tổng cộng {len(self._templates)} mẫu khung in ảnh.")
 
@@ -196,32 +217,37 @@ class FrameManager:
         return self._templates.get(frame_id)
 
     def save_frame(self, template: FrameTemplate) -> bool:
-        """Lưu khung ảnh vào danh mục tương ứng."""
-        cat_dir = os.path.join(self.base_dir, template.category)
+        """Lưu khung ảnh vào thư mục người dùng để bảo toàn khi nâng cấp ứng dụng."""
+        cat_dir = os.path.join(self.user_dir, template.category)
         os.makedirs(cat_dir, exist_ok=True)
         target_json = os.path.join(cat_dir, f"{template.id}.json")
         success = template.save_to_json(target_json)
         if success:
             self._templates[template.id] = template
-            logger.info(f"Đã lưu khung in ảnh: {template.name} ({template.id})")
+            logger.info(f"Đã lưu khung in ảnh: {template.name} ({template.id}) tại {target_json}")
         return success
 
     def delete_frame(self, frame_id: str) -> bool:
-        """Xóa một khung ảnh."""
+        """Xóa một khung ảnh từ thư mục người dùng hoặc thư mục gốc."""
         tmpl = self.get_frame(frame_id)
         if not tmpl:
             return False
-        cat_dir = os.path.join(self.base_dir, tmpl.category)
-        target_json = os.path.join(cat_dir, f"{frame_id}.json")
-        if os.path.exists(target_json):
-            try:
-                os.remove(target_json)
-                self._templates.pop(frame_id, None)
-                logger.info(f"Đã xóa khung {frame_id}")
-                return True
-            except Exception as e:
-                logger.error(f"Lỗi khi xóa khung {frame_id}: {e}")
-                return False
+        
+        deleted = False
+        for root_dir in (self.user_dir, self.base_dir):
+            cat_dir = os.path.join(root_dir, tmpl.category)
+            target_json = os.path.join(cat_dir, f"{frame_id}.json")
+            if os.path.exists(target_json):
+                try:
+                    os.remove(target_json)
+                    deleted = True
+                except Exception as e:
+                    logger.error(f"Lỗi khi xóa khung {frame_id}: {e}")
+
+        if deleted:
+            self._templates.pop(frame_id, None)
+            logger.info(f"Đã xóa khung {frame_id}")
+            return True
         return False
 
     def import_external_png_overlay(
@@ -233,10 +259,7 @@ class FrameManager:
     ) -> Optional[FrameTemplate]:
         """
         Nhập một file ảnh PNG bên ngoài làm khung viền overlay cho Photobooth.
-        Tự động xác thực:
-        - Tồn tại kênh suốt (Alpha Channel).
-        - Tính toán kích thước chuẩn in 300 DPI.
-        - Khởi tạo các ô slot tương ứng.
+        Lưu vào thư mục người dùng (USER_DATA_DIR) để bảo toàn vĩnh viễn khi cập nhật phần mềm.
         """
         if not os.path.exists(png_path):
             logger.error(f"File PNG không tồn tại: {png_path}")
@@ -250,8 +273,7 @@ class FrameManager:
                 w, h = img.size
                 canvas_size = DPI_300_SIZES.get(strip_type, [w, h])
 
-            # Sao chép file PNG vào thư mục Assets/Frames/<category>/
-            cat_dir = os.path.join(self.base_dir, category)
+            cat_dir = os.path.join(self.user_dir, category)
             os.makedirs(cat_dir, exist_ok=True)
 
             safe_id = "".join(c if c.isalnum() else "_" for c in template_name.lower()).strip("_")

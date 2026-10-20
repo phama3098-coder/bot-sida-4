@@ -1,138 +1,173 @@
 """
-VietPhotoBooth Desktop QSS Stylesheet
-Modern, touch-friendly dark theme optimized for Windows 10/11 high-DPI kiosks.
+1998 TEAM — Photobooth QSS Stylesheet
+Phong cách Studio Cưới chuyên nghiệp, hiện đại, tinh tế.
+Màu chủ đạo: Xanh than đậm (#0D1527, #070A12), Đen (#050811), Vàng Champagne (#D4AF37, #C5A059).
+Hạn chế gradient sặc sỡ, tối ưu cho màn hình cảm ứng Kiosk.
 """
 
 KIOSK_STYLE = """
-/* === Giao Diện Nền Tảng VietPhotoBooth === */
+/* === Giao Diện Nền Tảng 1998 TEAM Photobooth === */
 QWidget {
-    background-color: #0F172A;
+    background-color: #070A12;
     color: #F8FAFC;
-    font-family: "Segoe UI", "Arial", sans-serif;
-    font-size: 14px;
+    font-family: "Segoe UI", "Arial", "Tahoma", sans-serif;
+    font-size: 15px;
 }
 
 QMainWindow {
-    background-color: #0F172A;
+    background-color: #070A12;
 }
 
 /* === Thanh Tiêu Đề & Navigation Bar === */
 QTabBar::tab {
-    background: #1E293B;
+    background: #0E1629;
     color: #94A3B8;
-    padding: 14px 24px;
-    font-size: 15px;
+    padding: 14px 28px;
+    font-size: 16px;
     font-weight: 600;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
+    border: 1px solid #1E2D4A;
+    border-bottom: none;
     margin-right: 4px;
-    min-width: 130px;
+    min-width: 140px;
 }
 
 QTabBar::tab:selected {
-    background: #3B82F6;
-    color: #FFFFFF;
+    background: #15223D;
+    color: #D4AF37; /* Vàng Champagne */
+    border-top: 3px solid #D4AF37;
+    font-weight: bold;
 }
 
 QTabBar::tab:hover:!selected {
-    background: #334155;
-    color: #F1F5F9;
+    background: #121D36;
+    color: #F7E7CE;
 }
 
 QTabWidget::pane {
-    border: 1px solid #334155;
-    background: #1E293B;
-    border-radius: 8px;
+    border: 1px solid #1E2D4A;
+    background: #0D1527;
+    border-radius: 10px;
 }
 
 /* === Nút Bấm Cảm Ứng (Touch Buttons) === */
 QPushButton {
-    background-color: #3B82F6;
-    color: #FFFFFF;
+    background-color: #15223D;
+    color: #F8FAFC;
     font-size: 15px;
     font-weight: 600;
-    border: none;
-    border-radius: 8px;
+    border: 1px solid #28395E;
+    border-radius: 10px;
     padding: 12px 24px;
-    min-height: 24px;
+    min-height: 28px;
 }
 
 QPushButton:hover {
-    background-color: #2563EB;
+    background-color: #1C2D52;
+    border: 1px solid #D4AF37;
+    color: #F7E7CE;
 }
 
 QPushButton:pressed {
-    background-color: #1D4ED8;
+    background-color: #121D36;
 }
 
 QPushButton:disabled {
-    background-color: #475569;
-    color: #94A3B8;
+    background-color: #131A2B;
+    color: #64748B;
+    border: 1px solid #1E273D;
 }
 
-/* Nút Chụp Ảnh To Đặc Biệt Cho Kiosk */
+/* NÚT BẮT ĐẦU CHỤP KHỔNG LỒ - VÀNG CHAMPAGNE QUÝ PHÁI */
 QPushButton#btn_big_capture {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EC4899, stop:1 #8B5CF6);
-    color: #FFFFFF;
+    background-color: #D4AF37;
+    color: #070A12;
     font-size: 24px;
-    font-weight: bold;
-    border-radius: 35px;
-    min-height: 70px;
-    min-width: 220px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    border: 2px solid #F7E7CE;
+    border-radius: 16px;
+    min-height: 72px;
+    padding: 12px 36px;
 }
 
 QPushButton#btn_big_capture:hover {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #DB2777, stop:1 #7C3AED);
+    background-color: #E5C158;
+    color: #050811;
+    border: 2px solid #FFFFFF;
 }
 
 QPushButton#btn_big_capture:pressed {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #BE185D, stop:1 #6D28D9);
+    background-color: #C5A059;
+}
+
+QPushButton#btn_big_capture:disabled {
+    background-color: #2D3748;
+    color: #718096;
+    border: 1px solid #4A5568;
+}
+
+/* Nút Vàng Champagne Hành Động Chính */
+QPushButton#btn_champagne {
+    background-color: #D4AF37;
+    color: #070A12;
+    font-weight: bold;
+    border: 1px solid #E5C158;
+}
+
+QPushButton#btn_champagne:hover {
+    background-color: #E5C158;
 }
 
 QPushButton#btn_secondary {
-    background-color: #334155;
-    color: #F8FAFC;
-    font-size: 15px;
+    background-color: #15223D;
+    color: #E2E8F0;
+    border: 1px solid #28395E;
 }
 
 QPushButton#btn_secondary:hover {
-    background-color: #475569;
+    background-color: #1E2D4E;
+    border: 1px solid #D4AF37;
 }
 
 QPushButton#btn_danger {
-    background-color: #EF4444;
-    color: #FFFFFF;
+    background-color: #7F1D1D;
+    color: #FEE2E2;
+    border: 1px solid #B91C1C;
 }
 
 QPushButton#btn_danger:hover {
-    background-color: #DC2626;
+    background-color: #991B1B;
 }
 
 QPushButton#btn_success {
-    background-color: #10B981;
-    color: #FFFFFF;
+    background-color: #D4AF37;
+    color: #070A12;
+    font-weight: bold;
+    border: 1px solid #E5C158;
 }
 
 QPushButton#btn_success:hover {
-    background-color: #059669;
+    background-color: #E5C158;
 }
 
 /* === Khung Chứa & Thẻ (Cards / Panels) === */
 QFrame#card_panel {
-    background-color: #1E293B;
-    border: 1px solid #334155;
+    background-color: #0E1629;
+    border: 1px solid #1E2D4A;
     border-radius: 12px;
-    padding: 16px;
+    padding: 14px;
 }
 
 QGroupBox {
-    border: 1px solid #334155;
-    border-radius: 8px;
+    border: 1px solid #1E2D4A;
+    border-radius: 10px;
     margin-top: 24px;
     font-weight: 600;
     font-size: 15px;
-    color: #38BDF8;
-    padding-top: 16px;
+    color: #D4AF37; /* Tiêu đề nhóm màu vàng champagne */
+    padding-top: 18px;
 }
 
 QGroupBox::title {
@@ -140,97 +175,98 @@ QGroupBox::title {
     subcontrol-position: top left;
     left: 14px;
     padding: 0 8px;
+    background-color: #0E1629;
 }
 
 /* === Ô Nhập Liệu & Danh Sách Lựa Chọn === */
 QLineEdit, QSpinBox, QComboBox {
-    background-color: #0F172A;
-    color: #FFFFFF;
-    border: 1px solid #475569;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 14px;
-    min-height: 22px;
+    background-color: #0A1020;
+    color: #F8FAFC;
+    border: 1px solid #28395E;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 15px;
+    min-height: 26px;
 }
 
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
-    border: 2px solid #3B82F6;
+    border: 2px solid #D4AF37;
 }
 
 QComboBox QAbstractItemView {
-    background-color: #1E293B;
-    color: #FFFFFF;
-    selection-background-color: #3B82F6;
-    selection-color: #FFFFFF;
-    border: 1px solid #334155;
+    background-color: #0E1629;
+    color: #F8FAFC;
+    selection-background-color: #1A284A;
+    selection-color: #D4AF37;
+    border: 1px solid #28395E;
 }
 
 /* === Thanh Trượt Tham Số Bộ Lọc (Sliders) === */
 QSlider::groove:horizontal {
     border: none;
     height: 8px;
-    background: #334155;
+    background: #1A284A;
     border-radius: 4px;
 }
 
 QSlider::sub-page:horizontal {
-    background: #3B82F6;
+    background: #D4AF37;
     border-radius: 4px;
 }
 
 QSlider::handle:horizontal {
-    background: #60A5FA;
-    border: 2px solid #FFFFFF;
-    width: 20px;
-    margin-top: -6px;
-    margin-bottom: -6px;
-    border-radius: 10px;
+    background: #F7E7CE;
+    border: 2px solid #D4AF37;
+    width: 22px;
+    margin-top: -7px;
+    margin-bottom: -7px;
+    border-radius: 11px;
 }
 
 QSlider::handle:horizontal:hover {
-    background: #93C5FD;
+    background: #FFFFFF;
 }
 
 /* === Bảng Dữ Liệu (Tables) === */
 QTableWidget {
-    background-color: #0F172A;
-    alternate-background-color: #1E293B;
-    gridline-color: #334155;
-    border: 1px solid #334155;
+    background-color: #0A1020;
+    alternate-background-color: #0E1629;
+    gridline-color: #1E2D4A;
+    border: 1px solid #1E2D4A;
     border-radius: 8px;
     color: #F8FAFC;
 }
 
 QTableWidget::item:selected {
-    background-color: #2563EB;
-    color: #FFFFFF;
+    background-color: #1A284A;
+    color: #D4AF37;
 }
 
 QHeaderView::section {
-    background-color: #1E293B;
-    color: #94A3B8;
-    font-weight: 600;
+    background-color: #0E1629;
+    color: #D4AF37;
+    font-weight: bold;
     border: none;
-    border-bottom: 2px solid #334155;
-    padding: 8px;
+    border-bottom: 2px solid #28395E;
+    padding: 10px;
 }
 
 /* === Thanh Cuộn Mượt (Scrollbar) === */
 QScrollBar:vertical {
     border: none;
-    background: #0F172A;
+    background: #070A12;
     width: 10px;
     border-radius: 5px;
 }
 
 QScrollBar::handle:vertical {
-    background: #475569;
+    background: #28395E;
     min-height: 30px;
     border-radius: 5px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: #64748B;
+    background: #D4AF37;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -239,19 +275,19 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 
 QScrollBar:horizontal {
     border: none;
-    background: #0F172A;
-    height: 10px;
-    border-radius: 5px;
+    background: #070A12;
+    height: 8px;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:horizontal {
-    background: #475569;
+    background: #28395E;
     min-width: 30px;
-    border-radius: 5px;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:horizontal:hover {
-    background: #64748B;
+    background: #D4AF37;
 }
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {

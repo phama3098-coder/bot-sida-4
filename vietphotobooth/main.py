@@ -11,7 +11,10 @@ import threading
 import uvicorn
 
 # Thêm thư mục gốc vào sys.path để import các module
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if getattr(sys, 'frozen', False):
+    root_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+else:
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
@@ -35,14 +38,23 @@ def run_sharing_server(host: str, port: int):
         logger.warning(f"Không thể khởi động máy chủ chia sẻ LAN: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="VietPhotoBooth - Phần Mềm Photobooth Chuyên Nghiệp Windows")
+    parser = argparse.ArgumentParser(description="1998 TEAM — Photobooth | Ứng Dụng Photobooth Chuyên Nghiệp Windows")
     parser.add_argument("--kiosk", action="store_true", help="Khởi động trực tiếp ở chế độ toàn màn hình Kiosk")
     parser.add_argument("--no-server", action="store_true", help="Không khởi động máy chủ chia sẻ LAN")
     parser.add_argument("--port", type=int, default=8000, help="Cổng máy chủ chia sẻ LAN (mặc định: 8000)")
     args = parser.parse_args()
 
+    # Đăng ký AppUserModelID cho Windows Taskbar hiển thị đúng icon
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("1998team.photobooth.studio.1")
+        except Exception:
+            pass
+
     print("=" * 65)
-    print("      VIETPHOTOBOOTH - ỨNG DỤNG PHOTOBOOTH CHUYÊN NGHIỆP")
+    print("      1998 TEAM — PHOTOBOOTH CHUYÊN NGHIỆP")
+    print("       1998 STUDIO PHÓNG SỰ CƯỚI & SỰ KIỆN")
     print("             NATIVE DESKTOP GUI DÀNH CHO WINDOWS 10 / 11")
     print("=" * 65)
 
@@ -60,13 +72,18 @@ def main():
 
     # Khởi chạy giao diện Desktop Native PySide6
     qt_app = QApplication(sys.argv)
-    qt_app.setApplicationName("VietPhotoBooth")
-    qt_app.setOrganizationName("VietPhotoBooth Team")
+    qt_app.setApplicationName("1998 TEAM — Photobooth")
+    qt_app.setOrganizationName("1998 Studio")
+
+    icon_path = os.path.abspath(os.path.join(root_dir, "Assets", "Branding", "app_icon.ico"))
+    if os.path.exists(icon_path):
+        from PySide6.QtGui import QIcon
+        qt_app.setWindowIcon(QIcon(icon_path))
 
     window = MainWindow(start_in_kiosk=args.kiosk)
     window.show()
 
-    logger.info("Giao diện Desktop VietPhotoBooth đã sẵn sàng.")
+    logger.info("Giao diện Desktop 1998 TEAM — Photobooth đã sẵn sàng.")
     sys.exit(qt_app.exec())
 
 if __name__ == "__main__":

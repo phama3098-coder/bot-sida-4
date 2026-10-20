@@ -19,10 +19,12 @@ from vietphotobooth.filters.lut_parser import CubeLUTParser
 
 logger = get_logger()
 
-# Thư mục lưu trữ filter preset mặc định
+from vietphotobooth.core.config import get_user_data_dir
+
+# Thư mục lưu trữ filter preset của người dùng (nằm ngoài thư mục cài đặt để bảo toàn khi cập nhật)
+DEFAULT_USER_FILTERS_DIR = os.path.join(get_user_data_dir(), "Filters")
+DEFAULT_USER_LUTS_DIR = os.path.join(get_user_data_dir(), "LUTs")
 DEFAULT_BUILTIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Filters", "BuiltIn"))
-DEFAULT_CUSTOM_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Filters", "Custom"))
-DEFAULT_LUTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Filters", "LUTs"))
 
 
 @dataclass
@@ -30,7 +32,7 @@ class FilterPreset:
     """Mô hình dữ liệu Preset bộ lọc có định danh, tên tiếng Việt và các tham số xử lý."""
     id: str
     name: str
-    category: str = "Chung"  # Chung, Đám cưới, Tiệc tùng, Nghệ thuật, Cổ điển
+    category: str = "Tùy Chỉnh"
     description: str = ""
     is_builtin: bool = False
     version: str = "1.0"
@@ -61,7 +63,6 @@ class FilterPreset:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "FilterPreset":
-        # Lọc chỉ lấy các trường có trong dataclass
         valid_fields = cls.__dataclass_fields__.keys()
         filtered = {k: v for k, v in data.items() if k in valid_fields}
         return cls(**filtered)
@@ -91,12 +92,11 @@ class FilterPreset:
 
 class FilterEngine:
     """
-    Bộ máy xử lý bộ lọc ảnh chuyên nghiệp cho VietPhotoBooth.
-    Hỗ trợ chỉnh sửa tham số bằng NumPy/OpenCV, nạp và áp dụng 3D LUT (.cube),
-    quản lý danh sách preset, import/export preset không phá hủy ảnh gốc.
+    Bộ máy xử lý bộ lọc ảnh chuyên nghiệp cho 1998 TEAM — Photobooth.
+    Khởi tạo thư viện bộ lọc sạch, cho phép người dùng tự do thêm/sửa/nhập/xuất bộ lọc.
     """
 
-    def __init__(self, builtin_dir: str = DEFAULT_BUILTIN_DIR, custom_dir: str = DEFAULT_CUSTOM_DIR, luts_dir: str = DEFAULT_LUTS_DIR):
+    def __init__(self, builtin_dir: str = DEFAULT_BUILTIN_DIR, custom_dir: str = DEFAULT_USER_FILTERS_DIR, luts_dir: str = DEFAULT_USER_LUTS_DIR):
         self.builtin_dir = os.path.abspath(builtin_dir)
         self.custom_dir = os.path.abspath(custom_dir)
         self.luts_dir = os.path.abspath(luts_dir)
@@ -108,8 +108,7 @@ class FilterEngine:
         self._presets: Dict[str, FilterPreset] = {}
         self._lut_cache: Dict[str, CubeLUTParser] = {}
 
-        self._init_sample_luts()
-        self._init_builtin_presets()
+        # Khởi tạo thư viện sạch, không tự sinh preset giả
         self.reload_all_presets()
 
     # -------------------------------------------------------------

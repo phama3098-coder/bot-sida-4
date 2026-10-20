@@ -21,15 +21,22 @@ def qapp():
 def test_main_window_initialization(qapp):
     window = MainWindow(start_in_kiosk=False)
     assert window is not None
-    assert window.windowTitle().startswith("VietPhotoBooth")
-    assert window.tabs.count() == 7
+    assert "1998 TEAM" in window.windowTitle()
+    assert window.tabs.count() == 6
+    assert "Chụp Ảnh" in window.tabs.tabText(0)
+    assert "Khung Ảnh" in window.tabs.tabText(1)
+    assert "Máy Ảnh" in window.tabs.tabText(2)
+    assert "Máy In" in window.tabs.tabText(3)
+    assert "Sự Kiện & Thư Viện" in window.tabs.tabText(4)
+    assert "Cài Đặt" in window.tabs.tabText(5)
     assert window.kiosk_page is not None
-    assert window.filter_page is not None
     assert window.frame_page is not None
     assert window.camera_page is not None
     assert window.printing_page is not None
     assert window.events_page is not None
     assert window.settings_page is not None
+    window.kiosk_page.stop_live_view()
+    window.camera_mgr.close()
 
 def test_fullscreen_toggle(qapp):
     window = MainWindow(start_in_kiosk=False)

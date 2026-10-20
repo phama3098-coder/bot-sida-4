@@ -12,7 +12,7 @@ def test_config_defaults_and_save():
         cfg_path = os.path.join(tmpdir, "test_config.json")
         cfg = ConfigManager(config_path=cfg_path)
 
-        assert cfg.get("app_name") == "VietPhotoBooth"
+        assert "1998 TEAM" in cfg.get("app_name")
         assert cfg.get("countdown_seconds") == 5
         assert cfg.get("photos_per_session") == 3
 

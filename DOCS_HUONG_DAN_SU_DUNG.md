@@ -1,16 +1,17 @@
-# HƯỚNG DẪN VẬN HÀNH PHẦN MỀM VIETPHOTOBOOTH
+# HƯỚNG DẪN VẬN HÀNH PHẦN MỀM 1998 TEAM — PHOTOBOOTH
+### 1998 Studio Phóng Sự Cưới & Sự Kiện Chuyên Nghiệp
 
 > **Ứng dụng Desktop Native chuyên nghiệp dành cho Windows 10 & 11 (64-bit)**  
-> Phát triển trên nền tảng **PySide6 (Qt 6)**, tối ưu cho màn hình cảm ứng Kiosk, tích hợp máy ảnh DSLR/Mirrorless/Webcam, in nhiệt DNP tự động cắt và chia sẻ ảnh QR qua mạng nội bộ.
+> Phát triển trên nền tảng **PySide6 (Qt 6)** phong cách Luxury Wedding Studio, tối ưu cho màn hình cảm ứng Kiosk, tích hợp máy ảnh DSLR/Mirrorless/Webcam, in nhiệt DNP tự động cắt và chia sẻ ảnh QR qua mạng nội bộ.
 
 ---
 
 ## 1. CÀI ĐẶT & KHỞI CHẠY
 
 ### 1.1. Cài đặt bằng file bộ cài (.exe)
-- Chạy file: `dist_installer\VietPhotoBooth-Setup.exe`.
+- Chạy file: `dist_installer\1998-Team-Photobooth-Setup.exe`.
 - Trình cài đặt tự động cài đặt vào máy tính mà **không yêu cầu quyền Administrator**.
-- Tự động tạo biểu tượng ngoài màn hình Desktop và trong Start Menu: **VietPhotoBooth**.
+- Tự động tạo biểu tượng ngoài màn hình Desktop và trong Start Menu: **1998 TEAM — Photobooth**.
 
 ### 1.2. Khởi chạy từ mã nguồn Python
 ```powershell
@@ -23,47 +24,38 @@ py -3.12 -m vietphotobooth.main --kiosk
 
 ---
 
-## 2. HƯỚNG DẪN CÁC PHÂN HỆ CHỨC NĂNG
+## 2. HƯỚNG DẪN CÁC PHÂN HỆ CHỨC NĂNG (6 MỤC ĐIỀU HƯỚNG)
+
+Giao diện quản trị được tổ chức thành 6 phân hệ chuyên nghiệp:
+1. `📸 Chụp Ảnh`
+2. `🖼️ Khung Ảnh`
+3. `📷 Máy Ảnh`
+4. `🖨️ Máy In`
+5. `📁 Sự Kiện & Thư Viện`
+6. `⚙️ Cài Đặt`
+
+---
 
 ### A. Màn Hình Photobooth Kiosk (`Tab: 📸 Chụp Ảnh`)
-Màn hình phục vụ khách chụp ảnh trực tiếp tại sự kiện:
-1. **Xem trước trực tiếp (Live View)**: Hiển thị mượt mà 30 FPS từ máy ảnh hoặc webcam.
-2. **Chọn đếm ngược**: Tùy chọn 3 giây, 5 giây hoặc 10 giây.
-3. **Nút BẮT ĐẦU CHỤP**: Nút bấm cảm ứng cỡ lớn. Khi bấm, hệ thống kích hoạt chuỗi chụp tuần tự (3 hoặc 4 ảnh) với nhịp đếm ngược và hiệu ứng chớp flash trực quan.
-4. **Màn hình xem kết quả (Review State)**:
-   - **Dải bộ lọc màu (Filter Strip)**: Khách hàng chạm vào các thẻ bộ lọc (`Tự Nhiên`, `Ấm Áp`, `Cổ Điển`, `Trắng Đen`, `Mịn Da Rạng Rỡ`, `Điện Ảnh Cinematic`...) để đổi hiệu ứng tức thì mà **không làm mất ảnh gốc**.
-   - **Dải khung ảnh (Frame Strip)**: Chạm đổi giữa các mẫu khung tiệc cưới, sinh nhật, doanh nghiệp hoặc dải đôi 2x6.
-   - **Nút IN ẢNH NGAY**: Chọn số lượng bản in (1 - 10 bản) và gửi trực tiếp tới máy in Windows Spooler.
-   - **Nút QUÉT MÃ QR**: Hiển thị popup chứa mã QR độ nét cao và địa chỉ IP LAN để khách dùng smartphone tải ảnh gốc và ảnh khung về máy.
-   - **Chụp lại (Retake)** & **Hoàn tất (Finish)**: Cho phép chụp lại nếu chưa ưng ý hoặc quay về màn hình chờ đón lượt khách tiếp theo.
+Màn hình phục vụ khách chụp ảnh trực tiếp tại sự kiện cưới & hội nghị:
+1. **Khung Live View trung tâm**: Chiếm diện tích lớn nhất giao diện, hiển thị mượt mà 30 FPS từ máy ảnh hoặc webcam.
+2. **Cảnh báo mất kết nối camera**: Nếu chưa cắm cáp USB hoặc camera bị ngắt kết nối, màn hình hiển thị bảng cảnh báo "CHƯA KẾT NỐI MÁY ẢNH" cùng nút "🔌 Kết Nối Lại Máy Ảnh", không hiển thị hình người mô phỏng.
+3. **Thanh trạng thái đầu trang**:
+   - Hiển thị logo **1998 Studio**, trạng thái kết nối camera, độ phân giải thực tế.
+   - Bộ chọn số lượng ảnh mỗi lượt (3 ảnh / 4 ảnh / 2 ảnh / 1 ảnh).
+   - Bộ chọn thời gian đếm ngược (3 giây / 5 giây / 10 giây).
+4. **Thanh điều khiển đáy trang (Không thanh cuộn ngang)**:
+   - **Chọn Khung Ảnh**: Danh sách các mẫu khung tiệc cưới, sinh nhật, doanh nghiệp hoặc dải đôi 2x6.
+   - **Bộ Lọc Màu**: Khởi tạo sạch sẽ không chứa bộ lọc mẫu. Hiển thị thông báo *"Chưa có bộ lọc. Hãy thêm bộ lọc của bạn"* cùng nút **"+ Thêm Bộ Lọc"** để người dùng tự tạo hoặc nạp preset/LUT của studio.
+   - **Nút BẮT ĐẦU CHỤP**: Nút bấm màu vàng Champagne cỡ lớn. Khi bấm, hệ thống kích hoạt chuỗi chụp tuần tự với nhịp đếm ngược và hiệu ứng flash.
+5. **Màn hình xem kết quả (Review Mode)**:
+   - **Nút IN ẢNH NGAY**: Gửi lệnh in trực tiếp tới máy in nhiệt DNP DS-RX1HS / Windows Spooler.
+   - **Nút QUÉT MÃ QR**: Hiển thị popup chứa mã QR độ nét cao và địa chỉ IP LAN để khách dùng smartphone tải ảnh về máy.
+   - **Chụp lại (Retake)**, **Lưu ảnh (Save)** & **Hoàn tất (Finish)**: Cho phép chụp lại nếu chưa ưng ý hoặc quay về màn hình chờ đón lượt khách tiếp theo.
 
 ---
 
-### B. Studio Chỉnh Sửa Bộ Lọc Màu & 3D LUT (`Tab: 🎨 Bộ Lọc Màu`)
-Bộ công cụ chuyên sâu cho chuyên viên kỹ thuật thiết kế và tùy biến tông màu ảnh:
-1. **14 Thanh trượt tham số xử lý ảnh số**:
-   - **Phơi sáng (Exposure)**: Bù trừ sáng -100 đến +100 (-1.5 EV đến +1.5 EV).
-   - **Độ sáng (Brightness)**: Cân chỉnh tổng thể vùng sáng.
-   - **Độ tương phản (Contrast)**: Tăng giảm chiều sâu khối hình.
-   - **Vùng sáng (Highlights)** & **Vùng tối (Shadows)**: Tinh chỉnh chi tiết ngược sáng hoặc bóng tối.
-   - **Gamma**: Tinh chỉnh dải sắc độ từ 0.2 đến 3.0.
-   - **Độ bão hòa (Saturation)**: Đậm đà hoặc nhạt màu.
-   - **Nhiệt độ màu (Temperature)**: Tông xanh mát (< 0) hoặc vàng ấm (> 0).
-   - **Sắc độ (Tint)**: Xanh lá (< 0) hoặc hồng tím (> 0).
-   - **Chuyển Trắng Đen (Grayscale)** & **Tông Nâu Cổ Điển (Sepia)**.
-   - **Làm mịn da (Soft Skin)**: Thuật toán lọc song phương kết hợp nhận diện vùng da người (YCbCr Skin Mask), làm mịn nốt mụn và khuyết điểm nhưng vẫn giữ nguyên khối mũi và nét mí mắt.
-   - **Độ sắc nét (Sharpness)**, **Mờ phim nâng đen (Fade)**, **Tối 4 góc (Vignette)**.
-2. **Hỗ trợ bảng tra màu chuẩn điện ảnh 3D LUT (.cube)**:
-   - Tự động nạp các file `.cube` trong thư mục `Assets/Filters/LUTs/`.
-   - Hỗ trợ nút **Nhập File .cube Ngoài** từ DaVinci Resolve / Photoshop / Lightroom.
-   - Thanh trượt điều chỉnh cường độ hòa trộn LUT từ 0% đến 100%.
-3. **Quản lý Preset**:
-   - **Tạo mới**, **Nhân bản**, **Lưu thay đổi**, **Xóa**.
-   - **Xuất file JSON** để chia sẻ preset giữa các máy booth hoặc **Nhập JSON** từ bên ngoài.
-
----
-
-### C. Trình Thiết Kế Khung Ảnh (`Tab: 🖼️ Khung Ảnh`)
+### B. Trình Thiết Kế Khung Ảnh (`Tab 2: 🖼️ Khung Ảnh`)
 Hệ thống thiết kế và bố cục khung in ảnh chuẩn mực 300 DPI:
 1. **Khổ in hỗ trợ**:
    - `2x6`: Dải dọc truyền thống (600 x 1800 px tại 300 DPI).
@@ -93,7 +85,20 @@ Hệ thống thiết kế và bố cục khung in ảnh chuẩn mực 300 DPI:
 
 ---
 
-### E. Quản Lý Máy In & Hàng Đợi (`Tab: 🖨️ Máy In`)
+---
+
+### C. Quản Lý Máy Ảnh (`Tab 3: 📷 Máy Ảnh`)
+1. **Lựa chọn Trình điều khiển (Backend)**:
+   - `Simulator`: Bộ giả lập máy ảnh với tín hiệu kiểm thử SMPTE và vòng ngắm studio, cho phép kiểm thử toàn bộ tính năng mà không cần cắm máy ảnh thật.
+   - `DirectShow Webcam (USB UVC)`: Hỗ trợ tất cả các dòng webcam USB chuẩn Windows (Logitech C920/C930e/Brio, Razer Kiyo...).
+   - `digiCamControl`: Điều khiển các dòng máy ảnh DSLR và Mirrorless qua cổng USB (Canon EOS, Nikon D/Z-series, Sony Alpha).
+2. **Kiểm tra khả năng & Chụp thử**:
+   - Bảng chẩn đoán tính năng thực tế: Live View, Chụp độ phân giải cao, Căn chỉnh thông số.
+   - Nút **Chụp Thử Nghiệm** để kiểm tra ngay chất lượng ánh sáng và tiêu cự.
+
+---
+
+### D. Quản Lý Máy In & Hàng Đợi (`Tab 4: 🖨️ Máy In`)
 1. **Nhận diện Driver Windows Spooler**:
    - Tự động liệt kê mọi máy in đã cài đặt trên Windows (`DNP DS-RX1HS`, `Citizen CY-02`, `Hiti P525L`, `Canon SELPHY`...).
 2. **Cấu hình cắt đôi 2x6 inch (DNP Cut Mode)**:
@@ -105,7 +110,7 @@ Hệ thống thiết kế và bố cục khung in ảnh chuẩn mực 300 DPI:
 
 ---
 
-### F. Quản Lý Sự Kiện & Thư Viện (`Tab: 📁 Sự Kiện & Thư Viện`)
+### E. Quản Lý Sự Kiện & Thư Viện (`Tab 5: 📁 Sự Kiện & Thư Viện`)
 1. **Quản lý sự kiện**:
    - Tạo sự kiện mới (ví dụ: `DamCuoi_TuanLan`, `SinhNhat_BaoNgoc`).
    - Tự động tạo cấu trúc thư mục chuẩn: `Originals/`, `Final/`, `Thumbnails/`, `Templates/`, `Logs/`.
@@ -117,12 +122,18 @@ Hệ thống thiết kế và bố cục khung in ảnh chuẩn mực 300 DPI:
 
 ---
 
-### G. Cài Đặt Hệ Thống & Bảo Mật PIN (`Tab: ⚙️ Cài Đặt`)
+### F. Cài Đặt Hệ Thống, Bảo Mật PIN & Bộ Lọc (`Tab 6: ⚙️ Cài Đặt`)
 1. **Bảo mật mã PIN**:
    - Khi bật bảo mật PIN, khách hàng tại booth không thể tự ý thoát ra ngoài màn hình Windows hoặc can thiệp vào các tab cấu hình quản trị.
    - Mã PIN mặc định khi xuất xưởng: `1234`. Có thể đổi mã PIN mới dễ dàng.
 2. **Toàn màn hình Kiosk (F11)**:
-   - Bấm `F11` hoặc nút **Bật Toàn Màn Hình** để đưa ứng dụng vào chế độ Kiosk chuyên nghiệp, ẩn thanh tiêu đề và thanh tác vụ Windows.
-3. **Máy chủ chia sẻ ảnh mạng LAN**:
+   - Bấm `F11` hoặc nút **Bật Toàn Màn Hình** để đưa ứng dụng vào chế độ Kiosk chuyên nghiệp, tự động ẩn thanh tiêu đề và thanh tác vụ Windows.
+3. **Quản lý Bộ Lọc Màu (Filter Studio)**:
+   - Mở trực tiếp từ nút **"+ Thêm Bộ Lọc"** tại màn hình Chụp Ảnh hoặc nút **"🎨 Mở Trình Biên Tập Bộ Lọc Màu (Filter Studio)"** trong mục Cài Đặt.
+   - Tinh chỉnh 14 tham số màu sắc (Exposure, Brightness, Contrast, Temp, Tint, Shadows, Highlights, Gamma, Vignette...).
+   - Thuật toán làm mịn da chân dung (Soft Skin) bằng lọc song phương YCbCr.
+   - Nạp file `.cube` 3D LUT từ Photoshop/Lightroom với thanh trượt cường độ hòa trộn 0 - 100%.
+   - Tạo mới, nhân bản, lưu, xuất và nhập cấu hình bộ lọc JSON.
+4. **Máy chủ chia sẻ ảnh mạng LAN**:
    - Hiển thị địa chỉ IP trạm và cổng dịch vụ (mặc định: `8000`).
    - Khách hàng kết nối chung mạng WiFi với trạm Photobooth là có thể quét mã QR để tải ảnh trực tiếp về smartphone.

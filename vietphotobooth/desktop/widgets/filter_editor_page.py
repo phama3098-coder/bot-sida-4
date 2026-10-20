@@ -11,7 +11,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider,
     QCheckBox, QComboBox, QScrollArea, QFileDialog, QMessageBox, QGroupBox,
-    QInputDialog, QFrame, QSizePolicy
+    QInputDialog, QFrame, QSizePolicy, QDialog
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QPixmap, QImage
@@ -216,12 +216,17 @@ class FilterEditorPage(QWidget):
         self.combo_presets.blockSignals(True)
         self.combo_presets.clear()
         presets = self.engine.get_presets()
-        for p in presets:
-            prefix = "[Gốc] " if p.is_builtin else "[Tự Đặt] "
-            self.combo_presets.addItem(f"{prefix}{p.name}", p.id)
+        if not presets:
+            self.combo_presets.addItem("Chưa có bộ lọc (Bấm 'Tạo Mới')", None)
+            self.current_preset = None
+            self.lbl_preview.setText("Chưa có bộ lọc. Hãy thêm bộ lọc của bạn bằng nút 'Tạo Mới' hoặc 'Nhập JSON'.")
+        else:
+            for p in presets:
+                self.combo_presets.addItem(f"✨ {p.name}", p.id)
+
         self.combo_presets.blockSignals(False)
 
-        if self.combo_presets.count() > 0:
+        if presets:
             self.combo_presets.setCurrentIndex(0)
             self._on_preset_selected(0)
 
@@ -426,3 +431,20 @@ class FilterEditorPage(QWidget):
                 QMessageBox.information(self, "Thành Công", f"Đã nạp file LUT: {os.path.basename(path)}")
             except Exception as e:
                 QMessageBox.critical(self, "Lỗi", f"Lỗi sao chép LUT: {e}")
+
+class FilterEditorDialog(QDialog):
+    """Cửa sổ Modal bật lên để người dùng Thêm / Chỉnh sửa Bộ lọc màu trực tiếp."""
+    def __init__(self, filter_engine: FilterEngine, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("1998 TEAM — Thiết Kế & Quản Lý Bộ Lọc Màu")
+        self.resize(1050, 720)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        self.editor = FilterEditorPage(filter_engine, self)
+        layout.addWidget(self.editor)
+
+        btn_close = QPushButton("Đóng / Hoàn Tất")
+        btn_close.setObjectName("btn_secondary")
+        btn_close.setFixedHeight(44)
+        btn_close.clicked.connect(self.accept)
+        layout.addWidget(btn_close)

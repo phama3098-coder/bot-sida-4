@@ -1,63 +1,47 @@
-# VIETPHOTOBOOTH — ỨNG DỤNG PHOTOBOOTH DESKTOP CHUYÊN NGHIỆP CHO WINDOWS
+# 1998 TEAM — PHOTOBOOTH DESKTOP CHO WINDOWS
+### 1998 Studio Phóng Sự Cưới & Sự Kiện Chuyên Nghiệp
 
 ![Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%2064--bit-blue)
 ![GUI](https://img.shields.io/badge/GUI-PySide6%20%7C%20Qt%206-green)
 ![Python](https://img.shields.io/badge/Python-3.12-brightgreen)
 ![Tests](https://img.shields.io/badge/Tests-25%2F25%20Passing%20(100%25)-success)
-![Installer](https://img.shields.io/badge/Installer-VietPhotoBooth--Setup.exe%20(~83MB)-orange)
+![Theme](https://img.shields.io/badge/Theme-Navy%20%7C%20Black%20%7C%20Champagne%20Gold-gold)
+![Installer](https://img.shields.io/badge/Installer-1998--Team--Photobooth--Setup.exe-orange)
 
-**VietPhotoBooth** là ứng dụng **Desktop Native (Windows Native Window)** chuyên nghiệp, vận hành trực tiếp trên **Windows 10 và Windows 11 (64-bit)**, không yêu cầu mở trình duyệt web (không phải website gói webview).
+**1998 TEAM — Photobooth** là ứng dụng **Desktop Native (Windows Native Window)** chuyên nghiệp chuẩn Studio cưới, vận hành trực tiếp trên **Windows 10 và Windows 11 (64-bit)**, không phải website trình duyệt, không dùng WebView bọc ngoài.
 
-Ứng dụng được thiết kế cho tiệc cưới, sinh nhật, sự kiện doanh nghiệp và các booth chụp ảnh lấy liền tự động với màn hình cảm ứng, tích hợp máy ảnh DSLR/Mirrorless/Webcam, in nhiệt DNP DS-RX1HS tự động cắt và chia sẻ ảnh qua mã QR trong mạng nội bộ.
+Ứng dụng được thiết kế riêng cho **1998 Studio phóng sự cưới**, tiệc cưới cao cấp, sinh nhật, sự kiện doanh nghiệp và các booth chụp ảnh lấy liền tự động với màn hình cảm ứng, tích hợp máy ảnh DSLR/Mirrorless/Webcam, in nhiệt DNP DS-RX1HS tự động cắt và chia sẻ ảnh qua mã QR trong mạng nội bộ.
 
 ---
 
-## 🌟 ĐẶC ĐIỂM KỸ THUẬT NỔI BẬT
+## 🌟 ĐẶC ĐIỂM THƯƠNG HIỆU & NÂNG CẤP MỚI
 
-### 1. Ứng Dụng Desktop Native Hoàn Chỉnh (PySide6 / Qt 6)
-- **Không phải ứng dụng Web**: Chạy dưới dạng cửa sổ desktop Windows độc lập (`QMainWindow`), tối ưu hóa đồ họa phần cứng bằng Qt6, mượt mà trên màn hình cảm ứng từ 15 đến 32 inch.
-- **Chế độ Kiosk Toàn Màn Hình (F11 Kiosk Mode)**: Tự động ẩn thanh tác vụ Windows và thanh tiêu đề, khóa an toàn bằng **mã PIN 4 số** ngăn khách chạm thoát ứng dụng.
-- **Dịch vụ phụ trợ ngầm**: Máy chủ FastAPI nội bộ chạy trong luồng nền (daemon thread) chỉ nhằm phục vụ việc quét mã QR và tải ảnh về smartphone của khách qua WiFi nội bộ mà không cần Internet.
+### 1. Nhận Diện Thương Hiệu 1998 Studio Phóng Sự Cưới
+- **Bộ nhận diện chuẩn xác**: Sử dụng logo gốc chính thức của **1998 Studio phóng sự cưới** làm logo chính, icon Windows `.ico` đa độ phân giải (16x16 đến 256x256).
+- **Bảng màu Luxury Studio**: Xanh than đậm (`#0D1527`, `#0E1629`), Đen sâu thẳm (`#070A12`, `#050811`), Vàng Champagne (`#D4AF37`, `#E5C158`, `#F7E7CE`).
+- **Nút bấm cảm ứng lớn**: Nút "📸 BẮT ĐẦU CHỤP" màu vàng champagne nổi bật, chữ tiếng Việt to rõ, dễ chạm, bố cục không bao giờ xuất hiện thanh cuộn ngang gây cản trở.
+- **Thứ tự 6 phân hệ chuẩn**:
+  1. `📸 Chụp Ảnh`
+  2. `🖼️ Khung Ảnh`
+  3. `📷 Máy Ảnh`
+  4. `🖨️ Máy In`
+  5. `📁 Sự Kiện & Thư Viện`
+  6. `⚙️ Cài Đặt`
 
-### 2. Studio Bộ Lọc Màu Mở Rộng & Bảng Tra Màu 3D LUT (.cube)
-- **12 Preset màu tích hợp sẵn**:
-  - `Tự Nhiên (Natural)`, `Ấm Áp (Warm)`, `Tươi Mát (Cool)`, `Cổ Điển (Vintage)`, `Hoài Cổ 80s (Retro)`, `Trắng Đen Nghệ Thuật (B&W)`, `Nâu Hoài Niệm (Sepia)`, `Mịn Da Rạng Rỡ (Soft Skin)`, `Tươi Sáng Rực Rỡ (Bright Pop)`, `Tương Phản Ấn Tượng (High Contrast)`, `Hôn Lễ Lãng Mạn (Wedding Dream)`, `Điện Ảnh Cinematic (Teal & Orange)`.
-- **14 Tham số tinh chỉnh chuyên sâu**:
-  - Phơi sáng (Exposure), Độ sáng (Brightness), Độ tương phản (Contrast), Độ bão hòa (Saturation), Nhiệt độ màu (Temp), Sắc độ (Tint), Vùng sáng (Highlights), Vùng tối (Shadows), Gamma, Độ sắc nét (Sharpness), Mờ phim (Fade), Tối 4 góc (Vignette), Trắng đen (Grayscale), Tông nâu (Sepia).
-- **Làm mịn da thông minh (Soft Skin)**:
-  - Sử dụng bộ lọc song phương (Bilateral Filter) kết hợp nhận diện mặt nạ da người YCbCr; xóa sạch khuyết điểm da nhưng bảo toàn độ nét của mắt, tóc và sống mũi.
-- **Hỗ trợ chuẩn 3D LUT (.cube)**:
-  - Phân tích cú pháp file `.cube` chuẩn Adobe / DaVinci Resolve, nội suy tam tuyến (trilinear interpolation) tốc độ cao bằng NumPy, điều chỉnh cường độ hòa trộn từ 0% đến 100%.
-- **Quản lý Preset không phá hủy (Non-Destructive)**:
-  - Lưu, nhân bản, sửa tên, xóa, xuất/nhập file cấu hình preset `.json`. Ảnh gốc trong thư mục `Originals/` luôn được bảo toàn nguyên bản 100%.
+### 2. Màn Hình Chụp Ảnh Chuyên Nghiệp (Kiosk Live View)
+- **Live View chiếm diện tích lớn nhất**: Khung ngắm tỷ lệ 3:2 mở rộng bao phủ trung tâm giao diện.
+- **Thông báo mất kết nối chân thực**: Khi chưa cắm hoặc mất kết nối camera, hiển thị thông báo rõ ràng "CHƯA KẾT NỐI MÁY ẢNH" cùng nút "🔌 Kết Nối Lại Máy Ảnh", tuyệt đối không dùng hình người mô phỏng giả lập.
+- **Thanh trạng thái trực quan**: Hiển thị trạng thái camera, độ phân giải hiện thời, bộ chọn số ảnh mỗi lượt (3 ảnh / 4 ảnh) và thời gian đếm ngược (3s / 5s / 10s).
+- **Hậu kỳ sau chụp (Review Mode)**: Cho phép khách xem trước ảnh ghép hoàn chỉnh, Chụp lại (Retake), Lưu ảnh, Quét mã QR tải về điện thoại ngay, In ảnh tức thì và Hoàn tất phiên.
 
-### 3. Trình Thiết Kế Khung Ảnh (Frame Designer) & Nhập Khung PNG Ngoài
-- **Độ phân giải chuẩn in ấn 300 DPI**:
-  - `2x6 inch` (600 x 1800 px): Dải dọc 3 hoặc 4 ảnh truyền thống.
-  - `4x6 inch` (1200 x 1800 px đứng / 1800 x 1200 px ngang): Bố cục lưới 2x2 hoặc dải ngang sự kiện doanh nghiệp.
-  - `4x6 inch Ghép Đôi 2 Dải 2x6 (Dual Cut)`: Bố cục tối ưu hóa cho máy in nhiệt DNP DS-RX1HS tự động cắt đôi thành 2 dải rời sau khi in.
-- **Nhập khung PNG ngoài (Overlay PNG Import)**:
-  - Nhập trực tiếp file PNG viền hoa văn có kênh trong suốt (Alpha Channel) từ Photoshop/Canva; tự động căn lề 300 DPI và phân bổ các ô ảnh.
-- **Bố cục linh hoạt**:
-  - Di chuyển, thay đổi kích thước từng ô ảnh (PhotoSlot), bo góc tròn (`Corner Radius`), vẽ viền (`Border Width/Color`).
-  - Thêm các lớp chữ nghệ thuật tiếng Việt (`{event_name}`, `{date}`, tên cô dâu chú rể) và logo nhà tài trợ.
-- **Kiểm tra mép xén (Bleed) & Vùng an toàn (Safe Zone)**:
-  - Cảnh báo trực quan nếu ô ảnh hoặc chữ rơi vào vùng xén lề của máy in.
+### 3. Hệ Thống Bộ Lọc Màu Sạch (Filter Studio Mở Rộng)
+- **Thư viện khởi tạo sạch**: Xóa bỏ hoàn toàn các bộ lọc mẫu giả lập. Khởi tạo rỗng với thông báo thân thiện *"Chưa có bộ lọc. Hãy thêm bộ lọc của bạn"*.
+- **Nút "+ Thêm Bộ Lọc"**: Cho phép mở ngay hộp thoại thiết kế màu sắc, chỉnh sửa 14 tham số (phơi sáng, nhiệt độ, sắc độ, mịn da YCbCr, vignette...) hoặc nạp file `.cube` 3D LUT từ Lightroom/Photoshop.
+- **Quản lý toàn diện**: Tạo mới, đổi tên, nhân bản, lưu, xóa, xuất và nhập file cấu hình JSON.
+- **Bảo toàn ảnh gốc (Non-Destructive)**: Ảnh chụp gốc được lưu nguyên bản 100% tại `Originals/`, không bao giờ bị ghi đè hay mất chi tiết.
 
-### 4. Điều Khiển Đa Thiết Bị Máy Ảnh (Camera Adapter)
-- **Simulator**: Bộ giả lập máy ảnh với ảnh chân dung mẫu, cho phép kiểm thử toàn bộ quy trình mà không cần cắm máy ảnh thật.
-- **DirectShow UVC**: Tương thích mọi dòng Webcam USB (Logitech C920, C930e, Brio 4K, Razer Kiyo...).
-- **digiCamControl**: Điều khiển máy ảnh chuyên nghiệp DSLR & Mirrorless (Canon EOS, Nikon D/Z, Sony Alpha).
-
-### 5. In Ấn Chuyên Dụng (Windows Print Spooler & DNP DS-RX1HS)
-- Tích hợp trực tiếp với Windows Print Spooler qua Win32 API (`win32print`).
-- Profile chuyên dụng điều khiển dao cắt 2-inch cho máy in nhiệt **DNP DS-RX1HS**.
-- In thẻ kiểm tra màu sắc & độ căn lề (Test Print Card).
-- Quản lý hàng đợi in độc lập; lỗi máy in không bao giờ làm mất ảnh của khách.
-
-### 6. Đóng Gói Bộ Cài Windows Độc Lập (.exe)
-- Bộ cài hoàn chỉnh `dist_installer\VietPhotoBooth-Setup.exe` (~83 MB) được tạo bởi Inno Setup 6.
-- Cài đặt nhanh chóng, không yêu cầu quyền Administrator, tự động tạo icon Desktop & Start Menu, tích hợp trình gỡ cài đặt sạch sẽ.
+### 4. Tách Biệt Dữ Liệu Khách Hàng Ngoài Thư Mục Cài Đặt
+- Toàn bộ khung ảnh tự thiết kế, bộ lọc màu tự tạo, nhật ký hệ thống và ảnh sự kiện được lưu trữ tại `%LOCALAPPDATA%\1998TeamPhotobooth`. Khi cập nhật hoặc cài đặt lại phần mềm, tài sản của studio không bao giờ bị xóa mất.
 
 ---
 

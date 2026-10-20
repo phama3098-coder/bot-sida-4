@@ -3,16 +3,21 @@ VietPhotoBooth Settings & Security Page
 PIN security management, Kiosk countdown & timeout settings, LAN QR server config, and full screen toggles.
 """
 
+import os
 import sys
 import platform
+from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QGroupBox, QCheckBox, QSpinBox, QLineEdit, QMessageBox, QInputDialog
 )
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 
 from vietphotobooth.core.config import ConfigManager
 from vietphotobooth.sharing.token_manager import TokenManager
+from vietphotobooth.filters.filter_engine import FilterEngine
+from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorDialog
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
@@ -22,10 +27,17 @@ class SettingsPage(QWidget):
 
     toggle_fullscreen_requested = Signal()
 
-    def __init__(self, config_mgr: ConfigManager, token_mgr: TokenManager, parent=None):
+    def __init__(
+        self,
+        config_mgr: ConfigManager,
+        token_mgr: TokenManager,
+        filter_engine: Optional[FilterEngine] = None,
+        parent=None
+    ):
         super().__init__(parent)
         self.config_mgr = config_mgr
         self.token_mgr = token_mgr
+        self.filter_engine = filter_engine
 
         self._init_ui()
         self._load_config()
@@ -105,16 +117,42 @@ class SettingsPage(QWidget):
 
         layout.addWidget(grp_lan)
 
-        # 4. THÔNG TIN HỆ THỐNG
-        grp_sys = QGroupBox("4. Thông Tin Ứng Dụng & Bản Quyền")
+        # 4. QUẢN LÝ BỘ LỌC MÀU (FILTER STUDIO)
+        grp_filter = QGroupBox("4. Quản Lý Bộ Lọc Màu (Filter Studio)")
+        l_filter = QVBoxLayout(grp_filter)
+        l_filter.addWidget(QLabel("Tạo mới, chỉnh sửa thông số 14 bộ điều khiển màu, nhập file .cube 3D LUT và sao lưu bộ lọc."))
+        btn_open_filters = QPushButton("🎨 Mở Trình Biên Tập Bộ Lọc Màu (Filter Studio)")
+        btn_open_filters.setObjectName("btn_secondary")
+        btn_open_filters.clicked.connect(self._open_filter_studio)
+        l_filter.addWidget(btn_open_filters)
+        layout.addWidget(grp_filter)
+
+        # 5. THÔNG TIN HỆ THỐNG & THƯƠNG HIỆU 1998 STUDIO
+        grp_sys = QGroupBox("5. Thông Tin Ứng Dụng & Thương Hiệu")
         l_sys = QVBoxLayout(grp_sys)
-        l_sys.addWidget(QLabel("Tên Phần Mềm: <b>VietPhotoBooth — Commercial Photobooth Application</b>"))
-        l_sys.addWidget(QLabel(f"Nền Tảng: <b>{platform.system()} {platform.release()} (64-bit)</b> • Python {platform.python_version()} • PySide6"))
-        l_sys.addWidget(QLabel("Giấy Phép: Thương Mại & Bản Quyền Mã Nguồn Độc Lập"))
+
+        r_brand = QHBoxLayout()
+        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
+        if os.path.exists(logo_path):
+            lbl_logo = QLabel()
+            pix = QPixmap(logo_path)
+            lbl_logo.setPixmap(pix.scaledToHeight(64, Qt.SmoothTransformation))
+            r_brand.addWidget(lbl_logo)
+
+        brand_info = QVBoxLayout()
+        lbl_app_name = QLabel("<b>1998 TEAM — Photobooth</b>")
+        lbl_app_name.setStyleSheet("color: #D4AF37; font-size: 18px; font-weight: bold;")
+        brand_info.addWidget(lbl_app_name)
+        brand_info.addWidget(QLabel("Đơn vị sở hữu: <b>1998 Studio phóng sự cưới</b>"))
+        brand_info.addWidget(QLabel(f"Nền tảng: <b>{platform.system()} {platform.release()} (64-bit)</b> • Python {platform.python_version()} • PySide6"))
+        r_brand.addLayout(brand_info)
+        r_brand.addStretch()
+        l_sys.addLayout(r_brand)
+
         layout.addWidget(grp_sys)
 
         # Nút Lưu
-        btn_save = QPushButton("Lưu Toàn Bộ Cài Đặt")
+        btn_save = QPushButton("💾 Lưu Toàn Bộ Cài Đặt")
         btn_save.setObjectName("btn_success")
         btn_save.clicked.connect(self._save_config)
         layout.addWidget(btn_save)
@@ -146,3 +184,11 @@ class SettingsPage(QWidget):
         if ok2 and new_pin.strip():
             self.config_mgr.set_pin(new_pin.strip())
             QMessageBox.information(self, "Thành Công", "Đã cập nhật mã PIN quản trị mới thành công!")
+
+    def _open_filter_studio(self):
+        if not self.filter_engine:
+            QMessageBox.warning(self, "Thông Báo", "Filter Engine chưa được nạp.")
+            return
+        dlg = FilterEditorDialog(self.filter_engine, parent=self)
+        dlg.exec()
+
