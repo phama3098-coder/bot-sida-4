@@ -1,0 +1,19 @@
+{
+  "app": "1998 TEAM Photobooth",
+  "version": "1.1.0",
+  "build": 102,
+  "release_date": "2026-10-25",
+  "release_notes": [
+    "Nâng cấp giao diện studio cưới 1998 TEAM sang trọng, tinh tế",
+    "Bổ sung hệ thống phân quyền mã PIN bảo mật quản trị viên",
+    "Tích hợp kho phông chữ cưới Việt Hóa đóng gói offline",
+    "Bổ sung 4 tay nắm góc điều chỉnh kích thước ô ảnh trực quan",
+    "Tự động đồng bộ ảnh lên Google Drive và tạo mã QR truy cập tức thì"
+  ],
+  "download_url": "https://example.com/downloads/1998-TEAM-Setup.exe",
+  "sha256": "43afd94455ae5f16875ac0e26be78315afd54c0fadc8ca26ab583c6789273b23",
+  "file_size_bytes": 87504222,
+  "minimum_supported_version": "1.0.0",
+  "is_mandatory": false,
+  "channel": "stable"
+}

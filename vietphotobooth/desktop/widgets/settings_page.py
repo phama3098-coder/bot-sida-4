@@ -24,6 +24,8 @@ from vietphotobooth.filters.filter_engine import FilterEngine
 from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorDialog
 from vietphotobooth.cloud import SyncManager, GDriveAuth, GDriveClient
 from vietphotobooth.core.logger import get_logger
+from vietphotobooth.version import get_version_string, __release_date__, __version__, __build__
+from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
 
 logger = get_logger()
 
@@ -39,6 +41,7 @@ class SettingsPage(QWidget):
         filter_engine: Optional[FilterEngine] = None,
         sync_mgr: Optional[SyncManager] = None,
         auth_mgr=None,
+        update_mgr: Optional[UpdateManager] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -47,6 +50,7 @@ class SettingsPage(QWidget):
         self.filter_engine = filter_engine
         self.sync_mgr = sync_mgr
         self.auth_mgr = auth_mgr
+        self.update_mgr = update_mgr or UpdateManager(self.config_mgr, self)
 
         self._init_ui()
         self._load_config()
@@ -233,9 +237,10 @@ class SettingsPage(QWidget):
 
         layout.addWidget(grp_gdrive)
 
-        # 6. THÔNG TIN HỆ THỐNG & THƯƠNG HIỆU 1998 STUDIO
-        grp_sys = QGroupBox("6. Thông Tin Ứng Dụng & Thương Hiệu")
+        # 6. THÔNG TIN ỨNG DỤNG, BẢN QUYỀN & CẬP NHẬT PHIÊN BẢN
+        grp_sys = QGroupBox("6. Thông Tin Ứng Dụng & Cập Nhật Phiên Bản")
         l_sys = QVBoxLayout(grp_sys)
+        l_sys.setSpacing(12)
 
         r_brand = QHBoxLayout()
         logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
@@ -250,10 +255,49 @@ class SettingsPage(QWidget):
         lbl_app_name.setStyleSheet("color: #D4AF37; font-size: 18px; font-weight: bold;")
         brand_info.addWidget(lbl_app_name)
         brand_info.addWidget(QLabel("Đơn vị sở hữu: <b>1998 Studio phóng sự cưới</b>"))
+
+        lbl_ver_badge = QLabel(
+            f"Phiên bản hiện tại: <b style='color:#10B981;'>v{get_version_string()}</b> • Phát hành: <b>{__release_date__}</b>"
+        )
+        lbl_ver_badge.setStyleSheet("font-size: 13px; color: #CBD5E1;")
+        brand_info.addWidget(lbl_ver_badge)
+
         brand_info.addWidget(QLabel(f"Nền tảng: <b>{platform.system()} {platform.release()} (64-bit)</b> • Python {platform.python_version()} • PySide6"))
         r_brand.addLayout(brand_info)
         r_brand.addStretch()
         l_sys.addLayout(r_brand)
+
+        # Phân cách mỏng
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setStyleSheet("color: #1E2D4A;")
+        l_sys.addWidget(line)
+
+        # Cấu hình kiểm tra cập nhật
+        l_sys.addWidget(QLabel("<b>Cấu Hình & Kiểm Tra Cập Nhật Phần Mềm:</b>"))
+
+        r_up1 = QHBoxLayout()
+        r_up1.addWidget(QLabel("Địa chỉ Manifest Cập Nhật (URL / Đường Dẫn):"))
+        self.txt_manifest_url = QLineEdit()
+        self.txt_manifest_url.setPlaceholderText("https://.../update_manifest.json hoặc đường dẫn tệp local")
+        r_up1.addWidget(self.txt_manifest_url, 1)
+        l_sys.addLayout(r_up1)
+
+        r_up2 = QHBoxLayout()
+        self.chk_auto_update = QCheckBox("Tự động kiểm tra bản cập nhật mới khi mở ứng dụng")
+        r_up2.addWidget(self.chk_auto_update)
+        r_up2.addStretch()
+
+        self.btn_check_update = QPushButton("🔄 Kiểm Tra Cập Nhật Ngay")
+        self.btn_check_update.setObjectName("btn_secondary")
+        self.btn_check_update.setFixedHeight(34)
+        self.btn_check_update.clicked.connect(self._manual_check_update)
+        r_up2.addWidget(self.btn_check_update)
+        l_sys.addLayout(r_up2)
+
+        self.lbl_update_status = QLabel("Trạng thái: Sẵn sàng kiểm tra phiên bản mới.")
+        self.lbl_update_status.setStyleSheet("color: #94A3B8; font-size: 12px; font-style: italic;")
+        l_sys.addWidget(self.lbl_update_status)
 
         layout.addWidget(grp_sys)
 
@@ -289,6 +333,12 @@ class SettingsPage(QWidget):
         self.chk_auto_sync.setChecked(self.config_mgr.get("cloud.auto_sync", True))
         self.chk_public_share.setChecked(self.config_mgr.get("cloud.public_sharing", True))
 
+        # Update settings
+        murl = self.config_mgr.get("updates.manifest_url", "")
+        self.txt_manifest_url.setText(murl)
+        auto_up = self.config_mgr.get("updates.auto_check_on_startup", True)
+        self.chk_auto_update.setChecked(auto_up)
+
     def _save_config(self):
         if self.auth_mgr and not self.auth_mgr.is_authenticated():
             if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Lưu Cài Đặt"):
@@ -311,13 +361,53 @@ class SettingsPage(QWidget):
         self.config_mgr.set("cloud.auto_sync", self.chk_auto_sync.isChecked())
         self.config_mgr.set("cloud.public_sharing", self.chk_public_share.isChecked())
 
+        # Save Update settings
+        self.config_mgr.set("updates.manifest_url", self.txt_manifest_url.text().strip())
+        self.config_mgr.set("updates.auto_check_on_startup", self.chk_auto_update.isChecked())
+
         if self.sync_mgr:
             self.sync_mgr.auth.client_id = self.txt_client_id.text().strip()
             self.sync_mgr.auth.client_secret = self.txt_client_secret.text().strip()
 
         self.config_mgr.save()
         self._update_gdrive_ui_status()
-        QMessageBox.information(self, "Thành Công", "Đã lưu thành công các thiết lập hệ thống và đám mây!")
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QMessageBox.information(self, "Thành Công", "Đã lưu thành công các thiết lập hệ thống và đám mây!")
+
+    def _manual_check_update(self):
+        """Xử lý khi người dùng chủ động bấm 'Kiểm Tra Cập Nhật Ngay'."""
+        murl = self.txt_manifest_url.text().strip()
+        self.update_mgr.manifest_url = murl
+
+        self.lbl_update_status.setText("⏳ Đang kết nối máy chủ kiểm tra phiên bản mới...")
+        self.lbl_update_status.setStyleSheet("color: #38BDF8; font-weight: bold; font-size: 12px;")
+        self.btn_check_update.setEnabled(False)
+
+        def on_check_done(has_update: bool, manifest, msg: str):
+            self.btn_check_update.setEnabled(True)
+            try:
+                self.update_mgr.check_completed.disconnect(on_check_done)
+            except Exception:
+                pass
+
+            if has_update and manifest:
+                self.lbl_update_status.setText(f"🎉 Đã tìm thấy bản cập nhật mới: v{manifest.version} (Build {manifest.build})!")
+                self.lbl_update_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
+                self._update_dlg = UpdateNotificationDialog(manifest, self.update_mgr, self)
+                self._update_dlg.update_requested.connect(self._start_download_flow)
+                self._update_dlg.show()
+            else:
+                self.lbl_update_status.setText(f"ℹ️ {msg}")
+                self.lbl_update_status.setStyleSheet("color: #94A3B8; font-size: 12px;")
+
+        self.update_mgr.check_completed.connect(on_check_done)
+        self.update_mgr.check_for_updates(manual=True)
+
+    def _start_download_flow(self, manifest):
+        """Mở hộp thoại tiến trình tải bộ cài và xác thực SHA-256."""
+        self._progress_dlg = UpdateProgressDialog(manifest, self.update_mgr, self)
+        self.update_mgr.start_download(manifest)
+        self._progress_dlg.show()
 
     def _update_gdrive_ui_status(self):
         """Cập nhật giao diện trạng thái kết nối Google Drive."""

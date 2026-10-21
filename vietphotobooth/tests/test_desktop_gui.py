@@ -9,15 +9,6 @@ from PySide6.QtWidgets import QApplication
 
 from vietphotobooth.desktop.main_window import MainWindow
 
-@pytest.fixture(scope="session")
-def qapp():
-    # Use offscreen platform for headless CI / unit test environments
-    os.environ["QT_QPA_PLATFORM"] = "offscreen"
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-    return app
-
 def test_main_window_initialization(qapp):
     window = MainWindow(start_in_kiosk=False)
     assert window is not None

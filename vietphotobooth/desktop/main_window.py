@@ -32,6 +32,8 @@ from vietphotobooth.desktop.widgets.camera_page import CameraPage
 from vietphotobooth.desktop.widgets.printing_page import PrintingPage
 from vietphotobooth.desktop.widgets.events_page import EventsPage
 from vietphotobooth.desktop.widgets.settings_page import SettingsPage
+from vietphotobooth.version import __version__, get_version_string
+from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
 
 logger = get_logger()
 
@@ -61,6 +63,7 @@ class MainWindow(QMainWindow):
         self.print_mgr = PrintManager()
         self.token_mgr = TokenManager(port=int(self.config_mgr.get("lan_server_port", 8080)))
         self.sync_mgr = SyncManager(self.config_mgr)
+        self.update_mgr = UpdateManager(self.config_mgr, self)
 
         # Tối ưu hóa font chữ Windows cho tiếng Việt và emoji chuẩn
         from PySide6.QtGui import QFontDatabase, QFont
@@ -122,6 +125,11 @@ class MainWindow(QMainWindow):
         self.lbl_title.setStyleSheet("color: #F7E7CE; font-size: 15px; font-weight: bold;")
         self.brand_layout.addWidget(self.lbl_title)
 
+        self.lbl_ver = QLabel(f"v{__version__}")
+        self.lbl_ver.setStyleSheet("color: #64748B; font-size: 11px; font-weight: bold; padding-top: 3px;")
+        self.lbl_ver.setToolTip(f"Phiên bản: {get_version_string()}")
+        self.brand_layout.addWidget(self.lbl_ver)
+
         self.tabs.setCornerWidget(self.brand_widget, Qt.TopLeftCorner)
 
         # 1. Chụp ảnh (Kiosk Photobooth)
@@ -162,7 +170,14 @@ class MainWindow(QMainWindow):
         self.tabs.setTabToolTip(4, "Quản lý sự kiện & thư viện ảnh")
 
         # 6. Cài đặt (Bảo Mật PIN, Kiosk, Quản Lý Bộ Lọc Màu & Bản Quyền)
-        self.settings_page = SettingsPage(self.config_mgr, self.token_mgr, self.filter_engine, sync_mgr=self.sync_mgr, auth_mgr=self.auth_mgr)
+        self.settings_page = SettingsPage(
+            self.config_mgr,
+            self.token_mgr,
+            self.filter_engine,
+            sync_mgr=self.sync_mgr,
+            auth_mgr=self.auth_mgr,
+            update_mgr=self.update_mgr
+        )
         self.settings_page.toggle_fullscreen_requested.connect(self.toggle_fullscreen)
         self.tabs.addTab(self.settings_page, "⚙️ Cài Đặt")
         self.tabs.setTabToolTip(5, "Cài đặt hệ thống, bảo mật & Google Drive")
@@ -193,7 +208,30 @@ class MainWindow(QMainWindow):
         self.auth_mgr.auth_state_changed.connect(lambda _: self._update_auth_ui())
         self._update_auth_ui()
 
+        # Tự động kiểm tra bản cập nhật mới khi mở ứng dụng (chạy ngầm không giật lag)
+        self.update_mgr.check_completed.connect(self._on_auto_update_checked)
+        if self.update_mgr.is_auto_check_enabled:
+            QTimer.singleShot(2500, self._start_auto_update_check)
+
         main_layout.addWidget(self.tabs)
+
+    def _start_auto_update_check(self):
+        """Khởi chạy kiểm tra cập nhật ngầm nếu cửa sổ đang hoạt động."""
+        if self.isVisible():
+            self.update_mgr.check_for_updates(manual=False)
+
+    def _on_auto_update_checked(self, has_update: bool, manifest, msg: str):
+        """Hiển thị thông báo khi có bản cập nhật mới."""
+        if has_update and manifest and self.isVisible():
+            self._update_dlg = UpdateNotificationDialog(manifest, self.update_mgr, self)
+            self._update_dlg.update_requested.connect(self._start_download_flow)
+            self._update_dlg.show()
+
+    def _start_download_flow(self, manifest):
+        """Mở tiến trình tải và kiểm tra chữ ký SHA-256."""
+        self._progress_dlg = UpdateProgressDialog(manifest, self.update_mgr, self)
+        self.update_mgr.start_download(manifest)
+        self._progress_dlg.show()
 
     def _update_auth_ui(self):
         if not hasattr(self, "btn_auth_status"):
@@ -354,6 +392,12 @@ class MainWindow(QMainWindow):
             self.sync_mgr.close()
         if hasattr(self, "camera_mgr"):
             self.camera_mgr.close()
+        if hasattr(self, "update_mgr"):
+            if self.update_mgr._check_worker and self.update_mgr._check_worker.isRunning():
+                self.update_mgr._check_worker.wait(200)
+            if self.update_mgr._download_worker and self.update_mgr._download_worker.isRunning():
+                self.update_mgr._download_worker.stop()
+                self.update_mgr._download_worker.wait(200)
 
     def close(self) -> bool:
         self.cleanup()

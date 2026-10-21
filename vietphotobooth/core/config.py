@@ -9,12 +9,13 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any
 from vietphotobooth.core.logger import get_logger
+from vietphotobooth.version import __version__, __app_name__
 
 logger = get_logger()
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "app_name": "1998 TEAM — Photobooth",
-    "version": "1.0.0",
+    "app_name": __app_name__,
+    "version": __version__,
     "admin_pin_hash": hashlib.sha256("1234".encode()).hexdigest(),
     "current_event": "SuKien_MacDinh",
     "storage_dir": os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "1998TeamPhotobooth"),
@@ -37,7 +38,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "show_guide_on_start": True,
     "event_title": "1998 Studio Phóng Sự Cưới",
     "event_subtitle": "Lưu Giữ Khoảnh Khắc Hạnh Phúc",
-    "event_date": "2026-10-20"
+    "event_date": "2026-10-20",
+    "updates": {
+        "manifest_url": "",
+        "auto_check_on_startup": True,
+        "channel": "stable"
+    }
 }
 
 def get_user_data_dir() -> str:
@@ -121,3 +127,16 @@ class ConfigManager:
         result = self._config.copy()
         result.pop("admin_pin_hash", None)
         return result
+
+    def backup(self) -> str:
+        """Tạo bản sao lưu snapshot của tệp config.json trước khi nâng cấp."""
+        import time, shutil
+        if not os.path.exists(self.config_path):
+            return ""
+        backup_dir = os.path.join(os.path.dirname(self.config_path), "Backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        target = os.path.join(backup_dir, f"config_backup_{timestamp}.json")
+        shutil.copy2(self.config_path, target)
+        logger.info(f"Đã tạo bản sao lưu cấu hình tại: {target}")
+        return target
