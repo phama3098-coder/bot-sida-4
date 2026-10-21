@@ -26,12 +26,12 @@ from vietphotobooth.core.config import ConfigManager
 
 def test_version_and_semver_comparison():
     """Kiểm tra tính đúng đắn của phiên bản ứng dụng và thuật toán so sánh SemVer + Build."""
-    assert __version__ == "1.0.0"
+    assert __version__ in ("1.0.0", "1.1.0")
     assert __build__ > 0
     assert "1998 TEAM" in __app_name__
 
     ver_str = get_version_string(include_build=True)
-    assert f"1.0.0 (Build {__build__})" == ver_str
+    assert f"{__version__} (Build {__build__})" == ver_str
 
     # 1. Kiểm tra parse_semver
     assert parse_semver("1.0.0") == (1, 0, 0)

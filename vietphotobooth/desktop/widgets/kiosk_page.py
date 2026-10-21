@@ -365,7 +365,7 @@ class KioskPage(QWidget):
     request_fullscreen = Signal()
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(800, 500)
+        return QSize(720, 480)
 
     def __init__(
         self,
@@ -1381,7 +1381,66 @@ class KioskPage(QWidget):
         token_info = self.token_mgr.create_token(active_event, self.current_session_id)
         self.current_token = token_info.token
 
+        # Kiểm tra tùy chọn cho phép khách chọn khung & chỉnh sửa ảnh (Guest Review)
+        enable_guest_review = self.config_mgr.get("kiosk.enable_guest_review", True)
+        if enable_guest_review and self.captured_originals:
+            from vietphotobooth.desktop.widgets.guest_review_dialog import GuestReviewDialog
+            dlg = GuestReviewDialog(
+                photos=self.captured_originals,
+                frame_mgr=self.frame_mgr,
+                initial_frame_id=self.selected_frame_id,
+                event_name=active_event,
+                session_id=self.current_session_id or "Session_unknown",
+                parent=self
+            )
+            res = dlg.exec()
+            if getattr(dlg, "is_retake", False):
+                self._reset_to_idle()
+                return
+            elif res == QDialog.Accepted and dlg.final_composite:
+                self.current_composite = dlg.final_composite
+                if dlg.current_template:
+                    self.selected_frame_id = dlg.current_template.id
+
+                # Lưu ảnh thành phẩm 300 DPI vào thư mục Final
+                dirs = self.event_mgr.get_event_dirs(active_event)
+                final_filename = f"{self.current_session_id}_final.jpg"
+                final_path = os.path.join(dirs["final"], final_filename)
+                self.current_composite.save(final_path, "JPEG", quality=95, dpi=(300, 300))
+                self.current_final_path = final_path
+
+                # Cập nhật số ảnh sự kiện tức thời
+                self._increment_event_photo_count()
+
+                # Đưa vào hàng đợi đồng bộ Google Drive nền nếu bật Auto Sync
+                if self.sync_mgr and self.config_mgr.get("cloud.auto_sync", True):
+                    self.sync_mgr.enqueue(final_path, active_event, is_final=True)
+                    logger.info(f"Tự động đưa ảnh {final_path} vào hàng đợi đồng bộ Google Drive.")
+
+                self._display_final_pixmap()
+
+                # Nếu chọn tự động in sau khi chụp
+                if self.chk_autoprint.isChecked():
+                    self._print_composite(direct=True)
+                return
+
         self._render_and_display_composite()
+
+    def _display_final_pixmap(self):
+        """Hiển thị ảnh thành phẩm 300 DPI sắc nét lên Viewport."""
+        if not self.current_composite:
+            return
+        rgb = self.current_composite.convert("RGB")
+        w, h = rgb.size
+        data = rgb.tobytes("raw", "RGB")
+        qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg)
+
+        lbl_w = self.lbl_viewport.width()
+        lbl_h = self.lbl_viewport.height()
+        if lbl_w > 0 and lbl_h > 0:
+            scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.lbl_viewport.setPixmap(scaled)
 
     def _render_and_display_composite(self):
         if not self.captured_originals:
@@ -1437,17 +1496,7 @@ class KioskPage(QWidget):
             logger.info(f"Tự động đưa ảnh {final_path} vào hàng đợi đồng bộ Google Drive.")
 
         # Hiển thị ảnh thành phẩm 300 DPI sắc nét lên Viewport
-        rgb = self.current_composite.convert("RGB")
-        w, h = rgb.size
-        data = rgb.tobytes("raw", "RGB")
-        qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(qimg)
-
-        lbl_w = self.lbl_viewport.width()
-        lbl_h = self.lbl_viewport.height()
-        if lbl_w > 0 and lbl_h > 0:
-            scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.lbl_viewport.setPixmap(scaled)
+        self._display_final_pixmap()
 
         # Thông báo nếu số lượng ảnh đã chụp khác số lượng ô trong khung
         template = self.frame_mgr.get_frame(self.selected_frame_id)
@@ -1468,6 +1517,8 @@ class KioskPage(QWidget):
                     "background: rgba(13,21,39,0.95); border: 1.5px solid #D4AF37; "
                     "padding: 8px 18px; border-radius: 14px;"
                 )
+                lbl_w = max(400, self.lbl_viewport.width())
+                lbl_h = max(300, self.lbl_viewport.height())
                 badge_w = min(max(380, self.lbl_status_badge.sizeHint().width() + 32), max(380, lbl_w - 40))
                 self.lbl_status_badge.setGeometry((lbl_w - badge_w) // 2, lbl_h - 75, badge_w, 48)
                 self.lbl_status_badge.show()
@@ -1695,6 +1746,68 @@ class KioskPage(QWidget):
         self.btn_finish.hide()
 
         self.start_live_view()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = event.size().width()
+        h = event.size().height()
+
+        # Điều chỉnh kích thước và bố cục phản hồi cho Kiosk
+        if hasattr(self, "card_camera") and hasattr(self, "btn_start"):
+            if w < 1200:
+                self.card_camera.setMaximumWidth(190)
+                self.card_camera.setMinimumWidth(150)
+                self.btn_start.setFixedSize(270, 52)
+                self.btn_start.setStyleSheet(
+                    "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F7E7CE, stop:0.35 #E5C158, stop:1 #C59B27); "
+                    "color: #070A12; font-size: 18px; font-weight: 900; border-radius: 26px; border: 2px solid #FFF8E7; } "
+                    "QPushButton:hover { background: #F0D278; } QPushButton:disabled { background: #2D3748; color: #718096; }"
+                )
+                if hasattr(self, "card_shots"):
+                    self.card_shots.setMaximumWidth(170)
+                if hasattr(self, "card_cd"):
+                    self.card_cd.setMaximumWidth(190)
+                if hasattr(self, "card_filters"):
+                    self.card_filters.setMaximumWidth(190)
+            else:
+                self.card_camera.setMaximumWidth(250)
+                self.card_camera.setMinimumWidth(190)
+                self.btn_start.setFixedSize(360, 62)
+                self.btn_start.setStyleSheet(
+                    "QPushButton {"
+                    "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F7E7CE, stop:0.35 #E5C158, stop:1 #C59B27);"
+                    "  color: #070A12;"
+                    "  font-size: 22px;"
+                    "  font-weight: 900;"
+                    "  letter-spacing: 1px;"
+                    "  border-radius: 31px;"
+                    "  border: 2px solid #FFF8E7;"
+                    "}"
+                    "QPushButton:hover {"
+                    "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:0.35 #F0D278, stop:1 #D4AF37);"
+                    "  border: 2px solid #FFFFFF;"
+                    "}"
+                    "QPushButton:pressed {"
+                    "  background: #C59B27;"
+                    "}"
+                    "QPushButton:disabled {"
+                    "  background: #2D3748; color: #718096; border: 1px solid #4A5568;"
+                    "}"
+                )
+                if hasattr(self, "card_shots"):
+                    self.card_shots.setMaximumWidth(200)
+                if hasattr(self, "card_cd"):
+                    self.card_cd.setMaximumWidth(240)
+                if hasattr(self, "card_filters"):
+                    self.card_filters.setMaximumWidth(240)
+
+        # Căn chỉnh lại panel thông báo chờ kết nối nếu đang hiển thị
+        if hasattr(self, "panel_disconnected") and hasattr(self, "lbl_viewport") and self.panel_disconnected.isVisible():
+            self.panel_disconnected.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
+
+        # Nếu đang ở chế độ xem kết quả ảnh, cập nhật tỷ lệ hiển thị
+        if self.current_state == "REVIEW" and self.current_composite:
+            self._display_final_pixmap()
 
     def closeEvent(self, event):
         if hasattr(self, 'live_view_worker') and self.live_view_worker.isRunning():

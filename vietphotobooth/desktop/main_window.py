@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
     def __init__(self, start_in_kiosk: bool = False):
         super().__init__()
         self.setWindowTitle("1998 TEAM — Photobooth")
-        self.setMinimumSize(1024, 720)
+        self.setMinimumSize(1024, 680)
 
         # Cài đặt biểu tượng icon ứng dụng chính thức
         icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Branding", "app_icon.ico"))

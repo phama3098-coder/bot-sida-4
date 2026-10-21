@@ -2,7 +2,7 @@
 ; Inno Setup 6 Script for 1998 TEAM — Photobooth Windows Installer
 
 #define MyAppName "1998 TEAM — Photobooth"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "1998 Studio"
 #define MyAppURL "https://github.com/PhotoboothProject/photobooth"
 #define MyAppExeName "1998TeamPhotobooth.exe"

@@ -38,6 +38,7 @@ a = Analysis(
         'requests',
         'vietphotobooth.core.auth',
         'vietphotobooth.core.font_registry',
+        'vietphotobooth.desktop.widgets.guest_review_dialog',
         'vietphotobooth.version',
         'vietphotobooth.updates',
         'vietphotobooth.updates.manifest',

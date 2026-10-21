@@ -25,7 +25,7 @@ def test_main_window_responsive_resolutions():
         (1600, 900),   # HD+
         (1366, 768),   # Màn hình cảm ứng Photobooth thông dụng
         (1280, 720),   # 720p HD
-        (1024, 720),   # Cửa sổ thu nhỏ tối thiểu
+        (1024, 680),   # Cửa sổ thu nhỏ tối thiểu
     ]
 
     for width, height in target_resolutions:
@@ -85,3 +85,48 @@ def test_frame_designer_scroll_margins_and_gutter():
 
     window.close()
 
+
+def test_canvas_physical_coordinate_invariance():
+    """Kiểm tra tuyệt đối không làm thay đổi tọa độ vật lý 300 DPI khi co giãn cửa sổ."""
+    window = MainWindow()
+    fd = window.frame_page
+
+    assert fd.current_frame is not None
+    orig_slots = [(s.x, s.y, s.w, s.h) for s in fd.current_frame.slots]
+    orig_texts = [(t.x, t.y, t.font_size) for t in fd.current_frame.text_layers]
+
+    # Co giãn qua các độ phân giải khác nhau
+    for w, h in [(1920, 1080), (1600, 900), (1366, 768), (1280, 720), (1024, 680)]:
+        window.resize(w, h)
+        app.processEvents()
+
+        # Tọa độ vật lý 300 DPI của từng slot phải giữ nguyên 100%
+        curr_slots = [(s.x, s.y, s.w, s.h) for s in fd.current_frame.slots]
+        assert curr_slots == orig_slots, f"Tọa độ ô ảnh 300 DPI bị thay đổi khi resize cửa sổ về {w}x{h}!"
+
+        # Tọa độ vật lý 300 DPI của lớp chữ phải giữ nguyên 100%
+        curr_texts = [(t.x, t.y, t.font_size) for t in fd.current_frame.text_layers]
+        assert curr_texts == orig_texts, f"Tọa độ chữ 300 DPI bị thay đổi khi resize cửa sổ về {w}x{h}!"
+
+    window.close()
+
+
+def test_kiosk_responsive_layout_scaling():
+    """Kiểm tra màn hình Kiosk co giãn mượt mà và nút Bắt đầu chụp không bị tràn."""
+    window = MainWindow()
+    window.show()
+    kiosk = window.kiosk_page
+
+    # Thử trên các độ phân giải từ 1920x1080 đến 1280x720
+    for w, h in [(1920, 1080), (1600, 900), (1366, 768), (1280, 720)]:
+        window.resize(w, h)
+        app.processEvents()
+
+        assert not kiosk.btn_start.isHidden()
+        # Nút chụp phải có kích thước hợp lý, không tràn khỏi thanh dưới
+        assert kiosk.btn_start.width() in (270, 360)
+        assert kiosk.card_camera.width() <= 260
+        assert kiosk.lbl_viewport.width() > 300
+        assert kiosk.lbl_viewport.height() > 200
+
+    window.close()

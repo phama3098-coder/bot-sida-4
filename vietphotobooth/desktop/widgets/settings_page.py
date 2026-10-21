@@ -128,6 +128,10 @@ class SettingsPage(QWidget):
         r2.addWidget(self.spin_timeout)
         l_kiosk.addLayout(r2)
 
+        self.chk_guest_review = QCheckBox("Cho phép khách chọn khung và chỉnh sửa sau khi chụp (Khung, Đổi ảnh ô, Lời chúc & Sticker)")
+        self.chk_guest_review.setChecked(True)
+        l_kiosk.addWidget(self.chk_guest_review)
+
         r3 = QHBoxLayout()
         btn_toggle_fs = QPushButton("🖥️ Bật / Tắt Toàn Màn Hình (F11 Kiosk Mode)")
         btn_toggle_fs.setObjectName("btn_secondary")
@@ -322,6 +326,8 @@ class SettingsPage(QWidget):
         self.spin_timeout.setValue(to)
         shots = self.config_mgr.get("kiosk.shots_per_session", 3)
         self.spin_shots.setValue(shots)
+        gr = self.config_mgr.get("kiosk.enable_guest_review", True)
+        self.chk_guest_review.setChecked(gr)
 
         # Google Drive settings
         cid = self.config_mgr.get("cloud.gdrive_client_id", "")
@@ -353,6 +359,7 @@ class SettingsPage(QWidget):
         self.config_mgr.set("kiosk.countdown_sec", self.spin_countdown.value())
         self.config_mgr.set("kiosk.idle_timeout_sec", self.spin_timeout.value())
         self.config_mgr.set("kiosk.shots_per_session", self.spin_shots.value())
+        self.config_mgr.set("kiosk.enable_guest_review", self.chk_guest_review.isChecked())
 
         # Save Google Drive settings
         self.config_mgr.set("cloud.gdrive_client_id", self.txt_client_id.text().strip())

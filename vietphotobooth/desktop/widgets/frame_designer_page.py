@@ -807,7 +807,7 @@ class FrameDesignerPage(QWidget):
     frame_changed = Signal(str)
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(750, 400)
+        return QSize(720, 420)
 
     def __init__(self, frame_manager: FrameManager, parent=None):
         super().__init__(parent)
@@ -2463,3 +2463,16 @@ class FrameDesignerPage(QWidget):
             hex_col = col.name().upper()
             self.btn_bg_color.setText(hex_col)
             self._update_preview(full_render=True)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = event.size().width()
+        if hasattr(self, "scroll_area"):
+            if w < 1200:
+                self.scroll_area.setMinimumWidth(300)
+                self.scroll_area.setMaximumWidth(380)
+            else:
+                self.scroll_area.setMinimumWidth(340)
+                self.scroll_area.setMaximumWidth(480)
+        if hasattr(self, "canvas"):
+            self.canvas.update()
