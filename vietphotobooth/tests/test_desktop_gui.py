@@ -35,12 +35,10 @@ def test_main_window_initialization(qapp):
     assert window.printing_page is not None
     assert window.events_page is not None
     assert window.settings_page is not None
-    window.kiosk_page.stop_live_view()
-    window.camera_mgr.close()
+    window.close()
 
 def test_fullscreen_toggle(qapp):
     window = MainWindow(start_in_kiosk=False)
     assert not window.isFullScreen()
     # Test method exists and can be called safely
-    window.kiosk_page.stop_live_view()
-    window.camera_mgr.close()
+    window.close()

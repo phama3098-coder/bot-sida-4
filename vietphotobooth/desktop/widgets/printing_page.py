@@ -7,7 +7,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox, QMessageBox,
-    QCheckBox, QSpinBox
+    QCheckBox, QSpinBox, QScrollArea, QFrame
 )
 from PySide6.QtCore import Qt, QTimer
 
@@ -34,7 +34,16 @@ class PrintingPage(QWidget):
         self.queue_timer.start(2000)
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
@@ -98,6 +107,9 @@ class PrintingPage(QWidget):
         l_queue.addLayout(bar_q)
 
         layout.addWidget(grp_queue)
+
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
     def _load_printers(self):
         self.combo_printers.clear()

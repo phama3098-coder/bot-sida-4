@@ -25,7 +25,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QFrame, QSizePolicy, QDialog, QSpinBox, QMessageBox,
-    QCheckBox
+    QCheckBox, QTabWidget
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QSize, QThread
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont
@@ -39,6 +39,7 @@ from vietphotobooth.printing.manager import PrintManager
 from vietphotobooth.sharing.token_manager import TokenManager
 from vietphotobooth.core.events import EventManager
 from vietphotobooth.core.config import ConfigManager
+from vietphotobooth.cloud import SyncManager, SyncStatus
 from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorDialog
 from vietphotobooth.core.logger import get_logger
 
@@ -270,6 +271,7 @@ class KioskPage(QWidget):
         event_mgr: EventManager,
         token_mgr: TokenManager,
         config_mgr: ConfigManager,
+        sync_mgr: Optional[SyncManager] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -280,6 +282,8 @@ class KioskPage(QWidget):
         self.event_mgr = event_mgr
         self.token_mgr = token_mgr
         self.config_mgr = config_mgr
+        self.sync_mgr = sync_mgr
+        self.current_final_path: Optional[str] = None
 
         # Trạng thái phiên chụp
         self.current_state = "IDLE"  # IDLE, COUNTDOWN, CAPTURING, REVIEW
@@ -343,7 +347,8 @@ class KioskPage(QWidget):
         # CỘT TRÁI: SỰ KIỆN HIỆN TẠI
         # -------------------------------------------------------------
         self.card_event = QFrame()
-        self.card_event.setFixedWidth(240)
+        self.card_event.setMinimumWidth(190)
+        self.card_event.setMaximumWidth(250)
         self.card_event.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 12px;")
         l_ev = QVBoxLayout(self.card_event)
         l_ev.setContentsMargins(12, 12, 12, 12)
@@ -476,7 +481,8 @@ class KioskPage(QWidget):
         # CỘT PHẢI: TRẠNG THÁI MÁY ẢNH
         # -------------------------------------------------------------
         self.card_camera = QFrame()
-        self.card_camera.setFixedWidth(240)
+        self.card_camera.setMinimumWidth(190)
+        self.card_camera.setMaximumWidth(250)
         self.card_camera.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 12px;")
         l_cam = QVBoxLayout(self.card_camera)
         l_cam.setContentsMargins(14, 14, 14, 14)
@@ -543,7 +549,8 @@ class KioskPage(QWidget):
         # THẺ 1: SỐ ẢNH MỖI LƯỢT
         # -------------------------------------------------------------
         self.card_shots = QFrame()
-        self.card_shots.setFixedWidth(175)
+        self.card_shots.setMinimumWidth(140)
+        self.card_shots.setMaximumWidth(180)
         self.card_shots.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
         l_shots = QVBoxLayout(self.card_shots)
         l_shots.setContentsMargins(10, 10, 10, 10)
@@ -573,7 +580,8 @@ class KioskPage(QWidget):
         # THẺ 2: ĐẾM NGƯỢC
         # -------------------------------------------------------------
         self.card_cd = QFrame()
-        self.card_cd.setFixedWidth(235)
+        self.card_cd.setMinimumWidth(170)
+        self.card_cd.setMaximumWidth(240)
         self.card_cd.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
         l_cd = QVBoxLayout(self.card_cd)
         l_cd.setContentsMargins(10, 10, 10, 10)
@@ -661,7 +669,8 @@ class KioskPage(QWidget):
         # THẺ 4: BỘ LỌC MÀU (THƯ VIỆN SẠCH, CHƯA CÓ BỘ LỌC)
         # -------------------------------------------------------------
         self.card_filters = QFrame()
-        self.card_filters.setFixedWidth(240)
+        self.card_filters.setMinimumWidth(170)
+        self.card_filters.setMaximumWidth(240)
         self.card_filters.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
         l_fil = QVBoxLayout(self.card_filters)
         l_fil.setContentsMargins(12, 10, 12, 10)
@@ -1300,11 +1309,18 @@ class KioskPage(QWidget):
 
     def _on_composite_ready(self, composite: Image.Image, final_path: str):
         self.current_composite = composite
+        self.current_final_path = final_path
         self.lbl_status_badge.hide()
         self.btn_print.setEnabled(True)
 
         # Cập nhật số ảnh sự kiện tức thời
         self._increment_event_photo_count()
+
+        # Đưa vào hàng đợi đồng bộ Google Drive nền nếu bật Auto Sync
+        if self.sync_mgr and self.config_mgr.get("cloud.auto_sync", True):
+            ev_name = self.event_mgr.get_active_event_name()
+            self.sync_mgr.enqueue(final_path, ev_name, is_final=True)
+            logger.info(f"Tự động đưa ảnh {final_path} vào hàng đợi đồng bộ Google Drive.")
 
         # Hiển thị ảnh thành phẩm 300 DPI sắc nét lên Viewport
         rgb = self.current_composite.convert("RGB")
@@ -1398,34 +1414,103 @@ class KioskPage(QWidget):
         if not self.current_token:
             return
 
-        qr_img = self.token_mgr.generate_qr_code(self.current_token)
         lan_url = self.token_mgr.get_sharing_url(self.current_token)
 
+        # Kiểm tra link Google Drive nếu có
+        gdrive_url = None
+        if self.sync_mgr and self.current_final_path:
+            info = self.sync_mgr.get_file_info(self.current_final_path)
+            if info and info.get("status") == SyncStatus.SYNCED:
+                gdrive_url = info.get("web_link")
+            elif self.sync_mgr.auth.simulation_mode:
+                gdrive_url = f"https://drive.google.com/file/d/sim_{abs(hash(self.current_final_path))}/view?usp=sharing"
+
+        import qrcode
         dlg = QDialog(self)
         dlg.setWindowTitle("Quét Mã QR Tải Ảnh Về Điện Thoại")
-        dlg.setFixedSize(460, 530)
+        dlg.setFixedSize(460, 560)
         l = QVBoxLayout(dlg)
-        l.setSpacing(14)
+        l.setSpacing(12)
 
         title = QLabel("1998 STUDIO — TẢI ẢNH VỀ ĐIỆN THOẠI")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #D4AF37;")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #D4AF37;")
         l.addWidget(title)
 
-        lbl_qr = QLabel()
-        lbl_qr.setAlignment(Qt.AlignCenter)
-        rgb = qr_img.convert("RGB")
-        w, h = rgb.size
-        data = rgb.tobytes("raw", "RGB")
-        qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
-        lbl_qr.setPixmap(QPixmap.fromImage(qimg).scaled(320, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        l.addWidget(lbl_qr)
+        tabs_qr = QTabWidget()
 
-        lbl_url = QLabel(f"Đường dẫn tải ảnh:\n<b>{lan_url}</b>")
+        # Tab 1: Google Drive (Online 4G / Internet)
+        tab_cloud = QWidget()
+        l_cloud = QVBoxLayout(tab_cloud)
+        l_cloud.setSpacing(10)
+
+        if gdrive_url:
+            qr_cloud_img = qrcode.make(gdrive_url)
+            lbl_qr_c = QLabel()
+            lbl_qr_c.setAlignment(Qt.AlignCenter)
+            rgb = qr_cloud_img.convert("RGB")
+            w, h = rgb.size
+            data = rgb.tobytes("raw", "RGB")
+            qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
+            lbl_qr_c.setPixmap(QPixmap.fromImage(qimg).scaled(260, 260, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            l_cloud.addWidget(lbl_qr_c)
+
+            lbl_c_desc = QLabel("⚡ Quét để xem và tải ảnh gốc trực tiếp qua mạng 4G/Internet.")
+            lbl_c_desc.setAlignment(Qt.AlignCenter)
+            lbl_c_desc.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
+            l_cloud.addWidget(lbl_c_desc)
+
+            lbl_c_url = QLabel(f"<a href='{gdrive_url}' style='color:#38BDF8;'>Mở liên kết Google Drive</a>")
+            lbl_c_url.setOpenExternalLinks(True)
+            lbl_c_url.setAlignment(Qt.AlignCenter)
+            l_cloud.addWidget(lbl_c_url)
+        else:
+            lbl_wait = QLabel("⏳ Ảnh đang được tải lên Google Drive trong nền...\nKhách có thể chuyển sang tab 'Mạng LAN WiFi' để tải ngay.")
+            lbl_wait.setAlignment(Qt.AlignCenter)
+            lbl_wait.setStyleSheet("color: #F59E0B; font-size: 13px; line-height: 1.5;")
+            l_cloud.addWidget(lbl_wait)
+
+            if self.sync_mgr and self.sync_mgr.is_ready() and self.current_final_path:
+                btn_push_sync = QPushButton("☁️ Đồng Bộ Ngay Lập Tức")
+                btn_push_sync.setObjectName("btn_champagne")
+                ev_name = self.event_mgr.get_active_event_name()
+                btn_push_sync.clicked.connect(lambda: self.sync_mgr.enqueue(self.current_final_path, ev_name))
+                l_cloud.addWidget(btn_push_sync)
+
+        tabs_qr.addTab(tab_cloud, "☁️ Google Drive (Online 4G)")
+
+        # Tab 2: Mạng LAN WiFi
+        tab_lan = QWidget()
+        l_lan = QVBoxLayout(tab_lan)
+        l_lan.setSpacing(10)
+
+        qr_img = self.token_mgr.generate_qr_code(self.current_token)
+        lbl_qr_l = QLabel()
+        lbl_qr_l.setAlignment(Qt.AlignCenter)
+        rgb_l = qr_img.convert("RGB")
+        w_l, h_l = rgb_l.size
+        data_l = rgb_l.tobytes("raw", "RGB")
+        qimg_l = QImage(data_l, w_l, h_l, 3 * w_l, QImage.Format_RGB888)
+        lbl_qr_l.setPixmap(QPixmap.fromImage(qimg_l).scaled(260, 260, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        l_lan.addWidget(lbl_qr_l)
+
+        lbl_l_desc = QLabel("Khách kết nối cùng mạng WiFi Photobooth để tải trực tiếp từ máy trạm.")
+        lbl_l_desc.setAlignment(Qt.AlignCenter)
+        lbl_l_desc.setStyleSheet("color: #CBD5E1; font-size: 12px;")
+        l_lan.addWidget(lbl_l_desc)
+
+        lbl_url = QLabel(f"<b>{lan_url}</b>")
         lbl_url.setAlignment(Qt.AlignCenter)
-        lbl_url.setWordWrap(True)
-        lbl_url.setStyleSheet("color: #CBD5E1; font-size: 13px;")
-        l.addWidget(lbl_url)
+        lbl_url.setStyleSheet("color: #38BDF8; font-size: 11px;")
+        l_lan.addWidget(lbl_url)
+
+        tabs_qr.addTab(tab_lan, "📱 Mạng LAN (WiFi Nội Bộ)")
+
+        # Nếu chưa có Google Drive link thì ưu tiên mở tab LAN
+        if not gdrive_url:
+            tabs_qr.setCurrentIndex(1)
+
+        l.addWidget(tabs_qr)
 
         btn_close = QPushButton("Đóng")
         btn_close.setObjectName("btn_secondary")
@@ -1447,6 +1532,7 @@ class KioskPage(QWidget):
         self.current_state = "IDLE"
         self.current_session_id = None
         self.current_token = None
+        self.current_final_path = None
         self.captured_originals.clear()
         self.captured_paths.clear()
 

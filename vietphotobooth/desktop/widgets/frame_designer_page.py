@@ -454,106 +454,116 @@ class FrameDesignerPage(QWidget):
         left_layout = QVBoxLayout()
         left_layout.setSpacing(10)
 
-        # THANH CÔNG CỤ TRÊN CÙNG
-        top_bar = QHBoxLayout()
-        top_bar.setSpacing(8)
+        # THANH CÔNG CỤ TRÊN CÙNG: HÀNG 1 (LỰA CHỌN & LƯU KHUNG)
+        top_bar_1 = QHBoxLayout()
+        top_bar_1.setSpacing(8)
 
-        top_bar.addWidget(QLabel("<b style='color:#D4AF37;'>Khung:</b>"))
+        lbl_k = QLabel("<b style='color:#D4AF37;'>Khung:</b>")
+        top_bar_1.addWidget(lbl_k)
+
         self.combo_frames = QComboBox()
-        self.combo_frames.setMinimumWidth(220)
+        self.combo_frames.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_frames.setMinimumContentsLength(16)
+        self.combo_frames.setMaximumWidth(260)
         self.combo_frames.currentIndexChanged.connect(self._on_frame_selected)
-        top_bar.addWidget(self.combo_frames)
+        top_bar_1.addWidget(self.combo_frames)
 
-        btn_import = QPushButton("➕ Nhập Khung Mới")
+        btn_import = QPushButton("➕ Nhập Khung")
         btn_import.setObjectName("btn_champagne")
         btn_import.clicked.connect(self._open_import_dialog)
-        top_bar.addWidget(btn_import)
+        top_bar_1.addWidget(btn_import)
+
+        btn_save = QPushButton("💾 Lưu Khung")
+        btn_save.setObjectName("btn_champagne")
+        btn_save.clicked.connect(self._save_frame)
+        top_bar_1.addWidget(btn_save)
+
+        btn_refresh = QPushButton("🔄 Làm Mới")
+        btn_refresh.setObjectName("btn_secondary")
+        btn_refresh.clicked.connect(lambda: self._update_preview(full_render=True))
+        top_bar_1.addWidget(btn_refresh)
+
+        top_bar_1.addStretch()
+        left_layout.addLayout(top_bar_1)
+
+        # THANH CÔNG CỤ TRÊN CÙNG: HÀNG 2 (QUẢN LÝ & SAO LƯU ZIP)
+        top_bar_2 = QHBoxLayout()
+        top_bar_2.setSpacing(6)
 
         btn_dup = QPushButton("📋 Nhân Bản")
         btn_dup.setObjectName("btn_secondary")
         btn_dup.clicked.connect(self._duplicate_frame)
-        top_bar.addWidget(btn_dup)
+        top_bar_2.addWidget(btn_dup)
 
         btn_rename = QPushButton("✏️ Đổi Tên")
         btn_rename.setObjectName("btn_secondary")
         btn_rename.clicked.connect(self._rename_frame)
-        top_bar.addWidget(btn_rename)
+        top_bar_2.addWidget(btn_rename)
 
         btn_delete = QPushButton("🗑️ Xóa")
         btn_delete.setObjectName("btn_danger")
         btn_delete.clicked.connect(self._delete_frame)
-        top_bar.addWidget(btn_delete)
+        top_bar_2.addWidget(btn_delete)
 
-        top_bar.addStretch()
-
-        btn_backup = QPushButton("📦 Sao Lưu ZIP")
+        btn_backup = QPushButton("📦 Sao Lưu")
         btn_backup.setObjectName("btn_secondary")
         btn_backup.clicked.connect(self._backup_zip)
-        top_bar.addWidget(btn_backup)
+        top_bar_2.addWidget(btn_backup)
 
-        btn_restore = QPushButton("📥 Khôi Phục ZIP")
+        btn_restore = QPushButton("📥 Khôi Phục")
         btn_restore.setObjectName("btn_secondary")
         btn_restore.clicked.connect(self._restore_zip)
-        top_bar.addWidget(btn_restore)
+        top_bar_2.addWidget(btn_restore)
 
-        left_layout.addLayout(top_bar)
+        top_bar_2.addStretch()
+        left_layout.addLayout(top_bar_2)
 
         # CANVAS TƯƠNG TÁC CHUỘT (DRAG & DROP SLOTS)
         self.canvas = InteractiveCanvas(self)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setMinimumSize(250, 250)
         self.canvas.slot_selected.connect(self._on_slot_selected_from_canvas)
         self.canvas.slot_moved.connect(self._on_slot_moved_from_canvas)
         self.canvas.slot_drag_finished.connect(lambda idx: self._update_preview(full_render=True))
         left_layout.addWidget(self.canvas, 1)
 
-        # THANH ĐIỀU KHIỂN LƯỚI & ĐƯỜNG CĂN
+        # THANH ĐIỀU KHIỂN LƯỚI & ĐƯỜNG CĂN (CO GIÃN GỌN GÀNG)
         guides_bar = QHBoxLayout()
-        self.chk_grid = QCheckBox("Lưới Tọa Độ (Grid)")
+        guides_bar.setSpacing(8)
+
+        self.chk_grid = QCheckBox("Lưới (Grid)")
         self.chk_grid.setChecked(True)
         self.chk_grid.toggled.connect(self._toggle_grid)
         guides_bar.addWidget(self.chk_grid)
 
-        self.chk_snap = QCheckBox("Hút Tọa Độ (Snap to Grid)")
+        self.chk_snap = QCheckBox("Hút (Snap)")
         self.chk_snap.setChecked(True)
         self.chk_snap.toggled.connect(self._toggle_snap)
         guides_bar.addWidget(self.chk_snap)
 
-        self.chk_guides = QCheckBox("Vùng An Toàn & Mép Cắt (Safe Zone & Bleed)")
+        self.chk_guides = QCheckBox("Vùng Cắt (Bleed)")
         self.chk_guides.setChecked(True)
         self.chk_guides.toggled.connect(self._toggle_guides)
         guides_bar.addWidget(self.chk_guides)
 
         guides_bar.addStretch()
 
-        self.lbl_warnings = QLabel("Trạng thái: Chuẩn xác 300 DPI")
+        self.lbl_warnings = QLabel("300 DPI")
         self.lbl_warnings.setStyleSheet("color: #10B981; font-weight: 500;")
         guides_bar.addWidget(self.lbl_warnings)
 
         left_layout.addLayout(guides_bar)
-
-        # THANH NÚT LƯU
-        action_bar = QHBoxLayout()
-        btn_refresh = QPushButton("🔄 Làm Mới Bản Vẽ")
-        btn_refresh.setObjectName("btn_secondary")
-        btn_refresh.clicked.connect(lambda: self._update_preview(full_render=True))
-        action_bar.addWidget(btn_refresh)
-
-        action_bar.addStretch()
-
-        btn_save = QPushButton("💾 Lưu Khung Ảnh Này")
-        btn_save.setObjectName("btn_champagne")
-        btn_save.setMinimumWidth(180)
-        btn_save.clicked.connect(self._save_frame)
-        action_bar.addWidget(btn_save)
-
-        left_layout.addLayout(action_bar)
-        main_layout.addLayout(left_layout, 5)
+        main_layout.addLayout(left_layout, 6)
 
         # ==============================================================
-        # CỘT PHẢI: BẢNG THÔNG SỐ VÀ CÁC LỚP THÀNH PHẦN (SLOTS, TEXT, LOGO)
+        # CỘT PHẢI: BẢNG THÔNG SỐ VÀ CÁC LỚP THÀNH PHẦN (CUỘN ĐỘC LẬP)
         # ==============================================================
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setMinimumWidth(440)
+        scroll.setMinimumWidth(280)
+        scroll.setMaximumWidth(450)
+        scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll_content = QWidget()
         right_layout = QVBoxLayout(scroll_content)
         right_layout.setContentsMargins(8, 8, 8, 8)
@@ -567,16 +577,14 @@ class FrameDesignerPage(QWidget):
         self.txt_name = QLineEdit()
         form_props.addRow("Tên Khung:", self.txt_name)
 
-        r_cat = QHBoxLayout()
         self.combo_cat = QComboBox()
         self.combo_cat.addItems(["Wedding", "Birthday", "Corporate", "Custom"])
-        r_cat.addWidget(self.combo_cat)
+        form_props.addRow("Phân Loại:", self.combo_cat)
 
         self.combo_type = QComboBox()
         self.combo_type.addItems(["2x6", "4x6_portrait", "4x6_landscape", "4x6_dual"])
         self.combo_type.currentIndexChanged.connect(self._on_type_changed)
-        r_cat.addWidget(self.combo_type)
-        form_props.addRow("Phân Loại / Khổ:", r_cat)
+        form_props.addRow("Khổ In Ấn:", self.combo_type)
 
         r_color = QHBoxLayout()
         self.btn_bg_color = QPushButton("#FFFFFF")
@@ -584,9 +592,9 @@ class FrameDesignerPage(QWidget):
         self.btn_bg_color.clicked.connect(self._choose_bg_color)
         r_color.addWidget(self.btn_bg_color)
 
-        self.chk_dual = QCheckBox("Cắt Tự Động DNP (Dual Strip)")
+        self.chk_dual = QCheckBox("Cắt đôi 2x6 (DNP)")
         r_color.addWidget(self.chk_dual)
-        form_props.addRow("Màu Nền / Dải Đôi:", r_color)
+        form_props.addRow("Nền / Cắt:", r_color)
 
         self.txt_notes = QLineEdit()
         self.txt_notes.setPlaceholderText("Ghi chú...")
@@ -596,12 +604,13 @@ class FrameDesignerPage(QWidget):
         right_layout.addWidget(grp_props)
 
         # 2. CÁC Ô CHỨA ẢNH (PHOTO SLOTS)
-        grp_slots = QGroupBox("2. Các Vùng Ảnh (Photo Slots — Kéo Thả Trực Tiếp Trên Canvas)")
+        grp_slots = QGroupBox("2. Vùng Chứa Ảnh (Photo Slots)")
         l_slots = QVBoxLayout(grp_slots)
 
         self.table_slots = QTableWidget(0, 7)
         self.table_slots.setHorizontalHeaderLabels(["ID", "X", "Y", "W", "H", "Xoay", "Bo Góc"])
         self.table_slots.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_slots.horizontalHeader().setMinimumSectionSize(20)
         self.table_slots.setMaximumHeight(150)
         self.table_slots.cellChanged.connect(self._on_slot_table_cell_changed)
         self.table_slots.itemSelectionChanged.connect(self._on_slot_table_selection_changed)
@@ -633,12 +642,13 @@ class FrameDesignerPage(QWidget):
         right_layout.addWidget(grp_slots)
 
         # 3. VĂN BẢN NGHỆ THUẬT (TEXT LAYERS)
-        grp_text = QGroupBox("3. Văn Bản Nghệ Thuật (Tên Tiệc, Ngày Tháng, Lời Chúc)")
+        grp_text = QGroupBox("3. Văn Bản Nghệ Thuật (Text Layers)")
         l_text = QVBoxLayout(grp_text)
 
         self.table_text = QTableWidget(0, 4)
         self.table_text.setHorizontalHeaderLabels(["Nội Dung", "Y (px)", "Cỡ Chữ", "Căn Lề"])
         self.table_text.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_text.horizontalHeader().setMinimumSectionSize(20)
         self.table_text.setMaximumHeight(130)
         self.table_text.cellChanged.connect(lambda r, c: self._update_preview(full_render=True))
         l_text.addWidget(self.table_text)
@@ -658,17 +668,18 @@ class FrameDesignerPage(QWidget):
         right_layout.addWidget(grp_text)
 
         # 4. LOGO & HỌA TIẾT TRANG TRÍ (LOGO LAYERS)
-        grp_logo = QGroupBox("4. Logo & Họa Tiết Trang Trí")
+        grp_logo = QGroupBox("4. Logo & Họa Tiết (Logo Layers)")
         l_logo = QVBoxLayout(grp_logo)
 
         self.table_logo = QTableWidget(0, 4)
         self.table_logo.setHorizontalHeaderLabels(["Tệp", "X (px)", "Y (px)", "Kích Thước"])
         self.table_logo.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_logo.horizontalHeader().setMinimumSectionSize(20)
         self.table_logo.setMaximumHeight(110)
         l_logo.addWidget(self.table_logo)
 
         logo_tools = QHBoxLayout()
-        btn_add_logo = QPushButton("+ Chèn Logo/Họa Tiết...")
+        btn_add_logo = QPushButton("+ Chèn Logo...")
         btn_add_logo.setObjectName("btn_secondary")
         btn_add_logo.clicked.connect(self._add_logo)
         logo_tools.addWidget(btn_add_logo)
@@ -682,7 +693,7 @@ class FrameDesignerPage(QWidget):
         right_layout.addWidget(grp_logo)
 
         scroll.setWidget(scroll_content)
-        main_layout.addWidget(scroll, 5)
+        main_layout.addWidget(scroll, 4)
 
     # ==============================================================
     # QUẢN LÝ TẢI VÀ CHỌN KHUNG
@@ -818,10 +829,12 @@ class FrameDesignerPage(QWidget):
 
         warnings = FrameDesigner.validate_template(f)
         if warnings:
-            self.lbl_warnings.setText(f"Cảnh báo: {warnings[0]}")
+            self.lbl_warnings.setText(f"⚠️ {warnings[0][:30]}...")
+            self.lbl_warnings.setToolTip(f"Cảnh báo: {warnings[0]}")
             self.lbl_warnings.setStyleSheet("color: #F59E0B; font-weight: bold;")
         else:
-            self.lbl_warnings.setText("Trạng thái bố cục: Chuẩn xác 300 DPI, an toàn vùng cắt.")
+            self.lbl_warnings.setText("✅ 300 DPI • An toàn")
+            self.lbl_warnings.setToolTip("Trạng thái bố cục: Chuẩn xác 300 DPI, an toàn vùng cắt.")
             self.lbl_warnings.setStyleSheet("color: #10B981; font-weight: 500;")
 
         if full_render or not self.canvas.preview_pixmap:

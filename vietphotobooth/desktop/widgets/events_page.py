@@ -1,41 +1,65 @@
 """
 VietPhotoBooth Event & Gallery Page
-Manages events, session galleries, reprints, QR code regeneration, and ZIP export.
+Manages events, session galleries, reprints, Google Drive cloud sync status,
+dual QR code generation (Cloud & LAN), and ZIP export.
 """
 
 import os
 import shutil
-import subprocess
 from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox, QMessageBox,
-    QInputDialog, QFileDialog, QDialog
+    QInputDialog, QFileDialog, QDialog, QScrollArea, QFrame, QTabWidget
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QImage
+import qrcode
 
 from vietphotobooth.core.events import EventManager
 from vietphotobooth.printing.manager import PrintManager
 from vietphotobooth.sharing.token_manager import TokenManager
+from vietphotobooth.cloud import SyncManager, SyncStatus
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
 
 class EventsPage(QWidget):
-    """Trang quản lý sự kiện và thư viện ảnh đã chụp."""
+    """Trang quản lý sự kiện và thư viện ảnh đã chụp với đồng bộ Google Drive."""
 
-    def __init__(self, event_mgr: EventManager, print_mgr: PrintManager, token_mgr: TokenManager, parent=None):
+    def __init__(
+        self,
+        event_mgr: EventManager,
+        print_mgr: PrintManager,
+        token_mgr: TokenManager,
+        sync_mgr: Optional[SyncManager] = None,
+        parent=None
+    ):
         super().__init__(parent)
         self.event_mgr = event_mgr
         self.print_mgr = print_mgr
         self.token_mgr = token_mgr
+        self.sync_mgr = sync_mgr
 
         self._init_ui()
         self._load_events()
 
+        # Kết nối tín hiệu đồng bộ để cập nhật bảng thư viện
+        if self.sync_mgr:
+            self.sync_mgr.worker.sync_completed.connect(lambda p, l: self._refresh_gallery())
+            self.sync_mgr.worker.sync_failed.connect(lambda p, e: self._refresh_gallery())
+
     def _init_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
@@ -46,7 +70,7 @@ class EventsPage(QWidget):
         r1 = QHBoxLayout()
         r1.addWidget(QLabel("<b>Sự Kiện Đang Kích Hoạt:</b>"))
         self.combo_events = QComboBox()
-        self.combo_events.setMinimumWidth(260)
+        self.combo_events.setMinimumWidth(220)
         self.combo_events.currentIndexChanged.connect(self._on_event_changed)
         r1.addWidget(self.combo_events, 1)
 
@@ -59,6 +83,11 @@ class EventsPage(QWidget):
         btn_open_folder.setObjectName("btn_secondary")
         btn_open_folder.clicked.connect(self._open_event_folder)
         r1.addWidget(btn_open_folder)
+
+        btn_sync_all = QPushButton("☁️ Đồng Bộ Lên Drive")
+        btn_sync_all.setObjectName("btn_champagne")
+        btn_sync_all.clicked.connect(self._sync_all_to_gdrive)
+        r1.addWidget(btn_sync_all)
 
         btn_export_zip = QPushButton("📦 Xuất File ZIP")
         btn_export_zip.setObjectName("btn_secondary")
@@ -77,9 +106,12 @@ class EventsPage(QWidget):
         grp_gallery = QGroupBox("2. Thư Viện Các Lượt Chụp Trong Sự Kiện")
         l_gal = QVBoxLayout(grp_gallery)
 
-        self.table_sessions = QTableWidget(0, 4)
-        self.table_sessions.setHorizontalHeaderLabels(["Mã Lượt Chụp", "Ảnh Thành Phẩm", "Thời Gian", "Thao Tác"])
+        self.table_sessions = QTableWidget(0, 5)
+        self.table_sessions.setHorizontalHeaderLabels([
+            "Mã Lượt Chụp", "Ảnh Thành Phẩm", "Thời Gian", "Đồng Bộ Google Drive", "Thao Tác"
+        ])
         self.table_sessions.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_sessions.horizontalHeader().setMinimumSectionSize(30)
         l_gal.addWidget(self.table_sessions)
 
         bar_gal = QHBoxLayout()
@@ -93,13 +125,16 @@ class EventsPage(QWidget):
         btn_reprint.clicked.connect(self._reprint_selected)
         bar_gal.addWidget(btn_reprint)
 
-        btn_show_qr = QPushButton("📱 Xem Lại Mã QR")
+        btn_show_qr = QPushButton("📱 Xem Lại Mã QR (Online / LAN)")
         btn_show_qr.setObjectName("btn_secondary")
         btn_show_qr.clicked.connect(self._show_qr_selected)
         bar_gal.addWidget(btn_show_qr)
 
         l_gal.addLayout(bar_gal)
         layout.addWidget(grp_gallery)
+
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
     def _load_events(self):
         self.combo_events.blockSignals(True)
@@ -137,6 +172,35 @@ class EventsPage(QWidget):
         if os.path.exists(folder):
             os.startfile(folder)
 
+    def _sync_all_to_gdrive(self):
+        """Đưa toàn bộ ảnh trong sự kiện vào hàng đợi đồng bộ Google Drive."""
+        if not self.sync_mgr or not self.sync_mgr.is_ready():
+            QMessageBox.warning(
+                self,
+                "Google Drive Chưa Kết Nối",
+                "Google Drive chưa được cấu hình hoặc chưa đăng nhập.\nVui lòng vào tab 'Cài Đặt' để kết nối hoặc bật chế độ Giả Lập."
+            )
+            return
+
+        ev_name = self.event_mgr.get_active_event_name()
+        dirs = self.event_mgr.get_event_dirs(ev_name)
+        final_dir = dirs["final"]
+
+        count = self.sync_mgr.sync_all_event_photos(ev_name, final_dir)
+        if count > 0:
+            QMessageBox.information(
+                self,
+                "Bắt Đầu Đồng Bộ",
+                f"Đã đưa {count} ảnh thành phẩm vào hàng đợi đồng bộ ngầm Google Drive!\nTiến trình đang chạy nền không làm gián đoạn chụp ảnh."
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Đồng Bộ Hoàn Tất",
+                "Tất cả ảnh trong sự kiện này đã được tải lên Google Drive từ trước!"
+            )
+        self._refresh_gallery()
+
     def _export_event_zip(self):
         ev_name = self.event_mgr.get_active_event_name()
         dirs = self.event_mgr.get_event_dirs(ev_name)
@@ -172,10 +236,35 @@ class EventsPage(QWidget):
             from datetime import datetime
             time_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M:%S")
 
+            # Kiểm tra trạng thái Google Drive
+            cloud_status_text = "📱 Chỉ lưu máy"
+            cloud_color = "#94A3B8"
+            if self.sync_mgr:
+                info = self.sync_mgr.get_file_info(fpath)
+                if info:
+                    st = info.get("status")
+                    if st == SyncStatus.SYNCED:
+                        cloud_status_text = "☁️ Đã tải lên Google Drive"
+                        cloud_color = "#10B981"
+                    elif st == SyncStatus.UPLOADING:
+                        cloud_status_text = "⏳ Đang tải lên..."
+                        cloud_color = "#F59E0B"
+                    elif st == SyncStatus.FAILED:
+                        cloud_status_text = "⚠️ Tải thất bại (Thử lại)"
+                        cloud_color = "#EF4444"
+                elif self.sync_mgr.is_ready():
+                    cloud_status_text = "⏳ Chờ đưa vào hàng đợi"
+                    cloud_color = "#38BDF8"
+
             self.table_sessions.setItem(row, 0, QTableWidgetItem(sess_id))
             self.table_sessions.setItem(row, 1, QTableWidgetItem(f))
             self.table_sessions.setItem(row, 2, QTableWidgetItem(time_str))
-            self.table_sessions.setItem(row, 3, QTableWidgetItem("Sẵn sàng in / chia sẻ"))
+
+            item_cloud = QTableWidgetItem(cloud_status_text)
+            item_cloud.setForeground(Qt.GlobalColor.white if cloud_color == "#10B981" else Qt.GlobalColor.lightGray)
+            self.table_sessions.setItem(row, 3, item_cloud)
+
+            self.table_sessions.setItem(row, 4, QTableWidgetItem("Sẵn sàng in / chia sẻ"))
 
     def _reprint_selected(self):
         row = self.table_sessions.currentRow()
@@ -198,40 +287,111 @@ class EventsPage(QWidget):
             QMessageBox.warning(self, "Thông Báo", "Vui lòng chọn một lượt chụp trong bảng để xem mã QR.")
             return
 
+        fname = self.table_sessions.item(row, 1).text()
         sess_id = self.table_sessions.item(row, 0).text()
         ev_name = self.event_mgr.get_active_event_name()
-        token_info = self.token_mgr.create_token(ev_name, sess_id)
+        dirs = self.event_mgr.get_event_dirs(ev_name)
+        fpath = os.path.join(dirs["final"], fname)
 
-        qr_img = self.token_mgr.generate_qr_code(token_info.token)
+        # Lấy link LAN
+        token_info = self.token_mgr.create_token(ev_name, sess_id)
         lan_url = self.token_mgr.get_sharing_url(token_info.token)
 
+        # Lấy link Google Drive nếu có
+        gdrive_url = None
+        if self.sync_mgr:
+            info = self.sync_mgr.get_file_info(fpath)
+            if info and info.get("status") == SyncStatus.SYNCED:
+                gdrive_url = info.get("web_link")
+
+        # Dialog hiển thị mã QR thông minh 2 chế độ
         dlg = QDialog(self)
-        dlg.setWindowTitle("Quét Mã QR Lượt Chụp Này")
-        dlg.setFixedSize(400, 480)
-        l = QVBoxLayout(dlg)
+        dlg.setWindowTitle("Quét Mã QR Nhận Ảnh")
+        dlg.setFixedSize(460, 560)
+        layout = QVBoxLayout(dlg)
 
-        title = QLabel(f"Lượt Chụp: {sess_id}")
+        title = QLabel(f"Lượt Chụp: <b>{sess_id}</b>")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #38BDF8;")
-        l.addWidget(title)
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #D4AF37;")
+        layout.addWidget(title)
 
-        lbl_qr = QLabel()
-        lbl_qr.setAlignment(Qt.AlignCenter)
-        rgb = qr_img.convert("RGB")
-        w, h = rgb.size
-        data = rgb.tobytes("raw", "RGB")
-        qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
-        lbl_qr.setPixmap(QPixmap.fromImage(qimg).scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        l.addWidget(lbl_qr)
+        tabs_qr = QTabWidget()
 
-        lbl_url = QLabel(lan_url)
-        lbl_url.setAlignment(Qt.AlignCenter)
-        lbl_url.setStyleSheet("color: #94A3B8; font-size: 13px;")
-        l.addWidget(lbl_url)
+        # Tab 1: Google Drive (Online 4G/Internet)
+        tab_cloud = QWidget()
+        l_cloud = QVBoxLayout(tab_cloud)
+        if gdrive_url:
+            qr_cloud_img = qrcode.make(gdrive_url)
+            lbl_qr_c = QLabel()
+            lbl_qr_c.setAlignment(Qt.AlignCenter)
+            rgb = qr_cloud_img.convert("RGB")
+            w, h = rgb.size
+            data = rgb.tobytes("raw", "RGB")
+            qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
+            lbl_qr_c.setPixmap(QPixmap.fromImage(qimg).scaled(260, 260, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            l_cloud.addWidget(lbl_qr_c)
+
+            lbl_c_desc = QLabel("Quét để xem và tải ảnh gốc trực tiếp qua mạng 4G/Internet.")
+            lbl_c_desc.setAlignment(Qt.AlignCenter)
+            lbl_c_desc.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
+            l_cloud.addWidget(lbl_c_desc)
+
+            lbl_c_link = QLabel(f"<a href='{gdrive_url}' style='color:#38BDF8;'>Mở liên kết Drive</a>")
+            lbl_c_link.setOpenExternalLinks(True)
+            lbl_c_link.setAlignment(Qt.AlignCenter)
+            l_cloud.addWidget(lbl_c_link)
+        else:
+            lbl_notice = QLabel("Ảnh này chưa tải lên Google Drive.\nBạn có thể bấm 'Đồng Bộ Lên Drive' để tải lên ngay.")
+            lbl_notice.setAlignment(Qt.AlignCenter)
+            lbl_notice.setStyleSheet("color: #94A3B8; font-size: 13px; line-height: 1.5;")
+            l_cloud.addWidget(lbl_notice)
+
+            btn_sync_now = QPushButton("☁️ Tải Lên Google Drive Ngay")
+            btn_sync_now.setObjectName("btn_champagne")
+            btn_sync_now.clicked.connect(lambda: self._trigger_single_sync(fpath, ev_name, dlg))
+            l_cloud.addWidget(btn_sync_now)
+
+        tabs_qr.addTab(tab_cloud, "☁️ Google Drive (Online)")
+
+        # Tab 2: Mạng LAN WiFi
+        tab_lan = QWidget()
+        l_lan = QVBoxLayout(tab_lan)
+
+        qr_lan_img = qrcode.make(lan_url)
+        lbl_qr_l = QLabel()
+        lbl_qr_l.setAlignment(Qt.AlignCenter)
+        rgb_l = qr_lan_img.convert("RGB")
+        w_l, h_l = rgb_l.size
+        data_l = rgb_l.tobytes("raw", "RGB")
+        qimg_l = QImage(data_l, w_l, h_l, 3 * w_l, QImage.Format_RGB888)
+        lbl_qr_l.setPixmap(QPixmap.fromImage(qimg_l).scaled(260, 260, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        l_lan.addWidget(lbl_qr_l)
+
+        lbl_l_desc = QLabel("Khách kết nối cùng mạng WiFi với quầy Photobooth để tải ảnh.")
+        lbl_l_desc.setAlignment(Qt.AlignCenter)
+        lbl_l_desc.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        l_lan.addWidget(lbl_l_desc)
+
+        lbl_l_link = QLabel(lan_url)
+        lbl_l_link.setAlignment(Qt.AlignCenter)
+        lbl_l_link.setStyleSheet("color: #38BDF8; font-size: 11px;")
+        l_lan.addWidget(lbl_l_link)
+
+        tabs_qr.addTab(tab_lan, "📱 Mạng LAN (WiFi Nội Bộ)")
+        layout.addWidget(tabs_qr)
 
         btn_close = QPushButton("Đóng")
         btn_close.setObjectName("btn_secondary")
         btn_close.clicked.connect(dlg.accept)
-        l.addWidget(btn_close)
+        layout.addWidget(btn_close)
 
         dlg.exec()
+
+    def _trigger_single_sync(self, fpath: str, ev_name: str, parent_dlg: QDialog):
+        if self.sync_mgr and self.sync_mgr.is_ready():
+            self.sync_mgr.enqueue(fpath, ev_name)
+            parent_dlg.accept()
+            QMessageBox.information(self, "Đã Đưa Vào Hàng Đợi", "Đã đưa ảnh vào hàng đợi đồng bộ Google Drive.")
+            self._refresh_gallery()
+        else:
+            QMessageBox.warning(self, "Chưa Sẵn Sàng", "Google Drive chưa sẵn sàng. Vui lòng vào Cài Đặt để kết nối.")

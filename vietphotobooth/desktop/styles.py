@@ -27,13 +27,13 @@ QTabBar {
 QTabBar::tab {
     background: #10192C;
     color: #E2E8F0;
-    padding: 8px 12px;
-    font-size: 14px;
+    padding: 6px 10px;
+    font-size: 13px;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 7px;
     border: 1px solid #223354;
-    margin: 3px 2px;
-    min-width: 80px;
+    margin: 2px 2px;
+    min-width: 60px;
 }
 
 QTabBar::tab:selected {
@@ -49,9 +49,58 @@ QTabBar::tab:hover:!selected {
     border: 1px solid #D4AF37;
 }
 
+QTabBar QToolButton {
+    background: #10192C;
+    border: 1px solid #28395E;
+    border-radius: 4px;
+    color: #D4AF37;
+    margin: 2px;
+}
+
+QTabBar QToolButton:hover {
+    background: #D4AF37;
+    color: #070A12;
+}
+
 QTabWidget::pane {
     border: none;
     background: #070A12;
+}
+
+/* === Thanh Cuộn Mượt Mà (ScrollBars) === */
+QScrollBar:vertical {
+    background: #0A111F;
+    width: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical {
+    background: #233454;
+    min-height: 24px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #D4AF37;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar:horizontal {
+    background: #0A111F;
+    height: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal {
+    background: #233454;
+    min-width: 24px;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #D4AF37;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
 }
 
 /* === Nút Bấm Cảm Ứng (Touch Buttons) === */
@@ -321,5 +370,24 @@ QScrollBar::handle:horizontal:hover {
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     width: 0px;
+}
+
+/* === Tối Ưu Bố Cục Co Giãn Frame Designer (Responsive Designer Styles) === */
+FrameDesignerPage QPushButton {
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 24px;
+}
+
+FrameDesignerPage QHeaderView::section {
+    padding: 3px 6px;
+    font-size: 12px;
+}
+
+FrameDesignerPage QComboBox {
+    padding: 4px 8px;
+    font-size: 13px;
+    min-height: 24px;
 }
 """

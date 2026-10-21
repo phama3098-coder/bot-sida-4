@@ -6,7 +6,8 @@ Device discovery, backend switching (Simulator, DirectShow, digiCamControl), tes
 from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox, QMessageBox, QFrame
+    QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox, QMessageBox, QFrame,
+    QScrollArea
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap, QImage
@@ -28,7 +29,16 @@ class CameraPage(QWidget):
         self._refresh_camera_info()
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
@@ -108,6 +118,9 @@ class CameraPage(QWidget):
 
         l_compat.addWidget(self.table_compat)
         layout.addWidget(grp_compat)
+
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
     def _refresh_camera_info(self):
         curr_backend = self.camera_mgr.current_backend_name
