@@ -88,12 +88,21 @@ class UpdateManifest:
     def validate_integrity(self) -> List[str]:
         """Kiểm tra tính hợp lệ về cấu trúc của manifest."""
         errors = []
-        if not self.version:
+        if not self.version or not self.version.strip():
             errors.append("Thiếu thông tin phiên bản (version).")
-        if not self.download_url:
+        if not self.download_url or not self.download_url.strip():
             errors.append("Thiếu đường dẫn tải bộ cài (download_url).")
-        if not self.sha256:
+        else:
+            placeholder_domains = ["example.com", "example.org", "placeholder", "your-domain.com", "url_bo_cai_that"]
+            if any(p in self.download_url.lower() for p in placeholder_domains):
+                errors.append(f"Đường dẫn tải về là địa chỉ mẫu (placeholder), chưa được cấu hình tệp cài đặt thật.")
+
+        if not self.sha256 or not self.sha256.strip():
             errors.append("Thiếu mã băm SHA-256 xác thực tính toàn vẹn.")
-        elif len(self.sha256) != 64 or not all(c in "0123456789abcdef" for c in self.sha256):
+        elif len(self.sha256.strip()) != 64 or not all(c in "0123456789abcdef" for c in self.sha256.lower().strip()):
             errors.append("Mã băm SHA-256 không hợp lệ (phải gồm đúng 64 ký tự hex).")
+
+        if self.file_size_bytes < 0:
+            errors.append("Dung lượng tệp cài đặt (file_size_bytes) không hợp lệ.")
+
         return errors

@@ -261,10 +261,14 @@ class SettingsPage(QWidget):
         brand_info.addWidget(QLabel("Đơn vị sở hữu: <b>1998 Studio phóng sự cưới</b>"))
 
         lbl_ver_badge = QLabel(
-            f"Phiên bản hiện tại: <b style='color:#10B981;'>v{get_version_string()}</b> • Phát hành: <b>{__release_date__}</b>"
+            f"Phiên bản đang sử dụng: <b style='color:#10B981;'>v{get_version_string()}</b> • Phát hành: <b>{__release_date__}</b>"
         )
         lbl_ver_badge.setStyleSheet("font-size: 13px; color: #CBD5E1;")
         brand_info.addWidget(lbl_ver_badge)
+
+        self.lbl_server_ver = QLabel("Phiên bản mới nhất trên máy chủ: <b style='color:#94A3B8;'>Chưa kiểm tra</b>")
+        self.lbl_server_ver.setStyleSheet("font-size: 13px; color: #CBD5E1;")
+        brand_info.addWidget(self.lbl_server_ver)
 
         brand_info.addWidget(QLabel(f"Nền tảng: <b>{platform.system()} {platform.release()} (64-bit)</b> • Python {platform.python_version()} • PySide6"))
         r_brand.addLayout(brand_info)
@@ -283,16 +287,20 @@ class SettingsPage(QWidget):
         r_up1 = QHBoxLayout()
         r_up1.addWidget(QLabel("Địa chỉ Manifest Cập Nhật (URL / Đường Dẫn):"))
         self.txt_manifest_url = QLineEdit()
-        self.txt_manifest_url.setPlaceholderText("https://.../update_manifest.json hoặc đường dẫn tệp local")
+        self.txt_manifest_url.setPlaceholderText("https://raw.githubusercontent.com/.../update_manifest.json hoặc đường dẫn tệp local")
         r_up1.addWidget(self.txt_manifest_url, 1)
         l_sys.addLayout(r_up1)
+
+        lbl_up_hint = QLabel("💡 <i>Để trống nếu chưa có máy chủ phát hành. Không sử dụng các URL mẫu như example.com.</i>")
+        lbl_up_hint.setStyleSheet("color: #64748B; font-size: 11px;")
+        l_sys.addWidget(lbl_up_hint)
 
         r_up2 = QHBoxLayout()
         self.chk_auto_update = QCheckBox("Tự động kiểm tra bản cập nhật mới khi mở ứng dụng")
         r_up2.addWidget(self.chk_auto_update)
         r_up2.addStretch()
 
-        self.btn_check_update = QPushButton("🔄 Kiểm Tra Cập Nhật Ngay")
+        self.btn_check_update = QPushButton("🔄 Kiểm Tra Cập Nhật")
         self.btn_check_update.setObjectName("btn_secondary")
         self.btn_check_update.setFixedHeight(34)
         self.btn_check_update.clicked.connect(self._manual_check_update)
@@ -382,30 +390,38 @@ class SettingsPage(QWidget):
             QMessageBox.information(self, "Thành Công", "Đã lưu thành công các thiết lập hệ thống và đám mây!")
 
     def _manual_check_update(self):
-        """Xử lý khi người dùng chủ động bấm 'Kiểm Tra Cập Nhật Ngay'."""
+        """Xử lý khi người dùng chủ động bấm 'Kiểm Tra Cập Nhật'."""
         murl = self.txt_manifest_url.text().strip()
         self.update_mgr.manifest_url = murl
 
         self.lbl_update_status.setText("⏳ Đang kết nối máy chủ kiểm tra phiên bản mới...")
         self.lbl_update_status.setStyleSheet("color: #38BDF8; font-weight: bold; font-size: 12px;")
         self.btn_check_update.setEnabled(False)
+        self.btn_check_update.setText("⏳ Đang kiểm tra...")
 
         def on_check_done(has_update: bool, manifest, msg: str):
             self.btn_check_update.setEnabled(True)
+            self.btn_check_update.setText("🔄 Kiểm Tra Cập Nhật")
             try:
                 self.update_mgr.check_completed.disconnect(on_check_done)
             except Exception:
                 pass
 
             if has_update and manifest:
+                self.lbl_server_ver.setText(f"Phiên bản mới nhất trên máy chủ: <b style='color:#10B981;'>v{manifest.version} (Build {manifest.build})</b>")
                 self.lbl_update_status.setText(f"🎉 Đã tìm thấy bản cập nhật mới: v{manifest.version} (Build {manifest.build})!")
                 self.lbl_update_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
                 self._update_dlg = UpdateNotificationDialog(manifest, self.update_mgr, self)
                 self._update_dlg.update_requested.connect(self._start_download_flow)
                 self._update_dlg.show()
+            elif manifest:
+                self.lbl_server_ver.setText(f"Phiên bản mới nhất trên máy chủ: <b style='color:#D4AF37;'>v{manifest.version} (Build {manifest.build})</b>")
+                self.lbl_update_status.setText(f"✅ {msg}")
+                self.lbl_update_status.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 12px;")
             else:
-                self.lbl_update_status.setText(f"ℹ️ {msg}")
-                self.lbl_update_status.setStyleSheet("color: #94A3B8; font-size: 12px;")
+                self.lbl_server_ver.setText("Phiên bản mới nhất trên máy chủ: <b style='color:#EF4444;'>Không thể lấy thông tin</b>")
+                self.lbl_update_status.setText(f"⚠️ {msg}")
+                self.lbl_update_status.setStyleSheet("color: #F87171; font-weight: bold; font-size: 12px;")
 
         self.update_mgr.check_completed.connect(on_check_done)
         self.update_mgr.check_for_updates(manual=True)

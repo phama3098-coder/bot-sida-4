@@ -66,8 +66,15 @@ class PrintManager:
         self.selected_printer = default_printer or WindowsPrintSpooler.get_default_printer()
         self.jobs: List[PrintJob] = []
         self._lock = threading.Lock()
+        self._running = True
         self._worker_thread = threading.Thread(target=self._process_queue_loop, daemon=True)
         self._worker_thread.start()
+
+    def stop(self) -> None:
+        """Dừng tiến trình nền in ấn một cách an toàn."""
+        self._running = False
+        if hasattr(self, "_worker_thread") and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=0.6)
 
     def get_printers(self) -> List[Dict[str, Any]]:
         return WindowsPrintSpooler.get_installed_printers()
@@ -136,7 +143,7 @@ class PrintManager:
 
     def _process_queue_loop(self) -> None:
         """Tiến trình nền xử lý tuần tự từng lệnh in trong hàng đợi."""
-        while True:
+        while getattr(self, "_running", True):
             job_to_process = None
             with self._lock:
                 for job in self.jobs:
@@ -147,7 +154,7 @@ class PrintManager:
             if job_to_process:
                 self._execute_print_job(job_to_process)
             else:
-                time.sleep(0.5)
+                time.sleep(0.1)
 
     def _execute_print_job(self, job: PrintJob) -> None:
         job.status = STATUS_SPOOLING

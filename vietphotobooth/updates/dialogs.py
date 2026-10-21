@@ -132,10 +132,21 @@ class UpdateNotificationDialog(QDialog):
         pill_layout.addWidget(lbl_new)
         layout.addWidget(pill_frame)
 
+        # Thông tin bổ sung: Ngày phát hành & Dung lượng
+        meta_layout = QHBoxLayout()
         if self.manifest.release_date:
             lbl_date = QLabel(f"📅 Ngày phát hành: <b>{self.manifest.release_date}</b>")
             lbl_date.setStyleSheet("color: #CBD5E1; font-size: 12px;")
-            layout.addWidget(lbl_date)
+            meta_layout.addWidget(lbl_date)
+        if self.manifest.file_size_bytes > 0:
+            size_mb = self.manifest.file_size_bytes / (1024 * 1024)
+            lbl_size = QLabel(f"📦 Dung lượng gói cài: <b>{size_mb:.1f} MB</b>")
+            lbl_size.setStyleSheet("color: #CBD5E1; font-size: 12px;")
+            meta_layout.addStretch()
+            meta_layout.addWidget(lbl_size)
+        else:
+            meta_layout.addStretch()
+        layout.addLayout(meta_layout)
 
         # Khu vực nội dung thay đổi (Release Notes)
         layout.addWidget(QLabel("<b>Nội dung cập nhật & cải tiến:</b>"))
@@ -254,6 +265,16 @@ class UpdateProgressDialog(QDialog):
             self.lbl_details.setText(err_msg or "Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.")
             self.btn_action.setText("Đóng")
 
+    def reject(self):
+        if not self.installer_path and self.update_mgr:
+            self.update_mgr.cancel_download()
+        super().reject()
+
+    def closeEvent(self, event):
+        if not self.installer_path and self.update_mgr:
+            self.update_mgr.cancel_download()
+        super().closeEvent(event)
+
     def _on_action_clicked(self):
         if self.installer_path:
             ret = QMessageBox.question(
@@ -265,6 +286,6 @@ class UpdateProgressDialog(QDialog):
             if ret == QMessageBox.Yes:
                 self.update_mgr.apply_update_and_restart(self.installer_path)
         else:
-            if self.update_mgr._download_worker and self.update_mgr._download_worker.isRunning():
-                self.update_mgr._download_worker.stop()
+            if self.update_mgr:
+                self.update_mgr.cancel_download()
             self.reject()

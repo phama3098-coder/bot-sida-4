@@ -182,11 +182,19 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.settings_page, "⚙️ Cài Đặt")
         self.tabs.setTabToolTip(5, "Cài đặt hệ thống, bảo mật & Google Drive")
 
-        # Nút trạng thái khóa bảo mật Quản trị viên ở góc trên bên phải thanh Tab
+        # Nút trạng thái khóa bảo mật Quản trị viên & Nút kiểm tra cập nhật nhanh ở góc trên bên phải thanh Tab
         self.auth_widget = QWidget()
         auth_layout = QHBoxLayout(self.auth_widget)
         auth_layout.setContentsMargins(4, 2, 10, 2)
         auth_layout.setSpacing(6)
+
+        self.btn_check_update_quick = QPushButton("🔄 Cập Nhật")
+        self.btn_check_update_quick.setFixedHeight(30)
+        self.btn_check_update_quick.setCursor(Qt.PointingHandCursor)
+        self.btn_check_update_quick.setToolTip("Kiểm tra bản cập nhật phần mềm mới từ máy chủ phát hành")
+        self.btn_check_update_quick.setObjectName("btn_secondary")
+        self.btn_check_update_quick.clicked.connect(self._on_quick_check_update_clicked)
+        auth_layout.addWidget(self.btn_check_update_quick)
 
         self.btn_auth_status = QPushButton("🔒 Đang Khóa")
         self.btn_auth_status.setFixedHeight(30)
@@ -219,6 +227,41 @@ class MainWindow(QMainWindow):
         """Khởi chạy kiểm tra cập nhật ngầm nếu cửa sổ đang hoạt động."""
         if self.isVisible():
             self.update_mgr.check_for_updates(manual=False)
+
+    def _on_quick_check_update_clicked(self):
+        """Xử lý khi bấm nút kiểm tra cập nhật nhanh trên thanh tiêu đề."""
+        self.btn_check_update_quick.setEnabled(False)
+        self.btn_check_update_quick.setText("⏳ Đang kiểm tra...")
+
+        def on_quick_done(has_update: bool, manifest, msg: str):
+            self.btn_check_update_quick.setEnabled(True)
+            self.btn_check_update_quick.setText("🔄 Cập Nhật")
+            try:
+                self.update_mgr.check_completed.disconnect(on_quick_done)
+            except Exception:
+                pass
+
+            if has_update and manifest:
+                self._update_dlg = UpdateNotificationDialog(manifest, self.update_mgr, self)
+                self._update_dlg.update_requested.connect(self._start_download_flow)
+                self._update_dlg.show()
+            else:
+                from PySide6.QtWidgets import QMessageBox
+                if manifest:
+                    QMessageBox.information(
+                        self,
+                        "Kiểm Tra Cập Nhật",
+                        f"✅ {msg}\n\nPhiên bản đang sử dụng: v{get_version_string()}"
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Thông Báo Cập Nhật",
+                        f"⚠️ {msg}\n\nBạn có thể cấu hình địa chỉ máy chủ phát hành trong mục Cài Đặt."
+                    )
+
+        self.update_mgr.check_completed.connect(on_quick_done)
+        self.update_mgr.check_for_updates(manual=True)
 
     def _on_auto_update_checked(self, has_update: bool, manifest, msg: str):
         """Hiển thị thông báo khi có bản cập nhật mới."""
@@ -392,6 +435,8 @@ class MainWindow(QMainWindow):
             self.sync_mgr.close()
         if hasattr(self, "camera_mgr"):
             self.camera_mgr.close()
+        if hasattr(self, "print_mgr") and hasattr(self.print_mgr, "stop"):
+            self.print_mgr.stop()
         if hasattr(self, "update_mgr"):
             if self.update_mgr._check_worker and self.update_mgr._check_worker.isRunning():
                 self.update_mgr._check_worker.wait(200)

@@ -49,39 +49,74 @@ class UpdateCheckWorker(QThread):
         self.current_build = current_build
 
     def run(self):
+        # 1. Kiểm tra cấu hình URL
         if not self.manifest_url:
-            self.check_finished.emit(False, None, "Chưa cấu hình địa chỉ máy chủ cập nhật.")
+            self.check_finished.emit(False, None, "Chưa cấu hình máy chủ cập nhật.")
+            return
+
+        placeholder_domains = ["example.com", "example.org", "placeholder", "your-domain.com"]
+        if any(p in self.manifest_url.lower() for p in placeholder_domains):
+            self.check_finished.emit(False, None, "Chưa cấu hình máy chủ cập nhật (đang để URL mẫu example.com). Vui lòng cập nhật URL thật trong Cài đặt.")
             return
 
         is_local_file = os.path.exists(self.manifest_url) or self.manifest_url.startswith("file://")
 
-        # Nếu là URL từ xa, kiểm tra kết nối mạng trước
+        # 2. Nếu là URL từ xa, kiểm tra kết nối mạng trước
         if not is_local_file:
             if not check_network_connectivity():
                 self.check_finished.emit(False, None, "Không có kết nối Internet để kiểm tra cập nhật.")
                 return
 
+        # 3. Lấy nội dung manifest
         try:
             content = ""
             if is_local_file:
                 clean_path = self.manifest_url.replace("file:///", "").replace("file://", "")
+                if not os.path.exists(clean_path):
+                    self.check_finished.emit(False, None, f"Tệp manifest cập nhật không tồn tại: {clean_path}")
+                    return
                 with open(clean_path, "r", encoding="utf-8") as f:
                     content = f.read()
             else:
-                resp = requests.get(self.manifest_url, timeout=4.0, headers={"User-Agent": "1998TeamPhotobooth-Updater/1.0"})
-                if resp.status_code != 200:
+                try:
+                    resp = requests.get(self.manifest_url, timeout=5.0, headers={"User-Agent": "1998TeamPhotobooth-Updater/1.0"})
+                except requests.exceptions.Timeout:
+                    self.check_finished.emit(False, None, "Quá thời gian kết nối đến máy chủ cập nhật (Timeout).")
+                    return
+                except requests.exceptions.ConnectionError:
+                    self.check_finished.emit(False, None, "Không thể kết nối đến máy chủ cập nhật. Vui lòng kiểm tra lại kết nối mạng hoặc địa chỉ URL.")
+                    return
+                except requests.exceptions.RequestException as req_err:
+                    self.check_finished.emit(False, None, f"Lỗi kết nối máy chủ cập nhật: {req_err}")
+                    return
+
+                if resp.status_code == 404:
+                    self.check_finished.emit(False, None, f"Máy chủ phản hồi: Tệp manifest cập nhật không tồn tại (Lỗi HTTP 404 Not Found).")
+                    return
+                elif resp.status_code >= 500:
+                    self.check_finished.emit(False, None, f"Máy chủ cập nhật đang gặp sự cố nội bộ (Lỗi HTTP {resp.status_code}).")
+                    return
+                elif resp.status_code != 200:
                     self.check_finished.emit(False, None, f"Máy chủ cập nhật phản hồi mã lỗi HTTP {resp.status_code}.")
                     return
+
                 content = resp.text
 
-            manifest = UpdateManifest.from_json(content)
+            # 4. Phân tích cú pháp JSON
+            try:
+                manifest = UpdateManifest.from_json(content)
+            except Exception as json_err:
+                self.check_finished.emit(False, None, f"Tệp manifest cập nhật sai định dạng JSON: {json_err}")
+                return
+
+            # 5. Xác thực tính toàn vẹn của manifest
             errors = manifest.validate_integrity()
             if errors:
                 err_str = "; ".join(errors)
                 self.check_finished.emit(False, None, f"Dữ liệu manifest không hợp lệ: {err_str}")
                 return
 
-            # So sánh phiên bản
+            # 6. So sánh phiên bản
             has_update = is_newer_version(
                 current_ver=self.current_version,
                 candidate_ver=manifest.version,
@@ -92,13 +127,13 @@ class UpdateCheckWorker(QThread):
             if has_update:
                 msg = f"Đã tìm thấy phiên bản mới: v{manifest.version} (Build {manifest.build})"
             else:
-                msg = f"Bạn đang sử dụng phiên bản mới nhất: v{self.current_version}."
+                msg = f"Phiên bản hiện tại (v{self.current_version}) đã là mới nhất."
 
             self.check_finished.emit(has_update, manifest, msg)
 
         except Exception as e:
             logger.warning(f"Lỗi khi kiểm tra cập nhật từ {self.manifest_url}: {e}")
-            self.check_finished.emit(False, None, f"Lỗi kết nối máy chủ cập nhật: {e}")
+            self.check_finished.emit(False, None, f"Lỗi không xác định khi kiểm tra cập nhật: {e}")
 
 
 class UpdateDownloadWorker(QThread):
@@ -117,6 +152,14 @@ class UpdateDownloadWorker(QThread):
 
     def run(self):
         url = self.manifest.download_url
+        placeholder_domains = ["example.com", "example.org", "placeholder", "your-domain.com"]
+        if any(p in url.lower() for p in placeholder_domains):
+            self.download_finished.emit(
+                False, "",
+                "Đường dẫn tải gói cài đặt là URL mẫu (example.com), chưa được cấu hình máy chủ phát hành thực tế."
+            )
+            return
+
         os.makedirs(self.dest_dir, exist_ok=True)
         filename = os.path.basename(urlparse(url).path) or f"1998-TEAM-Setup-v{self.manifest.version}.exe"
         if not filename.endswith(".exe"):
@@ -129,30 +172,89 @@ class UpdateDownloadWorker(QThread):
             # 1. Hỗ trợ tệp cục bộ (Local Testing / LAN Share)
             if os.path.exists(url) or url.startswith("file://"):
                 src_path = url.replace("file:///", "").replace("file://", "")
+                if not os.path.exists(src_path):
+                    self.download_finished.emit(False, "", f"Không tìm thấy tệp cài đặt tại: {src_path}")
+                    return
                 with open(src_path, "rb") as f_in, open(temp_file, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
             else:
-                # 2. Tải qua HTTP/HTTPS
-                with requests.get(url, stream=True, timeout=10.0, headers={"User-Agent": "1998TeamPhotobooth-Updater/1.0"}) as resp:
-                    resp.raise_for_status()
+                # 2. Tải qua HTTP/HTTPS với xử lý lỗi chi tiết
+                try:
+                    resp = requests.get(url, stream=True, timeout=10.0, headers={"User-Agent": "1998TeamPhotobooth-Updater/1.0"})
+                except requests.exceptions.Timeout:
+                    self.download_finished.emit(False, "", "Quá thời gian chờ máy chủ phản hồi khi tải gói cài đặt (Timeout).")
+                    return
+                except requests.exceptions.ConnectionError:
+                    self.download_finished.emit(False, "", "Không thể kết nối đến máy chủ tải bộ cài. Vui lòng kiểm tra lại mạng Internet.")
+                    return
+                except requests.exceptions.RequestException as req_err:
+                    self.download_finished.emit(False, "", f"Lỗi kết nối tải gói cài đặt: {req_err}")
+                    return
+
+                with resp:
+                    if resp.status_code == 404:
+                        if os.path.exists(temp_file):
+                            try:
+                                os.remove(temp_file)
+                            except Exception:
+                                pass
+                        self.download_finished.emit(
+                            False, "",
+                            f"Nguồn phát hành không tồn tại hoặc sai đường dẫn (Lỗi HTTP 404 Not Found từ máy chủ tải). Vui lòng kiểm tra lại URL tải bộ cài đặt trên máy chủ phát hành."
+                        )
+                        return
+                    elif resp.status_code >= 500:
+                        if os.path.exists(temp_file):
+                            try:
+                                os.remove(temp_file)
+                            except Exception:
+                                pass
+                        self.download_finished.emit(
+                            False, "",
+                            f"Máy chủ lưu trữ bộ cài gặp sự cố nội bộ (Mã lỗi HTTP {resp.status_code})."
+                        )
+                        return
+                    elif resp.status_code != 200:
+                        if os.path.exists(temp_file):
+                            try:
+                                os.remove(temp_file)
+                            except Exception:
+                                pass
+                        self.download_finished.emit(
+                            False, "",
+                            f"Không thể tải bộ cài đặt (Mã lỗi HTTP {resp.status_code})."
+                        )
+                        return
+
                     total_bytes = int(resp.headers.get("content-length", 0)) or self.manifest.file_size_bytes
                     downloaded = 0
 
-                    hasher = hashlib.sha256()
                     with open(temp_file, "wb") as f:
                         for chunk in resp.iter_content(chunk_size=65536):
                             if not self._running:
                                 if os.path.exists(temp_file):
-                                    os.remove(temp_file)
-                                self.download_finished.emit(False, "", "Tiến trình tải xuống đã bị hủy.")
+                                    try:
+                                        os.remove(temp_file)
+                                    except Exception:
+                                        pass
+                                self.download_finished.emit(False, "", "Tiến trình tải xuống đã bị hủy bởi người dùng.")
                                 return
                             if chunk:
                                 f.write(chunk)
-                                hasher.update(chunk)
                                 downloaded += len(chunk)
                                 if total_bytes > 0:
                                     percent = min(100, int((downloaded / total_bytes) * 100))
                                     self.progress_changed.emit(percent, downloaded, total_bytes)
+
+            # Kiểm tra hủy ngay sau khi tải xong luồng
+            if not self._running:
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except Exception:
+                        pass
+                self.download_finished.emit(False, "", "Tiến trình tải xuống đã bị hủy bởi người dùng.")
+                return
 
             # 3. Tính toán và xác minh mã băm SHA-256
             hasher = hashlib.sha256()
@@ -164,13 +266,30 @@ class UpdateDownloadWorker(QThread):
             expected_sha256 = self.manifest.sha256.lower().strip()
             if expected_sha256 and actual_sha256 != expected_sha256:
                 if os.path.exists(temp_file):
-                    os.remove(temp_file)
-                err = f"Xác thực tính toàn vẹn thất bại: Mã SHA-256 ({actual_sha256[:12]}...) không khớp ({expected_sha256[:12]}...)."
+                    try:
+                        os.remove(temp_file)
+                    except Exception:
+                        pass
+                err = f"Xác thực tính toàn vẹn thất bại: Mã SHA-256 ({actual_sha256[:12]}...) không khớp với chữ ký ({expected_sha256[:12]}...). Tệp tạm đã được xóa an toàn."
                 logger.error(err)
                 self.download_finished.emit(False, "", err)
                 return
 
-            # Đổi tên tệp hoàn chỉnh
+            # 4. Kiểm tra dung lượng tệp nếu được định nghĩa
+            if self.manifest.file_size_bytes > 0:
+                actual_size = os.path.getsize(temp_file)
+                if actual_size != self.manifest.file_size_bytes:
+                    if os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except Exception:
+                            pass
+                    err = f"Dung lượng tệp tải về ({actual_size} bytes) không khớp với dung lượng công bố ({self.manifest.file_size_bytes} bytes)."
+                    logger.error(err)
+                    self.download_finished.emit(False, "", err)
+                    return
+
+            # 5. Đổi tên tệp tạm hoàn chỉnh sang tệp đích an toàn
             if os.path.exists(dest_file):
                 try:
                     os.remove(dest_file)
@@ -257,6 +376,15 @@ class UpdateManager(QObject):
     def dismiss_version_for_session(self, version: str):
         """Ghi nhớ người dùng đã chọn 'Để sau' cho phiên làm việc này."""
         self._dismissed_versions_in_session.add(version)
+
+    @property
+    def latest_manifest(self) -> Optional[UpdateManifest]:
+        return self._latest_manifest
+
+    def cancel_download(self):
+        """Hủy tiến trình tải bộ cài đặt hiện tại và dọn dẹp an toàn."""
+        if self._download_worker and self._download_worker.isRunning():
+            self._download_worker.stop()
 
     def start_download(self, manifest: UpdateManifest):
         """Khởi chạy luồng tải bộ cài."""

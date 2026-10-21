@@ -72,6 +72,11 @@ class ConfigManager:
                     data = json.load(f)
                     self._config.update(data)
                 logger.info(f"Đã tải cấu hình từ {self.config_path}")
+                # Loại bỏ URL mẫu placeholder nếu người dùng từng lưu trước đó
+                manifest_url = self.get("updates.manifest_url", "")
+                if isinstance(manifest_url, str) and ("example.com" in manifest_url.lower() or "example.org" in manifest_url.lower()):
+                    self.set("updates.manifest_url", "")
+                    self.save()
             except Exception as e:
                 logger.error(f"Lỗi khi đọc file cấu hình {self.config_path}: {e}")
         else:
@@ -95,10 +100,34 @@ class ConfigManager:
             return False
 
     def get(self, key: str, default: Any = None) -> Any:
+        if "." in key:
+            parts = key.split(".")
+            curr = self._config
+            found = True
+            for part in parts:
+                if isinstance(curr, dict) and part in curr:
+                    curr = curr[part]
+                else:
+                    found = False
+                    break
+            if found:
+                return curr
+            return self._config.get(key, default)
         return self._config.get(key, default)
 
     def set(self, key: str, value: Any) -> None:
-        self._config[key] = value
+        if "." in key:
+            parts = key.split(".")
+            curr = self._config
+            for part in parts[:-1]:
+                if part not in curr or not isinstance(curr[part], dict):
+                    curr[part] = {}
+                curr = curr[part]
+            curr[parts[-1]] = value
+            if key in self._config:
+                del self._config[key]
+        else:
+            self._config[key] = value
 
     def update(self, new_data: Dict[str, Any]) -> bool:
         for k, v in new_data.items():
