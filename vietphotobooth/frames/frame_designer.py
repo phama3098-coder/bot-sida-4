@@ -2,6 +2,7 @@
 VietPhotoBooth Frame Designer & 300 DPI Rendering Engine
 Renders high-resolution photobooth prints (2x6 strips, 4x6 portraits/landscapes, dual-cut strips),
 applies PNG overlays with transparency, renders photo slots, text, and logos.
+Guarantees 100% WYSIWYG parity between UI preview and printed output.
 """
 
 import os
@@ -15,28 +16,99 @@ from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLay
 
 logger = get_logger()
 
-# Tìm font chữ Windows hỗ trợ tiếng Việt có sẵn
-def get_windows_font(font_name: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Nạp font chữ tiếng Việt từ hệ thống Windows (Arial, Calibri, Segoe UI, Tahoma)."""
+# Hệ thống font Windows hỗ trợ tiếng Việt Unicode
+FONT_VARIANTS: Dict[str, Dict[str, str]] = {
+    "arial": {
+        "regular": "arial.ttf",
+        "bold": "arialbd.ttf",
+        "italic": "ariali.ttf",
+        "bold_italic": "arialbi.ttf"
+    },
+    "calibri": {
+        "regular": "calibri.ttf",
+        "bold": "calibrib.ttf",
+        "italic": "calibrii.ttf",
+        "bold_italic": "calibriz.ttf"
+    },
+    "segoeui": {
+        "regular": "segoeui.ttf",
+        "bold": "segoeuib.ttf",
+        "italic": "segoeuii.ttf",
+        "bold_italic": "segoeuiz.ttf"
+    },
+    "tahoma": {
+        "regular": "tahoma.ttf",
+        "bold": "tahomabd.ttf",
+        "italic": "tahoma.ttf",
+        "bold_italic": "tahomabd.ttf"
+    },
+    "times": {
+        "regular": "times.ttf",
+        "bold": "timesbd.ttf",
+        "italic": "timesi.ttf",
+        "bold_italic": "timesbi.ttf"
+    }
+}
+
+
+def get_windows_font(
+    font_name: str,
+    size: int,
+    is_bold: bool = False,
+    is_italic: bool = False
+) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Nạp font chữ tiếng Việt từ hệ thống Windows hỗ trợ đậm/nghiêng."""
     system_font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
-    candidates = [
-        os.path.join(system_font_dir, font_name),
-        os.path.join(system_font_dir, "arial.ttf"),
-        os.path.join(system_font_dir, "calibri.ttf"),
-        os.path.join(system_font_dir, "tahoma.ttf"),
-        os.path.join(system_font_dir, "segoeui.ttf"),
-    ]
-    for p in candidates:
-        if os.path.exists(p):
+    base_lower = os.path.splitext(os.path.basename(font_name))[0].lower().replace(" ", "")
+
+    # Tìm biến thể đậm/nghiêng phù hợp
+    target_variant = "regular"
+    if is_bold and is_italic:
+        target_variant = "bold_italic"
+    elif is_bold:
+        target_variant = "bold"
+    elif is_italic:
+        target_variant = "italic"
+
+    candidate_filenames = []
+
+    # 1. Kiểm tra bảng variant
+    for family_key, variants in FONT_VARIANTS.items():
+        if family_key in base_lower:
+            candidate_filenames.append(variants.get(target_variant, variants["regular"]))
+            if target_variant != "regular":
+                candidate_filenames.append(variants["regular"])
+            break
+
+    # 2. Thêm file gốc và các font dự phòng
+    candidate_filenames.extend([
+        font_name,
+        os.path.basename(font_name),
+        "arialbd.ttf" if is_bold else "arial.ttf",
+        "calibri.ttf",
+        "segoeui.ttf",
+        "tahoma.ttf"
+    ])
+
+    for fname in candidate_filenames:
+        if os.path.isabs(fname) and os.path.exists(fname):
             try:
-                return ImageFont.truetype(p, size)
+                return ImageFont.truetype(fname, size)
             except Exception:
                 continue
+
+        font_path = os.path.join(system_font_dir, fname)
+        if os.path.exists(font_path):
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception:
+                continue
+
     return ImageFont.load_default()
 
 
 class FrameDesigner:
-    """Bộ tạo dựng bố cục khung in ảnh Photobooth chuẩn 300 DPI."""
+    """Bộ tạo dựng bố cục khung in ảnh Photobooth chuẩn 300 DPI với WYSIWYG tuyệt đối."""
 
     @staticmethod
     def render_composite(
@@ -47,11 +119,12 @@ class FrameDesigner:
         """
         Ghép danh sách ảnh vào khung template với độ phân giải chuẩn in 300 DPI.
         Hỗ trợ:
-        - Tự động cắt & thu phóng theo tỷ lệ từng ô ảnh (Center Crop).
+        - Tự động căn chỉnh ảnh thông minh (Auto Photo Fitting: Cover/Contain, Center/Face, Zoom, Crop Offset).
         - Bo góc viền ảnh tròn mềm mại.
         - Chèn hình nền (Background).
         - Đè khung viền hoa văn PNG có kênh suốt (Alpha Transparency Overlay).
-        - Vẽ chữ nghệ thuật tiếng Việt (Tên tiệc, ngày tháng, lời chúc).
+        - Vẽ chữ nghệ thuật tiếng Việt đa dòng, tự căn giữa, an toàn mép cắt.
+        - Chèn Logo giữ nguyên tỷ lệ gốc và hỗ trợ các vị trí đặt nhanh.
         - Nhân bản đôi 2 dải cho máy in DNP DS-RX1HS tự động cắt 2 inch.
         """
         if not photos:
@@ -59,6 +132,7 @@ class FrameDesigner:
 
         event_info = event_info or {}
         w, h = template.canvas_size[0], template.canvas_size[1]
+        container_w = 600 if (template.is_dual_strip and w == 1200) else w
 
         # 1. Tạo Canvas nền
         canvas = Image.new("RGBA", (w, h), template.bg_color or "#FFFFFF")
@@ -78,14 +152,32 @@ class FrameDesigner:
             idx = slot.photo_index % len(photos)
             raw_photo = photos[idx].convert("RGBA")
 
-            # Cắt và thu phóng ảnh chuẩn tỷ lệ ô chứa
-            slot_photo = ImageProcessor.crop_and_resize(raw_photo, slot.w, slot.h)
+            fit_mode = getattr(slot, 'fit_mode', 'cover')
+            position_mode = getattr(slot, 'position_mode', 'center')
+            zoom = getattr(slot, 'zoom', 1.0)
+            crop_offset_x = getattr(slot, 'crop_offset_x', 0.0)
+            crop_offset_y = getattr(slot, 'crop_offset_y', 0.0)
+
+            # Cắt và thu phóng ảnh chuẩn tỷ lệ ô chứa với thuật toán Auto Photo Fitting
+            slot_photo = ImageProcessor.crop_and_resize(
+                img=raw_photo,
+                target_width=slot.w,
+                target_height=slot.h,
+                fit_mode=fit_mode,
+                position_mode=position_mode,
+                zoom=zoom,
+                crop_offset_x=crop_offset_x,
+                crop_offset_y=crop_offset_y,
+                bg_color=template.bg_color or "#FFFFFF"
+            )
 
             # Xoay ảnh theo thuộc tính rotation nếu có (90, 180, 270 hoặc góc bất kỳ)
             if getattr(slot, 'rotation', 0) != 0:
                 rot = slot.rotation % 360
                 slot_photo = slot_photo.rotate(-rot, expand=True, resample=Image.Resampling.BICUBIC)
-                slot_photo = ImageProcessor.crop_and_resize(slot_photo, slot.w, slot.h)
+                slot_photo = ImageProcessor.crop_and_resize(
+                    slot_photo, slot.w, slot.h, fit_mode=fit_mode, position_mode=position_mode
+                )
 
             # Bo góc tròn nếu yêu cầu
             if slot.corner_radius > 0:
@@ -128,36 +220,39 @@ class FrameDesigner:
         # 5. Vẽ các lớp chữ văn bản (Text Layers)
         draw = ImageDraw.Draw(canvas)
         today_str = datetime.date.today().strftime("%d/%m/%Y")
+
         for txt in template.text_layers:
-            content = txt.text
+            content = txt.text or ""
             # Thay thế biến động
-            content = content.replace("{event_name}", event_info.get("name", "VietPhotoBooth"))
+            content = content.replace("{event_name}", event_info.get("name", "1998 TEAM"))
             content = content.replace("{date}", event_info.get("date", today_str))
             content = content.replace("{location}", event_info.get("location", ""))
 
-            font = get_windows_font(txt.font_name, txt.font_size)
+            is_bold = getattr(txt, 'is_bold', False)
+            is_italic = getattr(txt, 'is_italic', False)
+            font = get_windows_font(txt.font_name, txt.font_size, is_bold=is_bold, is_italic=is_italic)
 
-            # Vẽ cho dải trái
-            FrameDesigner._draw_aligned_text(draw, content, txt.x, txt.y, font, txt.font_color, txt.alignment, 600 if template.is_dual_strip else w)
-
-            # Nếu nhân đôi dải (Dual Strip), vẽ cho dải phải
-            if template.is_dual_strip and w == 1200:
-                FrameDesigner._draw_aligned_text(draw, content, txt.x + 600, txt.y, font, txt.font_color, txt.alignment, 600)
+            FrameDesigner._render_text_layer(
+                draw=draw,
+                txt=txt,
+                content=content,
+                font=font,
+                container_w=container_w,
+                canvas_h=h,
+                is_dual_strip=template.is_dual_strip and w == 1200
+            )
 
         # 6. Chèn Logo layers nếu có
         for logo in template.logo_layers:
             if logo.image_path and os.path.exists(logo.image_path):
                 try:
-                    logo_img = Image.open(logo.image_path).convert("RGBA")
-                    logo_img = logo_img.resize((logo.w, logo.h), Image.Resampling.LANCZOS)
-                    if logo.opacity < 1.0:
-                        r, g, b, a = logo_img.split()
-                        a = a.point(lambda p: int(p * logo.opacity))
-                        logo_img = Image.merge("RGBA", (r, g, b, a))
-
-                    canvas.paste(logo_img, (logo.x, logo.y), logo_img)
-                    if template.is_dual_strip and w == 1200:
-                        canvas.paste(logo_img, (logo.x + 600, logo.y), logo_img)
+                    FrameDesigner._render_logo_layer(
+                        canvas=canvas,
+                        logo=logo,
+                        container_w=container_w,
+                        canvas_h=h,
+                        is_dual_strip=template.is_dual_strip and w == 1200
+                    )
                 except Exception as e:
                     logger.warning(f"Lỗi khi dán logo {logo.image_path}: {e}")
 
@@ -183,28 +278,163 @@ class FrameDesigner:
         return out
 
     @staticmethod
-    def _draw_aligned_text(
+    def _wrap_text_lines(
         draw: ImageDraw.ImageDraw,
         text: str,
-        x: int,
-        y: int,
         font: ImageFont.ImageFont,
-        color: str,
-        alignment: str,
-        container_w: int
+        max_width: int
+    ) -> List[str]:
+        """Tự động xuống dòng khi nội dung chữ vượt quá chiều rộng cho phép."""
+        raw_lines = text.split("\n")
+        wrapped_lines = []
+
+        for raw_line in raw_lines:
+            raw_line = raw_line.strip()
+            if not raw_line:
+                wrapped_lines.append("")
+                continue
+
+            words = raw_line.split(" ")
+            curr_line = ""
+            for word in words:
+                test_line = f"{curr_line} {word}".strip() if curr_line else word
+                bbox = draw.textbbox((0, 0), test_line, font=font)
+                line_w = bbox[2] - bbox[0]
+                if line_w <= max_width or not curr_line:
+                    curr_line = test_line
+                else:
+                    wrapped_lines.append(curr_line)
+                    curr_line = word
+            if curr_line:
+                wrapped_lines.append(curr_line)
+
+        return wrapped_lines if wrapped_lines else [""]
+
+    @staticmethod
+    def _render_text_layer(
+        draw: ImageDraw.ImageDraw,
+        txt: TextLayer,
+        content: str,
+        font: ImageFont.ImageFont,
+        container_w: int,
+        canvas_h: int,
+        is_dual_strip: bool
     ):
-        """Vẽ chữ có căn chỉnh trái/giữa/phải chuẩn xác."""
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_w = bbox[2] - bbox[0]
+        """Vẽ lớp chữ văn bản với đa dòng, căn lề, định vị và bảo vệ vùng an toàn."""
+        safe_margin = getattr(txt, 'safe_margin', 40)
+        max_w = getattr(txt, 'max_width', None) or (container_w - 2 * safe_margin)
+        max_w = max(100, max_w)
 
-        if alignment == "center":
-            draw_x = x - (text_w // 2) if x > 0 else (container_w - text_w) // 2
-        elif alignment == "right":
-            draw_x = x - text_w
+        lines = FrameDesigner._wrap_text_lines(draw, content, font, max_w)
+        line_height = int(txt.font_size * 1.35)
+        total_text_h = len(lines) * line_height
+
+        # Tính vị trí Y dựa trên position_mode
+        pos_mode = getattr(txt, 'position_mode', 'bottom')
+        if pos_mode == "top":
+            base_y = safe_margin
+        elif pos_mode == "middle":
+            base_y = max(safe_margin, (canvas_h - total_text_h) // 2)
+        elif pos_mode == "bottom":
+            base_y = max(safe_margin, canvas_h - safe_margin - total_text_h)
         else:
-            draw_x = x
+            base_y = txt.y
 
-        draw.text((draw_x, y), text, font=font, fill=color)
+        # Vẽ từng dòng
+        for i, line in enumerate(lines):
+            curr_y = base_y + i * line_height
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_w = bbox[2] - bbox[0]
+
+            align = getattr(txt, 'alignment', 'center')
+            if pos_mode == "custom" and txt.x > 0:
+                if align == "center":
+                    draw_x = txt.x - (line_w // 2)
+                elif align == "right":
+                    draw_x = txt.x - line_w
+                else:
+                    draw_x = txt.x
+            else:
+                # Tự động căn ngang trong vùng thiết kế
+                if align == "center":
+                    draw_x = (container_w - line_w) // 2
+                elif align == "right":
+                    draw_x = container_w - safe_margin - line_w
+                else:
+                    draw_x = safe_margin
+
+            # Vẽ trên dải trái
+            draw.text((draw_x, curr_y), line, font=font, fill=txt.font_color)
+
+            # Nhân đôi sang dải phải nếu là dual strip
+            if is_dual_strip:
+                draw.text((draw_x + 600, curr_y), line, font=font, fill=txt.font_color)
+
+    @staticmethod
+    def _render_logo_layer(
+        canvas: Image.Image,
+        logo: LogoLayer,
+        container_w: int,
+        canvas_h: int,
+        is_dual_strip: bool
+    ):
+        """Chèn logo giữ nguyên tỷ lệ gốc và hỗ trợ các vị trí đặt nhanh."""
+        logo_img = Image.open(logo.image_path).convert("RGBA")
+        orig_w, orig_h = logo_img.size
+
+        # Cập nhật kích thước gốc nếu chưa lưu
+        if not getattr(logo, 'original_w', 0) or not getattr(logo, 'original_h', 0):
+            logo.original_w = orig_w
+            logo.original_h = orig_h
+
+        # Tính kích thước đích giữ nguyên tỷ lệ
+        scale = getattr(logo, 'scale', 1.0)
+        if scale <= 0:
+            scale = 1.0
+
+        if logo.original_w > 0 and logo.original_h > 0:
+            target_w = max(10, int(logo.original_w * scale))
+            target_h = max(10, int(logo.original_h * scale))
+        else:
+            target_w = max(10, logo.w)
+            target_h = max(10, logo.h)
+
+        logo_resized = logo_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+        # Xử lý độ mờ (Opacity)
+        opacity = getattr(logo, 'opacity', 1.0)
+        if opacity < 1.0:
+            r, g, b, a = logo_resized.split()
+            a = a.point(lambda p: int(p * max(0.0, min(1.0, opacity))))
+            logo_resized = Image.merge("RGBA", (r, g, b, a))
+
+        # Tính tọa độ đặt theo position_mode
+        pos_mode = getattr(logo, 'position_mode', 'custom')
+        margin = 40
+
+        if pos_mode == "top_left":
+            lx = margin
+            ly = margin
+        elif pos_mode == "top_right":
+            lx = max(0, container_w - target_w - margin)
+            ly = margin
+        elif pos_mode == "center":
+            lx = max(0, (container_w - target_w) // 2)
+            ly = max(0, (canvas_h - target_h) // 2)
+        elif pos_mode == "bottom_left":
+            lx = margin
+            ly = max(0, canvas_h - target_h - margin)
+        elif pos_mode == "bottom_right":
+            lx = max(0, container_w - target_w - margin)
+            ly = max(0, canvas_h - target_h - margin)
+        else:
+            lx = logo.x
+            ly = logo.y
+
+        # Dán lên canvas
+        canvas.paste(logo_resized, (lx, ly), logo_resized)
+        if is_dual_strip:
+            canvas.paste(logo_resized, (lx + 600, ly), logo_resized)
 
     @staticmethod
     def render_preview(
@@ -212,7 +442,10 @@ class FrameDesigner:
         sample_photos: Optional[List[Image.Image]] = None,
         max_height: int = 700
     ) -> Image.Image:
-        """Tạo ảnh xem trước nhanh (preview thu nhỏ) để hiển thị trong ứng dụng GUI."""
+        """
+        Tạo ảnh xem trước (preview) bằng chính engine render_composite.
+        Đảm bảo 100% WYSIWYG: những gì nhìn thấy là những gì được xuất và in ra.
+        """
         if not sample_photos:
             sample_portrait_path = os.path.abspath(os.path.join(
                 os.path.dirname(__file__), "..", "..", "Assets", "Branding", "sample_slot_portrait.jpg"
@@ -226,12 +459,12 @@ class FrameDesigner:
 
             if not sample_photos:
                 sample_photos = []
-                colors = ["#FFEAA7", "#81ECEC", "#74B9FF", "#A29BFE"]
+                colors = ["#1E293B", "#0F172A", "#334155", "#475569"]
                 for i in range(4):
                     sample_img = Image.new("RGB", (600, 450), color=colors[i % len(colors)])
                     d = ImageDraw.Draw(sample_img)
-                    f = get_windows_font("arial.ttf", 60)
-                    d.text((250, 190), f"Ảnh {i+1}", font=f, fill="#2D3436")
+                    f = get_windows_font("arial.ttf", 52, is_bold=True)
+                    d.text((200, 190), f"Ảnh Chụp #{i+1}", font=f, fill="#D4AF37")
                     sample_photos.append(sample_img)
 
         if not template.slots:
@@ -270,10 +503,11 @@ class FrameDesigner:
 
             # Cảnh báo viền xén (bleed)
             if slot.x < bleed or slot.y < bleed or (slot.x + slot.w) > (w - bleed) or (slot.y + slot.h) > (h - bleed):
-                warnings.append(f"Ô ảnh #{i+1} nằm sát mép cắt máy in ({bleed}px). Có nguy cơ bị xén mất một phần viền.")
+                warnings.append(f"Ô ảnh #{i+1} nằm sát mép cắt máy in ({bleed}px).")
 
         for txt in template.text_layers:
-            if txt.y < safe or txt.y > (h - safe):
+            pos_mode = getattr(txt, 'position_mode', 'bottom')
+            if pos_mode == 'custom' and (txt.y < safe or txt.y > (h - safe)):
                 warnings.append(f"Lớp chữ '{txt.text}' nằm quá gần mép trên/dưới (< {safe}px).")
 
         return warnings

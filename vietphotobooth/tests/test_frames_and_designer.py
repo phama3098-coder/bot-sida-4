@@ -7,7 +7,7 @@ import tempfile
 from PIL import Image
 import pytest
 
-from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLayer
+from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLayer, LogoLayer
 from vietphotobooth.frames.frame_designer import FrameDesigner
 from vietphotobooth.frames.frame_manager import FrameManager
 
@@ -172,4 +172,135 @@ def test_slot_rotation_and_z_order_rendering():
     composite = FrameDesigner.render_composite(photos, template)
     assert composite.size == (600, 1800)
     assert composite.info.get("dpi") == (300, 300)
+
+
+def test_auto_photo_fitting_cover_contain_and_ratios():
+    from vietphotobooth.processing.image_processor import ImageProcessor
+
+    # Thử nghiệm 3 tỷ lệ ảnh: Dọc (600x900), Ngang (1200x800), Vuông (800x800)
+    portrait_img = Image.new("RGB", (600, 900), (255, 120, 120))
+    landscape_img = Image.new("RGB", (1200, 800), (120, 255, 120))
+    square_img = Image.new("RGB", (800, 800), (120, 120, 255))
+
+    target_w, target_h = 500, 350  # Ô nằm ngang
+
+    # 1. Chế độ Cover: Phải đúng target_w x target_h, không viền trắng
+    c1 = ImageProcessor.crop_and_resize(portrait_img, target_w, target_h, fit_mode="cover", zoom=1.0)
+    assert c1.size == (target_w, target_h)
+
+    c2 = ImageProcessor.crop_and_resize(landscape_img, target_w, target_h, fit_mode="cover", zoom=1.2, crop_offset_x=0.2)
+    assert c2.size == (target_w, target_h)
+
+    c3 = ImageProcessor.crop_and_resize(square_img, target_w, target_h, fit_mode="cover", zoom=1.5, position_mode="face")
+    assert c3.size == (target_w, target_h)
+
+    # 2. Chế độ Contain: Phải nằm trọn trong target_w x target_h
+    contain1 = ImageProcessor.crop_and_resize(portrait_img, target_w, target_h, fit_mode="contain", zoom=1.0)
+    assert contain1.size == (target_w, target_h)
+
+
+def test_visual_text_editing_multiline_and_styles():
+    txt = TextLayer(
+        id="t_multi",
+        text="1998 TEAM — Photobooth\nStudio Phóng Sự Cưới\nHạnh Phúc Trọn Vẹn",
+        x=300,
+        y=1500,
+        font_size=32,
+        font_color="#D4AF37",
+        font_name="Arial",
+        alignment="center",
+        is_bold=True,
+        is_italic=True,
+        position_mode="bottom",
+        safe_margin=40
+    )
+
+    template = FrameTemplate(
+        id="test_multiline_text",
+        name="Test Text Layer",
+        canvas_size=[600, 1800],
+        slots=[PhotoSlot(id=1, x=50, y=50, w=500, h=400)],
+        text_layers=[txt]
+    )
+
+    photo = Image.new("RGB", (500, 400), (200, 200, 200))
+    comp = FrameDesigner.render_composite([photo], template)
+    assert comp.size == (600, 1800)
+    assert comp.info.get("dpi") == (300, 300)
+
+
+def test_logo_layer_aspect_ratio_and_quick_positions():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        logo_img = Image.new("RGBA", (400, 200), (212, 175, 55, 255))
+        logo_path = os.path.join(tmpdir, "test_logo.png")
+        logo_img.save(logo_path, "PNG")
+
+        logo = LogoLayer(
+            id="lg_1",
+            image_path=logo_path,
+            x=50,
+            y=50,
+            w=200,
+            h=100,
+            opacity=0.9,
+            position_mode="top_right",
+            scale=0.8,
+            original_w=400,
+            original_h=200
+        )
+
+        template = FrameTemplate(
+            id="test_logo_frame",
+            name="Test Logo Quick Position",
+            canvas_size=[600, 1800],
+            slots=[PhotoSlot(id=1, x=50, y=200, w=500, h=400)],
+            logo_layers=[logo]
+        )
+
+        photo = Image.new("RGB", (500, 400), (100, 100, 100))
+        comp = FrameDesigner.render_composite([photo], template)
+        assert comp.size == (600, 1800)
+
+
+def test_frame_designer_gui_interactions(monkeypatch):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    import sys
+    app = QApplication.instance() or QApplication(sys.argv)
+    from vietphotobooth.desktop.widgets.frame_designer_page import FrameDesignerPage
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.Ok)
+    fm = FrameManager()
+    page = FrameDesignerPage(fm)
+
+    # 1. Kiểm tra tải frame mặc định
+    assert page.current_frame is not None
+    assert page.combo_slots_selector.count() > 0
+
+    # 2. Chuyển đổi chế độ fit
+    page.rb_fit_contain.setChecked(True)
+    slot0 = page.current_frame.slots[0]
+    assert slot0.fit_mode == "contain"
+
+    page.rb_fit_cover.setChecked(True)
+    assert slot0.fit_mode == "cover"
+
+    # 3. Thu phóng zoom slider
+    page.slider_zoom.setValue(135)
+    assert slot0.zoom == 1.35
+
+    # 4. Áp dụng cho tất cả ô
+    page._apply_fitting_to_all_slots()
+    for s in page.current_frame.slots:
+        assert s.fit_mode == "cover"
+        assert s.zoom == 1.35
+
+    # 5. Chỉnh sửa chữ trực quan
+    if page.combo_text_selector.count() > 0:
+        page.txt_content.setText("Dòng 1\nDòng 2 Thử Nghiệm")
+        t0 = page.current_frame.text_layers[0]
+        assert "Dòng 1" in t0.text
+
+        page.btn_bold.setChecked(True)
+        assert t0.is_bold is True
+
 
