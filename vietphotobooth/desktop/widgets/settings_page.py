@@ -38,6 +38,7 @@ class SettingsPage(QWidget):
         token_mgr: TokenManager,
         filter_engine: Optional[FilterEngine] = None,
         sync_mgr: Optional[SyncManager] = None,
+        auth_mgr=None,
         parent=None
     ):
         super().__init__(parent)
@@ -45,6 +46,7 @@ class SettingsPage(QWidget):
         self.token_mgr = token_mgr
         self.filter_engine = filter_engine
         self.sync_mgr = sync_mgr
+        self.auth_mgr = auth_mgr
 
         self._init_ui()
         self._load_config()
@@ -68,7 +70,7 @@ class SettingsPage(QWidget):
         grp_sec = QGroupBox("1. Bảo Mật & Mã PIN Quản Trị")
         l_sec = QVBoxLayout(grp_sec)
 
-        self.chk_pin_enabled = QCheckBox("Bắt buộc nhập mã PIN khi thoát chế độ Kiosk hoặc vào trang Quản Trị")
+        self.chk_pin_enabled = QCheckBox("Bảo vệ bằng mã PIN cho các mục quản trị (Máy ảnh, Máy in, Sự kiện, Cài đặt)")
         self.chk_pin_enabled.setChecked(True)
         l_sec.addWidget(self.chk_pin_enabled)
 
@@ -80,6 +82,16 @@ class SettingsPage(QWidget):
         r_pin.addWidget(btn_change_pin)
         r_pin.addStretch()
         l_sec.addLayout(r_pin)
+
+        r_timeout = QHBoxLayout()
+        r_timeout.addWidget(QLabel("Thời gian hiệu lực phiên quản trị:"))
+        self.spin_session_timeout = QSpinBox()
+        self.spin_session_timeout.setRange(30, 3600)
+        self.spin_session_timeout.setValue(300)
+        self.spin_session_timeout.setSuffix(" Giây (Mặc định: 300s = 5p)")
+        r_timeout.addWidget(self.spin_session_timeout)
+        r_timeout.addStretch()
+        l_sec.addLayout(r_timeout)
 
         layout.addWidget(grp_sec)
 
@@ -255,6 +267,11 @@ class SettingsPage(QWidget):
         outer_layout.addWidget(scroll)
 
     def _load_config(self):
+        pin_en = self.config_mgr.get("security.pin_enabled", True)
+        self.chk_pin_enabled.setChecked(pin_en)
+        sess_to = self.config_mgr.get("security.session_timeout_sec", 300)
+        self.spin_session_timeout.setValue(sess_to)
+
         cd = self.config_mgr.get("kiosk.countdown_sec", 3)
         self.spin_countdown.setValue(cd)
         to = self.config_mgr.get("kiosk.idle_timeout_sec", 45)
@@ -273,6 +290,16 @@ class SettingsPage(QWidget):
         self.chk_public_share.setChecked(self.config_mgr.get("cloud.public_sharing", True))
 
     def _save_config(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Lưu Cài Đặt"):
+                return
+
+        self.config_mgr.set("security.pin_enabled", self.chk_pin_enabled.isChecked())
+        self.config_mgr.set("security.session_timeout_sec", self.spin_session_timeout.value())
+        if self.auth_mgr:
+            self.auth_mgr.is_pin_enabled = self.chk_pin_enabled.isChecked()
+            self.auth_mgr.session_timeout_sec = self.spin_session_timeout.value()
+
         self.config_mgr.set("kiosk.countdown_sec", self.spin_countdown.value())
         self.config_mgr.set("kiosk.idle_timeout_sec", self.spin_timeout.value())
         self.config_mgr.set("kiosk.shots_per_session", self.spin_shots.value())

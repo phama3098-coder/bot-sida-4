@@ -21,9 +21,10 @@ logger = get_logger()
 class CameraPage(QWidget):
     """Trang quản trị và cấu hình thiết bị máy ảnh DSLR/Mirrorless/Webcam."""
 
-    def __init__(self, camera_mgr: CameraManager, parent=None):
+    def __init__(self, camera_mgr: CameraManager, auth_mgr=None, parent=None):
         super().__init__(parent)
         self.camera_mgr = camera_mgr
+        self.auth_mgr = auth_mgr
 
         self._init_ui()
         self._refresh_camera_info()
@@ -142,6 +143,9 @@ class CameraPage(QWidget):
         self.table_caps.setItem(4, 1, QTableWidgetItem("Nguồn cắm ngoài / 100%"))
 
     def _switch_backend(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Cấu Hình Máy Ảnh"):
+                return
         chosen = self.combo_backend.currentData()
         success = self.camera_mgr.switch_backend(chosen)
         if success:
@@ -151,6 +155,9 @@ class CameraPage(QWidget):
         self._refresh_camera_info()
 
     def _take_test_shot(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Thử Nghiệm Máy Ảnh"):
+                return
         import tempfile, os
         tmp_shot = os.path.join(tempfile.gettempdir(), "vietphotobooth_test_shot.jpg")
         success, img = self.camera_mgr.capture_photo(tmp_shot)

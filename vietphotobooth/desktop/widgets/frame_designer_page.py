@@ -1,16 +1,16 @@
 """
 1998 TEAM — Frame Designer & Template Studio
 Visual interactive layout editor for 2x6 and 4x6 print formats,
-SVG/PNG/JPG multi-format import, auto photo fitting (cover/contain/center/face),
-multiline visual text editing, aspect-ratio locked logo positioning,
-and zip backup/restore.
+SVG/PNG/JPG multi-format import, auto photo fitting,
+multiline visual text editing, free drag & drop with boundary locking,
+aspect-ratio locked logo positioning, and zip backup/restore.
 """
 
 import os
 import shutil
 import copy
 from typing import Optional, List, Tuple
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QComboBox,
@@ -18,12 +18,14 @@ from PySide6.QtWidgets import (
     QGroupBox, QInputDialog, QSizePolicy, QColorDialog, QDialog, QFormLayout,
     QRadioButton, QButtonGroup, QTextEdit, QFrame, QSlider
 )
-from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QPoint, QRect, QSize
+from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QPoint, QRect, QSize, QTimer
 from PySide6.QtGui import QPixmap, QImage, QColor, QPainter, QPen, QBrush, QFont
 
+from vietphotobooth.core.font_registry import FontRegistry, FontItem
 from vietphotobooth.frames.frame_manager import FrameManager
 from vietphotobooth.frames.frame_designer import FrameDesigner
 from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLayer, LogoLayer, DPI_300_SIZES
+from vietphotobooth.processing.image_processor import get_face_detector
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
@@ -223,17 +225,23 @@ class ImportFrameDialog(QDialog):
 class InteractiveCanvas(QWidget):
     """
     Vùng thiết kế khung ảnh trực quan tương tác chuột phong cách 1998 TEAM:
-    - Kéo pan căn chỉnh vùng cắt ảnh (Crop Pan Offset) hoặc di chuyển ô ảnh (Move Slot).
-    - Kéo thả lớp chữ (Text Layer) và lớp Logo trực tiếp trên bản vẽ.
-    - Vẽ lưới tọa độ Grid, đường căn tâm, vùng an toàn (Safe Zone) và mép xén (Bleed).
+    - Kéo pan căn chỉnh góc cắt ảnh (Pan Crop) hoặc di chuyển ô ảnh (Move Slot).
+    - 4 tay nắm góc điều chỉnh kích thước ô ảnh (Resize Slot) trực tiếp trên bản vẽ.
+    - Kéo thả lớp chữ (Text Layer) tự do trên bản vẽ không bao giờ tự nhảy về giữa.
+    - Nhấp luân phiên chuyển đổi lớp chữ khi nhiều lớp bị xếp chồng đè lên nhau.
+    - Tay nắm đổi kích cỡ chữ trực tiếp và tay nắm điều hướng ô ảnh.
+    - Kéo thả lớp Logo trực tiếp trên bản vẽ.
+    - Vẽ lưới tọa độ Grid dưới các lớp, vùng an toàn (Safe Zone) và mép xén/vạch cắt độc lập.
     - Làm nổi bật đối tượng đang chọn với viền vàng Champagne Gold.
     """
 
     slot_selected = Signal(int)
     slot_moved = Signal(int, int, int)
+    slot_resized = Signal(int, int, int, int, int)  # slot_idx, x, y, w, h
     slot_crop_panned = Signal(int, float, float)
     text_selected = Signal(int)
     text_moved = Signal(int, int, int)
+    text_resized = Signal(int, int)
     logo_selected = Signal(int)
     logo_moved = Signal(int, int, int)
     drag_finished = Signal()
@@ -256,18 +264,25 @@ class InteractiveCanvas(QWidget):
 
         self.show_grid: bool = True
         self.snap_to_grid: bool = True
-        self.show_guides: bool = True
+        self.show_safe_zone: bool = True
+        self.show_cut_lines: bool = True
         self.grid_size: int = 40  # 40px tại độ phân giải gốc 300 DPI
 
         # Trạng thái kéo chuột
         self._is_dragging: bool = False
+        self._is_resizing_text: bool = False
+        self._is_resizing_slot: bool = False
+        self._slot_resize_corner: str = ""  # "tl", "tr", "bl", "br"
         self._drag_start_pos: QPoint = QPoint()
         self._start_slot_x: int = 0
         self._start_slot_y: int = 0
+        self._start_slot_w: int = 0
+        self._start_slot_h: int = 0
         self._start_crop_ox: float = 0.0
         self._start_crop_oy: float = 0.0
         self._start_text_x: int = 0
         self._start_text_y: int = 0
+        self._start_font_size: int = 34
         self._start_logo_x: int = 0
         self._start_logo_y: int = 0
 
@@ -297,6 +312,52 @@ class InteractiveCanvas(QWidget):
 
         return scale, ox, oy, render_w, render_h
 
+    def _get_text_rect_300dpi(self, idx: int) -> QRectF:
+        """Tính toán bounding box chuẩn xác 300 DPI của lớp chữ bằng engine FrameDesigner."""
+        if not self.template or not (0 <= idx < len(self.template.text_layers)):
+            return QRectF()
+        txt = self.template.text_layers[idx]
+        w, h = self.template.canvas_size[0], self.template.canvas_size[1]
+        container_w = 600 if (self.template.is_dual_strip and w == 1200) else w
+
+        font = FrameDesigner.get_windows_font(
+            txt.font_name, txt.font_size, is_bold=getattr(txt, 'is_bold', False), is_italic=getattr(txt, 'is_italic', False)
+        )
+        dummy_img = Image.new("RGBA", (10, 10))
+        draw = ImageDraw.Draw(dummy_img)
+        lines, box_x, box_y, box_w, box_h = FrameDesigner.get_text_layout_info(
+            draw=draw, txt=txt, content=txt.text or "", font=font, container_w=container_w, canvas_h=h
+        )
+        return QRectF(box_x, box_y, box_w, box_h)
+
+    def _get_text_rect_screen(self, idx: int) -> QRectF:
+        """Quy đổi bounding box lớp chữ sang tọa độ màn hình xem trước."""
+        r = self._get_text_rect_300dpi(idx)
+        scale, ox, oy, rw, rh = self._get_canvas_geometry()
+        return QRectF(ox + r.x() * scale, oy + r.y() * scale, r.width() * scale, r.height() * scale)
+
+    def _corner_hit_test(self, mx: float, my: float) -> str:
+        """Kiểm tra tọa độ chuột có chạm vào 1 trong 4 tay nắm góc của ô ảnh đang chọn không."""
+        if not self.template or self.selected_item_type != "slot" or not (0 <= self.selected_slot_index < len(self.template.slots)):
+            return ""
+        scale, ox, oy, rw, rh = self._get_canvas_geometry()
+        s = self.template.slots[self.selected_slot_index]
+        sx = ox + s.x * scale
+        sy = oy + s.y * scale
+        sw = s.w * scale
+        sh = s.h * scale
+        h_size = 16
+        corners = {
+            "tl": QRectF(sx - h_size / 2, sy - h_size / 2, h_size, h_size),
+            "tr": QRectF(sx + sw - h_size / 2, sy - h_size / 2, h_size, h_size),
+            "bl": QRectF(sx - h_size / 2, sy + sh - h_size / 2, h_size, h_size),
+            "br": QRectF(sx + sw - h_size / 2, sy + sh - h_size / 2, h_size, h_size),
+        }
+        for c_name, c_rect in corners.items():
+            if c_rect.contains(mx, my):
+                return c_name
+        return ""
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -315,7 +376,7 @@ class InteractiveCanvas(QWidget):
         render_rect = QRectF(ox, oy, rw, rh)
         painter.drawPixmap(render_rect.toRect(), self.preview_pixmap)
 
-        # 3. Vẽ lưới tọa độ Grid (nếu bật)
+        # 3. Vẽ lưới tọa độ Grid DƯỚI các ô ảnh để không bao giờ che khuất tay nắm thao tác
         if self.show_grid and self.grid_size > 0:
             grid_pen = QPen(QColor(30, 45, 74, 110), 1, Qt.DotLine)
             painter.setPen(grid_pen)
@@ -330,17 +391,19 @@ class InteractiveCanvas(QWidget):
                 painter.drawLine(ox, curr_y, ox + rw, curr_y)
                 curr_y += y_step
 
-        # 4. Vẽ vùng an toàn (Safe Zone) và Mép xén (Bleed Margin) (nếu bật)
-        if self.show_guides:
-            bleed_scale = self.template.bleed_px * scale
-            bleed_pen = QPen(QColor(239, 68, 68, 160), 1, Qt.DashLine)
-            painter.setPen(bleed_pen)
-            painter.drawRect(QRectF(ox + bleed_scale, oy + bleed_scale, rw - 2 * bleed_scale, rh - 2 * bleed_scale))
-
+        # 4. Vẽ Vùng an toàn (Safe Zone) độc lập
+        if self.show_safe_zone:
             safe_scale = self.template.safe_zone_px * scale
             safe_pen = QPen(QColor(212, 175, 55, 180), 1, Qt.DashLine)
             painter.setPen(safe_pen)
             painter.drawRect(QRectF(ox + safe_scale, oy + safe_scale, rw - 2 * safe_scale, rh - 2 * safe_scale))
+
+        # 5. Vẽ Mép xén (Bleed Margin) và Vạch cắt giữa (Cut Line) độc lập
+        if self.show_cut_lines:
+            bleed_scale = self.template.bleed_px * scale
+            bleed_pen = QPen(QColor(239, 68, 68, 160), 1, Qt.DashLine)
+            painter.setPen(bleed_pen)
+            painter.drawRect(QRectF(ox + bleed_scale, oy + bleed_scale, rw - 2 * bleed_scale, rh - 2 * bleed_scale))
 
             if self.template.is_dual_strip:
                 cut_x = ox + (rw / 2.0)
@@ -348,7 +411,7 @@ class InteractiveCanvas(QWidget):
                 painter.setPen(cut_pen)
                 painter.drawLine(cut_x, oy, cut_x, oy + rh)
 
-        # 5. Vẽ viền & nhãn tương tác cho từng ô PhotoSlot
+        # 6. Vẽ viền & tay nắm 4 góc tương tác cho từng ô PhotoSlot
         for idx, slot in enumerate(self.template.slots):
             sx = ox + slot.x * scale
             sy = oy + slot.y * scale
@@ -364,24 +427,24 @@ class InteractiveCanvas(QWidget):
                 painter.setBrush(QColor(212, 175, 55, 30))
                 painter.drawRect(slot_rect)
 
-                # Vẽ 4 góc điều hướng
-                handle_size = 8
+                # Vẽ 4 góc điều hướng & co giãn kích thước (10px, viền vàng sắc sảo)
+                h_size = 12
                 painter.setBrush(QColor("#FFFFFF"))
-                painter.setPen(QColor("#070A12"))
-                painter.drawRect(QRectF(sx - handle_size / 2, sy - handle_size / 2, handle_size, handle_size))
-                painter.drawRect(QRectF(sx + sw - handle_size / 2, sy - handle_size / 2, handle_size, handle_size))
-                painter.drawRect(QRectF(sx - handle_size / 2, sy + sh - handle_size / 2, handle_size, handle_size))
-                painter.drawRect(QRectF(sx + sw - handle_size / 2, sy + sh - handle_size / 2, handle_size, handle_size))
+                painter.setPen(QPen(QColor("#D4AF37"), 2))
+                painter.drawRect(QRectF(sx - h_size / 2, sy - h_size / 2, h_size, h_size))
+                painter.drawRect(QRectF(sx + sw - h_size / 2, sy - h_size / 2, h_size, h_size))
+                painter.drawRect(QRectF(sx - h_size / 2, sy + sh - h_size / 2, h_size, h_size))
+                painter.drawRect(QRectF(sx + sw - h_size / 2, sy + sh - h_size / 2, h_size, h_size))
 
                 # Huy hiệu thông số ô ảnh đang chọn
-                fit_text = "Lấp Đầy (Cover)" if getattr(slot, 'fit_mode', 'cover') == "cover" else "Toàn Ảnh (Fit)"
+                fit_text = "Lấp Đầy" if getattr(slot, 'fit_mode', 'cover') == "cover" else "Toàn Ảnh"
                 zoom_val = int(getattr(slot, 'zoom', 1.0) * 100)
-                badge_text = f"Ô #{slot.id} • {fit_text} • {zoom_val}%"
-                painter.setFont(QFont("Segoe UI", 10, QFont.Bold))
+                badge_text = f"Ô #{slot.id} • {fit_text} • {slot.w}x{slot.h} px • {zoom_val}%"
+                painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
                 painter.setPen(QColor("#FFFFFF"))
-                painter.setBrush(QColor(11, 19, 43, 225))
+                painter.setBrush(QColor(11, 19, 43, 230))
                 painter.drawRoundedRect(QRectF(sx + 6, sy + 6, 220, 24), 4, 4)
-                painter.drawText(QRectF(sx + 10, sy + 6, 212, 24), Qt.AlignVCenter | Qt.AlignLeft, badge_text)
+                painter.drawText(QRectF(sx + 10, sy + 6, 210, 24), Qt.AlignVCenter | Qt.AlignLeft, badge_text)
             else:
                 slot_pen = QPen(QColor(56, 189, 248, 140), 1.5, Qt.DashLine)
                 painter.setPen(slot_pen)
@@ -392,40 +455,90 @@ class InteractiveCanvas(QWidget):
                 painter.setPen(QColor("#38BDF8"))
                 painter.drawText(QRectF(sx + 6, sy + 6, 80, 20), Qt.AlignLeft, f"#{slot.id}")
 
-        # 6. Vẽ viền tương tác cho lớp Logo đang chọn
+        # 7. Vẽ viền tương tác cho lớp Logo
         for idx, logo in enumerate(self.template.logo_layers):
-            if self.selected_item_type == "logo" and idx == self.selected_logo_index:
-                scale_val = getattr(logo, 'scale', 1.0)
-                lw = (getattr(logo, 'original_w', logo.w) * scale_val if getattr(logo, 'original_w', 0) else logo.w) * scale
-                lh = (getattr(logo, 'original_h', logo.h) * scale_val if getattr(logo, 'original_h', 0) else logo.h) * scale
-                lx = ox + logo.x * scale
-                ly = oy + logo.y * scale
+            scale_val = getattr(logo, 'scale', 1.0)
+            lw = (getattr(logo, 'original_w', logo.w) * scale_val if getattr(logo, 'original_w', 0) else logo.w) * scale
+            lh = (getattr(logo, 'original_h', logo.h) * scale_val if getattr(logo, 'original_h', 0) else logo.h) * scale
+            lx = ox + logo.x * scale
+            ly = oy + logo.y * scale
+            is_logo_sel = (self.selected_item_type == "logo" and idx == self.selected_logo_index)
 
-                logo_pen = QPen(QColor("#38BDF8"), 2, Qt.DashLine)
+            if is_logo_sel:
+                logo_pen = QPen(QColor("#38BDF8"), 2.5, Qt.SolidLine)
                 painter.setPen(logo_pen)
-                painter.setBrush(QColor(56, 189, 248, 25))
+                painter.setBrush(QColor(56, 189, 248, 35))
                 painter.drawRect(QRectF(lx, ly, lw, lh))
 
-                painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
-                painter.setPen(QColor("#38BDF8"))
-                painter.drawText(QRectF(lx + 4, ly + 4, 120, 18), Qt.AlignLeft, f"🖼️ Logo #{idx+1}")
+                # Vẽ 4 góc tay nắm
+                h_size = 7
+                painter.setBrush(QColor("#FFFFFF"))
+                painter.setPen(QColor("#070A12"))
+                painter.drawRect(QRectF(lx + lw - h_size / 2, ly + lh - h_size / 2, h_size, h_size))
 
-        # 7. Vẽ viền tương tác cho lớp Text đang chọn
+                painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
+                painter.setPen(QColor("#FFFFFF"))
+                painter.setBrush(QColor(11, 19, 43, 220))
+                painter.drawRoundedRect(QRectF(lx + 4, ly + 4, 120, 20), 4, 4)
+                painter.drawText(QRectF(lx + 8, ly + 4, 110, 20), Qt.AlignVCenter | Qt.AlignLeft, f"🖼️ Logo #{idx+1}")
+
+        # 8. Vẽ viền tương tác và tay nắm cho các lớp Text
         for idx, txt in enumerate(self.template.text_layers):
-            if self.selected_item_type == "text" and idx == self.selected_text_index:
-                tx = ox + txt.x * scale - 120 * scale
-                ty = oy + txt.y * scale
-                tw = 240 * scale
-                th = (txt.font_size * 2) * scale
+            is_visible = getattr(txt, 'is_visible', True)
+            screen_r = self._get_text_rect_screen(idx)
+            is_txt_sel = (self.selected_item_type == "text" and idx == self.selected_text_index)
 
-                txt_pen = QPen(QColor("#D4AF37"), 2, Qt.DashLine)
+            if not is_visible:
+                if is_txt_sel:
+                    txt_pen = QPen(QColor(148, 163, 184, 160), 1.5, Qt.DashLine)
+                    painter.setPen(txt_pen)
+                    painter.setBrush(QColor(100, 116, 139, 20))
+                    painter.drawRoundedRect(screen_r.adjusted(-4, -4, 4, 4), 4, 4)
+
+                    painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
+                    painter.setPen(QColor("#94A3B8"))
+                    painter.setBrush(QColor(15, 23, 42, 220))
+                    painter.drawRoundedRect(QRectF(screen_r.left(), screen_r.top() - 24, 160, 20), 4, 4)
+                    painter.drawText(QRectF(screen_r.left() + 6, screen_r.top() - 24, 150, 20), Qt.AlignVCenter | Qt.AlignLeft, f"👁️‍🗨️ [ẨN] Chữ #{idx+1}")
+                continue
+
+            if is_txt_sel:
+                # Viền vàng Champagne Gold sắc nét
+                txt_pen = QPen(QColor("#D4AF37"), 2.5, Qt.DashLine)
                 painter.setPen(txt_pen)
-                painter.setBrush(QColor(212, 175, 55, 25))
-                painter.drawRect(QRectF(tx, ty, tw, th))
+                painter.setBrush(QColor(212, 175, 55, 30))
+                painter.drawRoundedRect(screen_r.adjusted(-4, -4, 4, 4), 4, 4)
 
+                # Vẽ 4 góc tay nắm điều hướng
+                h_size = 8
+                tx = screen_r.left() - 4
+                ty = screen_r.top() - 4
+                tw = screen_r.width() + 8
+                th = screen_r.height() + 8
+
+                painter.setBrush(QColor("#FFFFFF"))
+                painter.setPen(QColor("#070A12"))
+                painter.drawRect(QRectF(tx - h_size / 2, ty - h_size / 2, h_size, h_size))
+                painter.drawRect(QRectF(tx + tw - h_size / 2, ty - h_size / 2, h_size, h_size))
+                painter.drawRect(QRectF(tx - h_size / 2, ty + th - h_size / 2, h_size, h_size))
+                # Tay nắm đổi cỡ chữ góc dưới phải (vàng nổi bật)
+                painter.setBrush(QColor("#D4AF37"))
+                painter.drawRect(QRectF(tx + tw - h_size / 2, ty + th - h_size / 2, h_size + 2, h_size + 2))
+
+                # Huy hiệu lớp chữ kèm tọa độ và trạng thái khóa
+                lock_sym = "🔒 " if getattr(txt, 'is_locked', False) else ""
+                badge_str = f"📝 {lock_sym}Chữ #{idx+1} • {txt.font_size}pt [X: {txt.x}, Y: {txt.y}]"
                 painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
-                painter.setPen(QColor("#D4AF37"))
-                painter.drawText(QRectF(tx + 4, ty + 2, 120, 18), Qt.AlignLeft, f"📝 Chữ #{idx+1}")
+                painter.setPen(QColor("#FFFFFF"))
+                painter.setBrush(QColor(11, 19, 43, 230))
+                painter.drawRoundedRect(QRectF(tx, ty - 26, 210, 22), 4, 4)
+                painter.drawText(QRectF(tx + 6, ty - 26, 200, 22), Qt.AlignVCenter | Qt.AlignLeft, badge_str)
+            else:
+                # Vẽ viền mờ chấm nét để người dùng nhận biết có thể nhấp chọn chữ
+                txt_pen = QPen(QColor(212, 175, 55, 80), 1, Qt.DotLine)
+                painter.setPen(txt_pen)
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(screen_r.adjusted(-3, -3, 3, 3), 3, 3)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self.template:
@@ -436,111 +549,224 @@ class InteractiveCanvas(QWidget):
             cx = (mx - ox) / scale
             cy = (my - oy) / scale
 
-            # 1. Kiểm tra click trúng Logo layers trước (lớp trên)
-            clicked_logo = -1
+            # 0. Kiểm tra click vào 4 tay nắm góc của ô ảnh đang chọn (co giãn kích thước)
+            if self.selected_item_type == "slot" and 0 <= self.selected_slot_index < len(self.template.slots):
+                s = self.template.slots[self.selected_slot_index]
+                sx = ox + s.x * scale
+                sy = oy + s.y * scale
+                sw = s.w * scale
+                sh = s.h * scale
+                h_size = 16
+                corners = {
+                    "tl": QRectF(sx - h_size / 2, sy - h_size / 2, h_size, h_size),
+                    "tr": QRectF(sx + sw - h_size / 2, sy - h_size / 2, h_size, h_size),
+                    "bl": QRectF(sx - h_size / 2, sy + sh - h_size / 2, h_size, h_size),
+                    "br": QRectF(sx + sw - h_size / 2, sy + sh - h_size / 2, h_size, h_size),
+                }
+                for c_name, c_rect in corners.items():
+                    if c_rect.contains(mx, my):
+                        self._is_resizing_slot = True
+                        self._slot_resize_corner = c_name
+                        self._drag_start_pos = event.pos()
+                        self._start_slot_x = s.x
+                        self._start_slot_y = s.y
+                        self._start_slot_w = s.w
+                        self._start_slot_h = s.h
+                        self._is_dragging = False
+                        self._is_resizing_text = False
+                        return
+
+            # 1. Kiểm tra click vào lớp Text (Hỗ trợ nhấp luân phiên chọn lớp khi bị đè lên nhau)
+            hit_texts = []
+            for idx in range(len(self.template.text_layers)):
+                txt = self.template.text_layers[idx]
+                if not getattr(txt, 'is_visible', True):
+                    continue
+                screen_r = self._get_text_rect_screen(idx).adjusted(-10, -10, 10, 10)
+                if screen_r.contains(mx, my):
+                    hit_texts.append(idx)
+
+            if hit_texts:
+                if self.selected_item_type == "text" and self.selected_text_index in hit_texts and len(hit_texts) > 1:
+                    cur_pos = hit_texts.index(self.selected_text_index)
+                    chosen_idx = hit_texts[(cur_pos + 1) % len(hit_texts)]
+                else:
+                    chosen_idx = hit_texts[-1]
+
+                txt = self.template.text_layers[chosen_idx]
+                self.selected_item_type = "text"
+                self.selected_text_index = chosen_idx
+                self._drag_start_pos = event.pos()
+                self._start_text_x = getattr(txt, 'x', 300)
+                self._start_text_y = getattr(txt, 'y', 1500)
+                self._start_font_size = txt.font_size
+
+                screen_r = self._get_text_rect_screen(chosen_idx).adjusted(-10, -10, 10, 10)
+                br_handle = QRectF(screen_r.right() - 16, screen_r.bottom() - 16, 24, 24)
+                if br_handle.contains(mx, my):
+                    self._is_resizing_text = True
+                    self._is_dragging = False
+                else:
+                    self._is_resizing_text = False
+                    self._is_dragging = True
+
+                self.text_selected.emit(chosen_idx)
+                self.update()
+                return
+
+            # 2. Kiểm tra click vào lớp Logo
             for idx in reversed(range(len(self.template.logo_layers))):
                 l = self.template.logo_layers[idx]
                 scale_val = getattr(l, 'scale', 1.0)
                 lw = getattr(l, 'original_w', l.w) * scale_val if getattr(l, 'original_w', 0) else l.w
                 lh = getattr(l, 'original_h', l.h) * scale_val if getattr(l, 'original_h', 0) else l.h
                 if l.x <= cx <= (l.x + lw) and l.y <= cy <= (l.y + lh):
-                    clicked_logo = idx
-                    break
+                    self.selected_item_type = "logo"
+                    self.selected_logo_index = idx
+                    self._is_dragging = True
+                    self._is_resizing_text = False
+                    self._is_resizing_slot = False
+                    self._drag_start_pos = event.pos()
+                    self._start_logo_x = l.x
+                    self._start_logo_y = l.y
+                    self.logo_selected.emit(idx)
+                    self.update()
+                    return
 
-            if clicked_logo != -1:
-                self.selected_item_type = "logo"
-                self.selected_logo_index = clicked_logo
-                self._is_dragging = True
-                self._drag_start_pos = event.pos()
-                l = self.template.logo_layers[clicked_logo]
-                self._start_logo_x = l.x
-                self._start_logo_y = l.y
-                self.logo_selected.emit(clicked_logo)
-                self.update()
-                return
-
-            # 2. Kiểm tra click trúng Text layers
-            clicked_text = -1
-            for idx in reversed(range(len(self.template.text_layers))):
-                t = self.template.text_layers[idx]
-                approx_h = t.font_size * 2
-                if (t.y - 10) <= cy <= (t.y + approx_h + 10):
-                    clicked_text = idx
-                    break
-
-            if clicked_text != -1:
-                self.selected_item_type = "text"
-                self.selected_text_index = clicked_text
-                self._is_dragging = True
-                self._drag_start_pos = event.pos()
-                t = self.template.text_layers[clicked_text]
-                self._start_text_x = t.x
-                self._start_text_y = t.y
-                self.text_selected.emit(clicked_text)
-                self.update()
-                return
-
-            # 3. Kiểm tra click trúng Photo Slots
-            clicked_slot = -1
+            # 3. Kiểm tra click vào Photo Slots
             for idx in reversed(range(len(self.template.slots))):
                 s = self.template.slots[idx]
                 if s.x <= cx <= (s.x + s.w) and s.y <= cy <= (s.y + s.h):
-                    clicked_slot = idx
-                    break
-
-            if clicked_slot != -1:
-                self.selected_item_type = "slot"
-                self.selected_slot_index = clicked_slot
-                self._is_dragging = True
-                self._drag_start_pos = event.pos()
-                s = self.template.slots[clicked_slot]
-                self._start_slot_x = s.x
-                self._start_slot_y = s.y
-                self._start_crop_ox = getattr(s, 'crop_offset_x', 0.0)
-                self._start_crop_oy = getattr(s, 'crop_offset_y', 0.0)
-                self.slot_selected.emit(clicked_slot)
-                self.update()
-                return
+                    self.selected_item_type = "slot"
+                    self.selected_slot_index = idx
+                    self._is_dragging = True
+                    self._is_resizing_text = False
+                    self._is_resizing_slot = False
+                    self._drag_start_pos = event.pos()
+                    self._start_slot_x = s.x
+                    self._start_slot_y = s.y
+                    self._start_crop_ox = getattr(s, 'crop_offset_x', 0.0)
+                    self._start_crop_oy = getattr(s, 'crop_offset_y', 0.0)
+                    self.slot_selected.emit(idx)
+                    self.update()
+                    return
 
             # Click ra ngoài vùng đối tượng
             self.selected_item_type = "none"
             self.update()
 
     def mouseMoveEvent(self, event):
-        if not self._is_dragging or not self.template:
+        if not (self._is_dragging or self._is_resizing_text or self._is_resizing_slot) or not self.template:
             return
 
         scale, ox, oy, rw, rh = self._get_canvas_geometry()
         dx = (event.pos().x() - self._drag_start_pos.x()) / scale
         dy = (event.pos().y() - self._drag_start_pos.y()) / scale
+        cw, ch = self.template.canvas_size[0], self.template.canvas_size[1]
+        container_w = 600 if (self.template.is_dual_strip and cw == 1200) else cw
 
-        # 1. Kéo lớp Logo
+        # 0. Co giãn kích thước ô ảnh trực tiếp trên bản vẽ qua 4 tay nắm góc
+        if self._is_resizing_slot and self.selected_item_type == "slot" and 0 <= self.selected_slot_index < len(self.template.slots):
+            s = self.template.slots[self.selected_slot_index]
+            corner = self._slot_resize_corner
+            min_w, min_h = 100, 80
+
+            new_x = self._start_slot_x
+            new_y = self._start_slot_y
+            new_w = self._start_slot_w
+            new_h = self._start_slot_h
+
+            if "l" in corner:
+                new_x = int(self._start_slot_x + dx)
+                new_w = int(self._start_slot_w - dx)
+                if new_w < min_w:
+                    new_x = self._start_slot_x + self._start_slot_w - min_w
+                    new_w = min_w
+            elif "r" in corner:
+                new_w = int(self._start_slot_w + dx)
+                if new_w < min_w:
+                    new_w = min_w
+
+            if "t" in corner:
+                new_y = int(self._start_slot_y + dy)
+                new_h = int(self._start_slot_h - dy)
+                if new_h < min_h:
+                    new_y = self._start_slot_y + self._start_slot_h - min_h
+                    new_h = min_h
+            elif "b" in corner:
+                new_h = int(self._start_slot_h + dy)
+                if new_h < min_h:
+                    new_h = min_h
+
+            if self.snap_to_grid and self.grid_size > 0:
+                snap_step = 20
+                new_x = round(new_x / snap_step) * snap_step
+                new_y = round(new_y / snap_step) * snap_step
+                new_w = round(new_w / snap_step) * snap_step
+                new_h = round(new_h / snap_step) * snap_step
+
+            new_x = max(0, min(new_x, container_w - min_w))
+            new_y = max(0, min(new_y, ch - min_h))
+            new_w = max(min_w, min(new_w, container_w - new_x))
+            new_h = max(min_h, min(new_h, ch - new_y))
+
+            s.x = new_x
+            s.y = new_y
+            s.w = new_w
+            s.h = new_h
+            self.slot_resized.emit(self.selected_slot_index, new_x, new_y, new_w, new_h)
+            self.update()
+            return
+
+        # 1. Thao tác trên lớp Text: Thay đổi cỡ hoặc Kéo vị trí tự do
+        if self.selected_item_type == "text" and 0 <= self.selected_text_index < len(self.template.text_layers):
+            t = self.template.text_layers[self.selected_text_index]
+
+            if self._is_resizing_text:
+                new_size = max(16, min(120, int(self._start_font_size + dy * 0.35)))
+                if new_size != t.font_size:
+                    t.font_size = new_size
+                    self.text_resized.emit(self.selected_text_index, new_size)
+                    self.update()
+                return
+
+            if self._is_dragging:
+                if getattr(t, 'is_locked', False):
+                    return
+
+                new_x = int(self._start_text_x + dx)
+                new_y = int(self._start_text_y + dy)
+
+                if self.snap_to_grid and self.grid_size > 0:
+                    snap_step = 20
+                    new_x = round(new_x / snap_step) * snap_step
+                    new_y = round(new_y / snap_step) * snap_step
+
+                new_x = max(0, min(new_x, container_w))
+                new_y = max(10, min(new_y, ch - 20))
+
+                t.x = new_x
+                t.y = new_y
+                t.position_mode = "custom"
+                self.text_moved.emit(self.selected_text_index, new_x, new_y)
+                self.update()
+                return
+
+        # 2. Thao tác trên lớp Logo: Kéo di chuyển
         if self.selected_item_type == "logo" and 0 <= self.selected_logo_index < len(self.template.logo_layers):
             l = self.template.logo_layers[self.selected_logo_index]
-            l.x = max(0, int(self._start_logo_x + dx))
-            l.y = max(0, int(self._start_logo_y + dy))
+            l.x = max(0, min(int(self._start_logo_x + dx), container_w - l.w))
+            l.y = max(0, min(int(self._start_logo_y + dy), ch - l.h))
             l.position_mode = "custom"
             self.logo_moved.emit(self.selected_logo_index, l.x, l.y)
             self.update()
             return
 
-        # 2. Kéo lớp Text
-        if self.selected_item_type == "text" and 0 <= self.selected_text_index < len(self.template.text_layers):
-            t = self.template.text_layers[self.selected_text_index]
-            t.x = max(0, int(self._start_text_x + dx))
-            t.y = max(0, int(self._start_text_y + dy))
-            t.position_mode = "custom"
-            self.text_moved.emit(self.selected_text_index, t.x, t.y)
-            self.update()
-            return
-
-        # 3. Kéo ô Photo Slot
+        # 3. Thao tác trên ô Photo Slot: Kéo căn ảnh hoặc Di chuyển ô
         if self.selected_item_type == "slot" and 0 <= self.selected_slot_index < len(self.template.slots):
             s = self.template.slots[self.selected_slot_index]
 
             if self.drag_mode == "pan_crop":
-                # Kéo dịch chuyển vùng cắt (Pan Crop Offset)
-                # Di chuột sang trái/phải sẽ kéo khung crop ngược hướng để di chuyển nội dung ảnh
                 norm_dx = - (dx / max(1.0, s.w * 0.4))
                 norm_dy = - (dy / max(1.0, s.h * 0.4))
                 new_ox = max(-1.0, min(1.0, self._start_crop_ox + norm_dx))
@@ -550,7 +776,6 @@ class InteractiveCanvas(QWidget):
                 self.slot_crop_panned.emit(self.selected_slot_index, s.crop_offset_x, s.crop_offset_y)
                 self.update()
             else:
-                # Di chuyển tọa độ ô ảnh (Move Slot)
                 new_x = int(self._start_slot_x + dx)
                 new_y = int(self._start_slot_y + dy)
 
@@ -559,8 +784,7 @@ class InteractiveCanvas(QWidget):
                     new_x = round(new_x / snap_step) * snap_step
                     new_y = round(new_y / snap_step) * snap_step
 
-                cw, ch = self.template.canvas_size[0], self.template.canvas_size[1]
-                new_x = max(0, min(new_x, cw - s.w))
+                new_x = max(0, min(new_x, container_w - s.w))
                 new_y = max(0, min(new_y, ch - s.h))
 
                 s.x = new_x
@@ -569,9 +793,12 @@ class InteractiveCanvas(QWidget):
                 self.update()
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self._is_dragging:
-            self._is_dragging = False
-            self.drag_finished.emit()
+        if event.button() == Qt.LeftButton:
+            if self._is_dragging or self._is_resizing_text or self._is_resizing_slot:
+                self._is_dragging = False
+                self._is_resizing_text = False
+                self._is_resizing_slot = False
+                self.drag_finished.emit()
 
 
 class FrameDesignerPage(QWidget):
@@ -669,12 +896,14 @@ class FrameDesignerPage(QWidget):
         # CANVAS TƯƠNG TÁC CHUỘT
         self.canvas = InteractiveCanvas(self)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.canvas.setMinimumSize(250, 250)
+        self.canvas.setMinimumSize(220, 220)
         self.canvas.slot_selected.connect(self._on_slot_selected_from_canvas)
         self.canvas.slot_moved.connect(self._on_slot_moved_from_canvas)
+        self.canvas.slot_resized.connect(self._on_slot_resized_from_canvas)
         self.canvas.slot_crop_panned.connect(self._on_slot_crop_panned_from_canvas)
         self.canvas.text_selected.connect(self._on_text_selected_from_canvas)
         self.canvas.text_moved.connect(self._on_text_moved_from_canvas)
+        self.canvas.text_resized.connect(self._on_text_resized_from_canvas)
         self.canvas.logo_selected.connect(self._on_logo_selected_from_canvas)
         self.canvas.logo_moved.connect(self._on_logo_moved_from_canvas)
         self.canvas.drag_finished.connect(lambda: self._update_preview(full_render=True))
@@ -684,15 +913,16 @@ class FrameDesignerPage(QWidget):
         tools_bar = QHBoxLayout()
         tools_bar.setSpacing(8)
 
-        # Nút chuyển chế độ kéo chuột: Căn ảnh vs Di chuyển ô
         self.btn_mode_crop = QPushButton("🖼️ Kéo Căn Ảnh")
         self.btn_mode_crop.setCheckable(True)
         self.btn_mode_crop.setChecked(True)
         self.btn_mode_crop.setObjectName("btn_champagne")
+        self.btn_mode_crop.setToolTip("Rê chuột trực tiếp trong ô ảnh trên bản vẽ để điều chỉnh vùng cắt")
 
         self.btn_mode_move = QPushButton("📐 Di Chuyển Ô")
         self.btn_mode_move.setCheckable(True)
         self.btn_mode_move.setObjectName("btn_secondary")
+        self.btn_mode_move.setToolTip("Rê chuột để di chuyển vị trí ô ảnh trên khung in")
 
         mode_grp = QButtonGroup(self)
         mode_grp.addButton(self.btn_mode_crop)
@@ -702,21 +932,25 @@ class FrameDesignerPage(QWidget):
         tools_bar.addWidget(self.btn_mode_crop)
         tools_bar.addWidget(self.btn_mode_move)
 
-        # Lưới và vùng căn
-        self.chk_grid = QCheckBox("Lưới (Grid)")
+        self.chk_grid = QCheckBox("Lưới")
         self.chk_grid.setChecked(True)
         self.chk_grid.toggled.connect(lambda c: setattr(self.canvas, 'show_grid', c) or self.canvas.update())
         tools_bar.addWidget(self.chk_grid)
 
-        self.chk_snap = QCheckBox("Hút (Snap)")
+        self.chk_snap = QCheckBox("Bắt Điểm")
         self.chk_snap.setChecked(True)
         self.chk_snap.toggled.connect(lambda c: setattr(self.canvas, 'snap_to_grid', c))
         tools_bar.addWidget(self.chk_snap)
 
-        self.chk_guides = QCheckBox("Vùng Cắt (Bleed)")
-        self.chk_guides.setChecked(True)
-        self.chk_guides.toggled.connect(lambda c: setattr(self.canvas, 'show_guides', c) or self.canvas.update())
-        tools_bar.addWidget(self.chk_guides)
+        self.chk_safe_zone = QCheckBox("Vùng An Toàn")
+        self.chk_safe_zone.setChecked(True)
+        self.chk_safe_zone.toggled.connect(lambda c: setattr(self.canvas, 'show_safe_zone', c) or self.canvas.update())
+        tools_bar.addWidget(self.chk_safe_zone)
+
+        self.chk_cut_lines = QCheckBox("Mép Cắt")
+        self.chk_cut_lines.setChecked(True)
+        self.chk_cut_lines.toggled.connect(lambda c: setattr(self.canvas, 'show_cut_lines', c) or self.canvas.update())
+        tools_bar.addWidget(self.chk_cut_lines)
 
         tools_bar.addStretch()
 
@@ -729,23 +963,35 @@ class FrameDesignerPage(QWidget):
 
         # ==============================================================
         # CỘT PHẢI: BẢNG ĐIỀU KHIỂN BỐ CỤC (CUỘN ĐỘC LẬP & TRỰC QUAN)
+        # SỬA TRIỆT ĐỂ LỖI THANH CUỘN CHE NỘI DUNG:
+        # - Chừa lề phải 26px cho thanh cuộn.
+        # - Lề dưới 40px cho phép cuộn đến tận đáy.
+        # - Thanh cuộn nằm riêng biệt, không che lấp bất kỳ nút/trường nào.
         # ==============================================================
         scroll = QScrollArea()
+        self.scroll_area = scroll
         scroll.setWidgetResizable(True)
-        scroll.setMinimumWidth(280)
-        scroll.setMaximumWidth(460)
+        scroll.setMinimumWidth(340)
+        scroll.setMaximumWidth(480)
+        scroll.setFrameShape(QFrame.NoFrame)
         scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
         scroll_content = QWidget()
         right_layout = QVBoxLayout(scroll_content)
-        right_layout.setContentsMargins(8, 8, 8, 8)
-        right_layout.setSpacing(12)
+        self.right_layout = right_layout
+        right_layout.setContentsMargins(10, 10, 26, 40)
+        right_layout.setSpacing(14)
 
         # --------------------------------------------------------------
-        # 1. THUỘC TÍNH KHUNG IN
+        # 1. THUỘC TÍNH KHUNG IN & VĂN BẢN MẶC ĐỊNH
         # --------------------------------------------------------------
         grp_props = QGroupBox("1. Thuộc Tính Khung In")
-        form_props = QFormLayout(grp_props)
+        l_props = QVBoxLayout(grp_props)
+        l_props.setSpacing(8)
+
+        form_props = QFormLayout()
         form_props.setSpacing(8)
 
         self.txt_name = QLineEdit()
@@ -769,17 +1015,91 @@ class FrameDesignerPage(QWidget):
         self.chk_dual = QCheckBox("Cắt đôi 2x6 (DNP)")
         r_color.addWidget(self.chk_dual)
         form_props.addRow("Nền / Cắt:", r_color)
+        l_props.addLayout(form_props)
+
+        # MỤC MỚI: VĂN BẢN MẶC ĐỊNH CỦA KHUNG IN
+        lbl_def_head = QLabel("<b>Văn Bản Mặc Định Cho Khung:</b>")
+        lbl_def_head.setStyleSheet("color: #D4AF37; font-size: 13px; margin-top: 4px;")
+        l_props.addWidget(lbl_def_head)
+
+        self.txt_def_text = QLineEdit()
+        self.txt_def_text.setPlaceholderText("VD: 1998 TEAM • Studio Phóng Sự Cưới")
+        l_props.addWidget(self.txt_def_text)
+
+        def_font_row = QHBoxLayout()
+        self.combo_def_font = QComboBox()
+        self.combo_def_font.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        # Nạp danh sách font từ FontRegistry
+        FontRegistry.initialize()
+        for f_item in FontRegistry.list_fonts("all"):
+            self.combo_def_font.addItem(f"{f_item.display_name} ({f_item.category_label})", f_item.family_name)
+        def_font_row.addWidget(self.combo_def_font, 1)
+
+        self.spin_def_size = QSpinBox()
+        self.spin_def_size.setRange(16, 120)
+        self.spin_def_size.setValue(34)
+        def_font_row.addWidget(self.spin_def_size)
+
+        self.btn_def_bold = QPushButton("B")
+        self.btn_def_bold.setCheckable(True)
+        self.btn_def_bold.setChecked(True)
+        self.btn_def_bold.setFixedWidth(32)
+        self.btn_def_bold.setStyleSheet("font-weight: bold;")
+        def_font_row.addWidget(self.btn_def_bold)
+
+        self.btn_def_italic = QPushButton("I")
+        self.btn_def_italic.setCheckable(True)
+        self.btn_def_italic.setFixedWidth(32)
+        self.btn_def_italic.setStyleSheet("font-style: italic;")
+        def_font_row.addWidget(self.btn_def_italic)
+        l_props.addLayout(def_font_row)
+
+        def_style_row = QHBoxLayout()
+        def_style_row.addWidget(QLabel("Màu:"))
+        self.btn_def_color = QPushButton("#D4AF37")
+        self.btn_def_color.setObjectName("btn_secondary")
+        self.btn_def_color.clicked.connect(self._choose_def_text_color)
+        def_style_row.addWidget(self.btn_def_color)
+
+        def_style_row.addWidget(QLabel("Lề an toàn:"))
+        self.spin_def_margin = QSpinBox()
+        self.spin_def_margin.setRange(10, 120)
+        self.spin_def_margin.setValue(40)
+        self.spin_def_margin.setSuffix(" px")
+        def_style_row.addWidget(self.spin_def_margin)
+        l_props.addLayout(def_style_row)
+
+        btn_apply_def = QPushButton("Áp Dụng Cho Lớp Chữ Đang Chọn")
+        btn_apply_def.setObjectName("btn_secondary")
+        btn_apply_def.clicked.connect(self._apply_default_to_selected_text)
+        l_props.addWidget(btn_apply_def)
+
+        # NÚT ÁP DỤNG THUỘC TÍNH KHUNG IN & ENTER KEY
+        self.btn_apply_props = QPushButton("✅ Áp Dụng Thuộc Tính Khung")
+        self.btn_apply_props.setObjectName("btn_champagne")
+        self.btn_apply_props.setToolTip("Áp dụng tên, khổ in, màu nền và văn bản mặc định (hoặc nhấn Enter)")
+        self.btn_apply_props.clicked.connect(self._apply_frame_properties)
+        l_props.addWidget(self.btn_apply_props)
+
+        self.lbl_props_status = QLabel("")
+        self.lbl_props_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
+        self.lbl_props_status.setAlignment(Qt.AlignCenter)
+        l_props.addWidget(self.lbl_props_status)
+
+        self.txt_name.returnPressed.connect(self._apply_frame_properties)
+        self.txt_def_text.returnPressed.connect(self._apply_frame_properties)
 
         right_layout.addWidget(grp_props)
 
         # --------------------------------------------------------------
         # 2. TỰ ĐỘNG CĂN CHỈNH ẢNH (AUTO PHOTO FITTING)
+        # ĐÃ BỎ HẾT CHỮ TRONG NGOẶC ĐƠN VÀ THUẬT NGỮ KỸ THUẬT RƯỜM RÀ
         # --------------------------------------------------------------
-        grp_auto_fit = QGroupBox("2. Tự Động Căn Chỉnh Ảnh (Auto Photo Fitting)")
+        grp_auto_fit = QGroupBox("2. Tự Động Căn Chỉnh Ảnh")
         l_fit = QVBoxLayout(grp_auto_fit)
         l_fit.setSpacing(10)
 
-        # Selector chọn ô ảnh đang cấu hình
+        # Selector chọn ô ảnh
         slot_sel_layout = QHBoxLayout()
         slot_sel_layout.addWidget(QLabel("<b>Ô Ảnh:</b>"))
         self.combo_slots_selector = QComboBox()
@@ -797,11 +1117,14 @@ class FrameDesignerPage(QWidget):
         slot_sel_layout.addWidget(btn_del_slot)
         l_fit.addLayout(slot_sel_layout)
 
-        # Cách căn ảnh: Fill/Cover vs Fit/Contain
+        # Cách căn ảnh: Lấp Đầy Khung vs Hiển Thị Toàn Ảnh (Không ngoặc đơn)
         l_fit.addWidget(QLabel("<b>Cách Căn Ảnh:</b>"))
-        self.rb_fit_cover = QRadioButton("Lấp đầy khung (Fill / Cover) — Không viền trắng, đúng tỷ lệ")
-        self.rb_fit_contain = QRadioButton("Hiển thị toàn ảnh (Fit / Contain) — Trọn vẹn khung hình")
+        self.rb_fit_cover = QRadioButton("Lấp Đầy Khung")
+        self.rb_fit_cover.setToolTip("Tự động lấp kín 100% ô ảnh, không lộ viền trắng và giữ nguyên tỷ lệ gốc")
+        self.rb_fit_contain = QRadioButton("Hiển Thị Toàn Ảnh")
+        self.rb_fit_contain.setToolTip("Hiển thị trọn vẹn toàn bộ ảnh chụp trong ô")
         self.rb_fit_cover.setChecked(True)
+
         fit_grp = QButtonGroup(self)
         fit_grp.addButton(self.rb_fit_cover)
         fit_grp.addButton(self.rb_fit_contain)
@@ -809,17 +1132,19 @@ class FrameDesignerPage(QWidget):
         l_fit.addWidget(self.rb_fit_cover)
         l_fit.addWidget(self.rb_fit_contain)
 
-        # Vị trí căn ảnh: Căn giữa vs Ưu tiên khuôn mặt
+        # Vị trí căn tâm: Tự Động Căn Giữa vs Ưu Tiên Khuôn Mặt (Chỉ thêm khi có bộ nhận diện)
         l_fit.addWidget(QLabel("<b>Vị Trí Căn Tâm:</b>"))
         self.combo_slot_position = QComboBox()
-        self.combo_slot_position.addItem("🎯 Tự Động Căn Giữa (Center)", "center")
-        self.combo_slot_position.addItem("👤 Ưu Tiên Khuôn Mặt (Face Priority — AI YuNet)", "face")
+        self.combo_slot_position.addItem("🎯 Tự Động Căn Giữa", "center")
+        if get_face_detector() is not None:
+            self.combo_slot_position.addItem("👤 Ưu Tiên Khuôn Mặt", "face")
+        self.combo_slot_position.setToolTip("Tự động căn góc ảnh theo tâm khuôn mặt người chụp")
         self.combo_slot_position.currentIndexChanged.connect(self._on_slot_position_changed)
         l_fit.addWidget(self.combo_slot_position)
 
-        # Thu phóng ảnh (Zoom slider: 100% đến 250%)
+        # Thu phóng ảnh
         zoom_header = QHBoxLayout()
-        zoom_header.addWidget(QLabel("<b>Thu Phóng Ảnh (Zoom):</b>"))
+        zoom_header.addWidget(QLabel("<b>Thu Phóng Ảnh:</b>"))
         self.lbl_zoom_val = QLabel("100%")
         self.lbl_zoom_val.setStyleSheet("color: #D4AF37; font-weight: bold;")
         zoom_header.addWidget(self.lbl_zoom_val)
@@ -833,7 +1158,7 @@ class FrameDesignerPage(QWidget):
         self.slider_zoom.valueChanged.connect(self._on_slot_zoom_changed)
         l_fit.addWidget(self.slider_zoom)
 
-        # Dịch chuyển vùng cắt (Pan Offset) & nút Reset
+        # Dịch chuyển vùng cắt & Nút Đặt Lại Tâm Cắt
         crop_layout = QHBoxLayout()
         self.lbl_crop_offset = QLabel("Cắt lệch: (0%, 0%)")
         self.lbl_crop_offset.setStyleSheet("color: #94A3B8; font-size: 13px;")
@@ -846,7 +1171,7 @@ class FrameDesignerPage(QWidget):
         crop_layout.addWidget(btn_reset_crop)
         l_fit.addLayout(crop_layout)
 
-        # Vùng an toàn & Bo góc & Xoay
+        # Vùng an toàn & Bo góc
         extra_slot_layout = QHBoxLayout()
         self.chk_slot_safe = QCheckBox("🛡️ Vùng an toàn")
         self.chk_slot_safe.setChecked(True)
@@ -876,6 +1201,7 @@ class FrameDesignerPage(QWidget):
 
         # Áp dụng cho tất cả ô
         btn_apply_all = QPushButton("⚡ Áp Dụng Cho Tất Cả Ô")
+        self.btn_apply_all_slots = btn_apply_all
         btn_apply_all.setObjectName("btn_champagne")
         btn_apply_all.clicked.connect(self._apply_fitting_to_all_slots)
         l_fit.addWidget(btn_apply_all)
@@ -884,8 +1210,10 @@ class FrameDesignerPage(QWidget):
 
         # --------------------------------------------------------------
         # 3. CHỈNH SỬA VĂN BẢN (VISUAL TEXT EDITING)
+        # CHO PHÉP KÉO THẢ TỰ DO KHÔNG TỰ NHẢY VỀ GIỮA
+        # CÓ NÚT CĂN GIỮA, CĂN TRÊN, CĂN DƯỚI, ĐẶT LẠI VỊ TRÍ, KHÓA LỚP
         # --------------------------------------------------------------
-        grp_text = QGroupBox("3. Chỉnh Sửa Văn Bản (Visual Text Editing)")
+        grp_text = QGroupBox("3. Chỉnh Sửa Văn Bản")
         l_txt = QVBoxLayout(grp_text)
         l_txt.setSpacing(10)
 
@@ -915,15 +1243,39 @@ class FrameDesignerPage(QWidget):
         self.txt_content.textChanged.connect(self._on_text_content_changed)
         l_txt.addWidget(self.txt_content)
 
-        lbl_macros = QLabel("Gợi ý: {event_name} • {date} • {location}")
+        lbl_macros = QLabel("Gợi ý biến động: {event_name} • {date} • {location}")
         lbl_macros.setStyleSheet("color: #64748B; font-size: 12px;")
         l_txt.addWidget(lbl_macros)
 
-        # Phông chữ & Cỡ chữ & Đậm/Nghiêng
+        # Phông chữ & Danh mục phân loại phông chữ
+        l_txt.addWidget(QLabel("<b>Bộ Sưu Tập Phông Chữ Cưới (Offline):</b>"))
+        font_cat_bar = QHBoxLayout()
+        font_cat_bar.setSpacing(4)
+        self.btn_font_all = QPushButton("Tất Cả")
+        self.btn_font_hw = QPushButton("Viết Tay")
+        self.btn_font_lux = QPushButton("Sang Trọng")
+        self.btn_font_mod = QPushButton("Hiện Đại")
+
+        self.font_cat_grp = QButtonGroup(self)
+        for b, cat in [(self.btn_font_all, "all"), (self.btn_font_hw, "handwriting"),
+                       (self.btn_font_lux, "luxury"), (self.btn_font_mod, "modern")]:
+            b.setCheckable(True)
+            b.setObjectName("btn_secondary")
+            self.font_cat_grp.addButton(b)
+            b.clicked.connect(lambda _, c=cat: self._filter_fonts_by_category(c))
+
+        self.btn_font_all.setChecked(True)
+        font_cat_bar.addWidget(self.btn_font_all)
+        font_cat_bar.addWidget(self.btn_font_hw)
+        font_cat_bar.addWidget(self.btn_font_lux)
+        font_cat_bar.addWidget(self.btn_font_mod)
+        l_txt.addLayout(font_cat_bar)
+
         font_bar = QHBoxLayout()
         font_bar.addWidget(QLabel("Font:"))
         self.combo_font = QComboBox()
-        self.combo_font.addItems(["Arial", "Segoe UI", "Calibri", "Tahoma", "Times New Roman"])
+        self.combo_font.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self._populate_font_combo("all")
         self.combo_font.currentIndexChanged.connect(self._on_text_style_changed)
         font_bar.addWidget(self.combo_font, 1)
 
@@ -936,19 +1288,27 @@ class FrameDesignerPage(QWidget):
 
         self.btn_bold = QPushButton("B")
         self.btn_bold.setCheckable(True)
-        self.btn_bold.setFixedWidth(36)
-        self.btn_bold.setStyleSheet("font-weight: bold; font-size: 16px;")
+        self.btn_bold.setFixedWidth(34)
+        self.btn_bold.setStyleSheet("font-weight: bold; font-size: 15px;")
         self.btn_bold.toggled.connect(self._on_text_style_changed)
         font_bar.addWidget(self.btn_bold)
 
         self.btn_italic = QPushButton("I")
         self.btn_italic.setCheckable(True)
-        self.btn_italic.setFixedWidth(36)
-        self.btn_italic.setStyleSheet("font-style: italic; font-size: 16px;")
+        self.btn_italic.setFixedWidth(34)
+        self.btn_italic.setStyleSheet("font-style: italic; font-size: 15px;")
         self.btn_italic.toggled.connect(self._on_text_style_changed)
         font_bar.addWidget(self.btn_italic)
 
         l_txt.addLayout(font_bar)
+
+        # Mẫu xem trước phông chữ trực tiếp
+        self.lbl_font_preview = QLabel("1998 TEAM • Trăm Năm Hạnh Phúc")
+        self.lbl_font_preview.setAlignment(Qt.AlignCenter)
+        self.lbl_font_preview.setStyleSheet(
+            "background-color: #070A12; border: 1px solid #1E293B; border-radius: 6px; padding: 6px; color: #D4AF37; font-size: 15px;"
+        )
+        l_txt.addWidget(self.lbl_font_preview)
 
         # Màu sắc chữ & Bảng màu mẫu
         color_layout = QHBoxLayout()
@@ -958,7 +1318,6 @@ class FrameDesignerPage(QWidget):
         self.btn_text_color.clicked.connect(self._choose_text_color)
         color_layout.addWidget(self.btn_text_color)
 
-        # Các màu mẫu sang trọng
         presets = [("#D4AF37", "Gold"), ("#FFFFFF", "Trắng"), ("#111111", "Đen"), ("#F5E6C8", "Kem"), ("#991B1B", "Đỏ")]
         for hex_c, name in presets:
             btn_p = QPushButton()
@@ -972,7 +1331,7 @@ class FrameDesignerPage(QWidget):
         l_txt.addLayout(color_layout)
 
         # Căn lề chữ (Text Alignment)
-        l_txt.addWidget(QLabel("<b>Căn Lề Chữ (Text Alignment):</b>"))
+        l_txt.addWidget(QLabel("<b>Căn Lề Chữ:</b>"))
         align_layout = QHBoxLayout()
         self.btn_align_left = QPushButton("⬅️ Trái")
         self.btn_align_left.setCheckable(True)
@@ -996,59 +1355,79 @@ class FrameDesignerPage(QWidget):
         align_layout.addWidget(self.btn_align_right)
         l_txt.addLayout(align_layout)
 
-        # Vị trí trên khung in (Frame Position)
-        l_txt.addWidget(QLabel("<b>Vị Trí Đặt Trên Khung:</b>"))
-        pos_layout = QGridLayout()
-        self.btn_pos_top = QPushButton("⬆️ Trên Cùng")
-        self.btn_pos_mid = QPushButton("⏺️ Chính Giữa")
-        self.btn_pos_bot = QPushButton("⬇️ Dưới Cùng")
-        self.btn_pos_custom = QPushButton("✥ Kéo Tự Do")
+        # NÚT ĐIỀU KHIỂN VỊ TRÍ CHỦ ĐỘNG: CĂN GIỮA, CĂN TRÊN, CĂN DƯỚI, ĐẶT LẠI VỊ TRÍ, KHÓA LỚP
+        l_txt.addWidget(QLabel("<b>Định Vị & Căn Chỉnh Vị Trí:</b>"))
+        pos_actions = QGridLayout()
+        pos_actions.setSpacing(6)
 
-        self.btn_pos_top.setCheckable(True)
-        self.btn_pos_mid.setCheckable(True)
-        self.btn_pos_bot.setCheckable(True)
-        self.btn_pos_bot.setChecked(True)
-        self.btn_pos_custom.setCheckable(True)
+        self.btn_center_text = QPushButton("↔️ Căn Giữa")
+        self.btn_center_text.setObjectName("btn_secondary")
+        self.btn_center_text.clicked.connect(self._center_selected_text)
+        pos_actions.addWidget(self.btn_center_text, 0, 0)
 
-        pos_grp = QButtonGroup(self)
-        pos_grp.addButton(self.btn_pos_top)
-        pos_grp.addButton(self.btn_pos_mid)
-        pos_grp.addButton(self.btn_pos_bot)
-        pos_grp.addButton(self.btn_pos_custom)
+        self.btn_top_text = QPushButton("⬆️ Căn Trên")
+        self.btn_top_text.setObjectName("btn_secondary")
+        self.btn_top_text.clicked.connect(self._align_selected_text_top)
+        pos_actions.addWidget(self.btn_top_text, 0, 1)
 
-        self.btn_pos_top.clicked.connect(lambda: self._set_text_position_mode("top"))
-        self.btn_pos_mid.clicked.connect(lambda: self._set_text_position_mode("middle"))
-        self.btn_pos_bot.clicked.connect(lambda: self._set_text_position_mode("bottom"))
-        self.btn_pos_custom.clicked.connect(lambda: self._set_text_position_mode("custom"))
+        self.btn_bottom_text = QPushButton("⬇️ Căn Dưới")
+        self.btn_bottom_text.setObjectName("btn_secondary")
+        self.btn_bottom_text.clicked.connect(self._align_selected_text_bottom)
+        pos_actions.addWidget(self.btn_bottom_text, 1, 0)
 
-        pos_layout.addWidget(self.btn_pos_top, 0, 0)
-        pos_layout.addWidget(self.btn_pos_mid, 0, 1)
-        pos_layout.addWidget(self.btn_pos_bot, 1, 0)
-        pos_layout.addWidget(self.btn_pos_custom, 1, 1)
-        l_txt.addLayout(pos_layout)
+        self.btn_reset_pos_text = QPushButton("↺ Đặt Lại")
+        self.btn_reset_pos_text.setObjectName("btn_secondary")
+        self.btn_reset_pos_text.clicked.connect(self._reset_selected_text_position)
+        pos_actions.addWidget(self.btn_reset_pos_text, 1, 1)
 
-        # Khoảng cách lề an toàn
-        margin_layout = QHBoxLayout()
-        margin_layout.addWidget(QLabel("Lề an toàn (Margin):"))
+        l_txt.addLayout(pos_actions)
+
+        # Nút Khóa / Mở Khóa / Ẩn / Hiện Lớp Chữ
+        lock_row = QHBoxLayout()
+        self.btn_toggle_visible_text = QPushButton("👁️ Đang Hiện")
+        self.btn_toggle_visible_text.setObjectName("btn_secondary")
+        self.btn_toggle_visible_text.setToolTip("Ẩn hoặc hiện lớp chữ trên bản in")
+        self.btn_toggle_visible_text.clicked.connect(self._toggle_visible_selected_text)
+        lock_row.addWidget(self.btn_toggle_visible_text)
+
+        self.btn_lock_text = QPushButton("🔓 Vị Trí: Cho Phép Kéo")
+        self.btn_lock_text.setObjectName("btn_secondary")
+        self.btn_lock_text.setCheckable(True)
+        self.btn_lock_text.toggled.connect(self._toggle_lock_text)
+        lock_row.addWidget(self.btn_lock_text)
+
+        lock_row.addWidget(QLabel("Lề:"))
         self.spin_safe_margin = QSpinBox()
         self.spin_safe_margin.setRange(10, 120)
         self.spin_safe_margin.setValue(40)
         self.spin_safe_margin.setSuffix(" px")
         self.spin_safe_margin.valueChanged.connect(self._on_text_margin_changed)
-        margin_layout.addWidget(self.spin_safe_margin)
-        margin_layout.addStretch()
-        l_txt.addLayout(margin_layout)
+        lock_row.addWidget(self.spin_safe_margin)
+        l_txt.addLayout(lock_row)
+
+        # Giãn đều các lớp chữ dọc & Cảnh báo đè lớp
+        dist_row = QHBoxLayout()
+        self.btn_distribute_text = QPushButton("↕️ Giãn Đều Các Lớp Chữ Dọc")
+        self.btn_distribute_text.setObjectName("btn_secondary")
+        self.btn_distribute_text.setToolTip("Tự động phân bổ đều khoảng cách các lớp chữ theo chiều dọc")
+        self.btn_distribute_text.clicked.connect(self._distribute_text_layers)
+        dist_row.addWidget(self.btn_distribute_text)
+        l_txt.addLayout(dist_row)
+
+        self.lbl_text_overlap = QLabel("")
+        self.lbl_text_overlap.setStyleSheet("color: #F59E0B; font-weight: bold; font-size: 12px;")
+        self.lbl_text_overlap.setAlignment(Qt.AlignCenter)
+        l_txt.addWidget(self.lbl_text_overlap)
 
         right_layout.addWidget(grp_text)
 
         # --------------------------------------------------------------
         # 4. LOGO & HỌA TIẾT (LOGO LAYERS)
         # --------------------------------------------------------------
-        grp_logo = QGroupBox("4. Logo & Họa Tiết (Logo Layers)")
+        grp_logo = QGroupBox("4. Logo & Họa Tiết")
         l_lg = QVBoxLayout(grp_logo)
         l_lg.setSpacing(10)
 
-        # Selector chọn Logo
         logo_sel_layout = QHBoxLayout()
         logo_sel_layout.addWidget(QLabel("<b>Logo:</b>"))
         self.combo_logo_selector = QComboBox()
@@ -1066,9 +1445,9 @@ class FrameDesignerPage(QWidget):
         logo_sel_layout.addWidget(btn_del_logo)
         l_lg.addLayout(logo_sel_layout)
 
-        # Thu phóng kích thước (Khóa tỷ lệ gốc không bao giờ méo)
+        # Kích thước Logo (Khóa tỷ lệ gốc)
         logo_scale_hdr = QHBoxLayout()
-        logo_scale_hdr.addWidget(QLabel("<b>Kích Thước (Khóa Tỷ Lệ Gốc):</b>"))
+        logo_scale_hdr.addWidget(QLabel("<b>Kích Thước Logo:</b>"))
         self.lbl_logo_scale_val = QLabel("100%")
         self.lbl_logo_scale_val.setStyleSheet("color: #D4AF37; font-weight: bold;")
         logo_scale_hdr.addWidget(self.lbl_logo_scale_val)
@@ -1079,6 +1458,7 @@ class FrameDesignerPage(QWidget):
         self.slider_logo_scale.setRange(20, 200)
         self.slider_logo_scale.setValue(100)
         self.slider_logo_scale.setSingleStep(5)
+        self.slider_logo_scale.setToolTip("Khóa tỷ lệ gốc không bao giờ méo ảnh")
         self.slider_logo_scale.valueChanged.connect(self._on_logo_scale_changed)
         l_lg.addWidget(self.slider_logo_scale)
 
@@ -1107,9 +1487,9 @@ class FrameDesignerPage(QWidget):
         quick_grid.addWidget(btn_pos_br, 2, 1)
         l_lg.addLayout(quick_grid)
 
-        # Độ trong suốt (Opacity)
+        # Độ Trong Suốt
         op_layout = QHBoxLayout()
-        op_layout.addWidget(QLabel("Độ mờ (Opacity):"))
+        op_layout.addWidget(QLabel("Độ trong suốt:"))
         self.slider_logo_opacity = QSlider(Qt.Horizontal)
         self.slider_logo_opacity.setRange(10, 100)
         self.slider_logo_opacity.setValue(100)
@@ -1165,6 +1545,19 @@ class FrameDesignerPage(QWidget):
         self.chk_dual.setChecked(f.is_dual_strip)
         self.btn_bg_color.setText(f.bg_color or "#FFFFFF")
 
+        # Văn bản mặc định của khung
+        self.txt_def_text.setText(getattr(f, 'default_text', "1998 TEAM • Studio Phóng Sự Cưới"))
+        idx_def_f = self.combo_def_font.findText(getattr(f, 'default_font_name', "Arial"), Qt.MatchContains)
+        if idx_def_f >= 0:
+            self.combo_def_font.setCurrentIndex(idx_def_f)
+        self.spin_def_size.setValue(getattr(f, 'default_font_size', 34))
+        self.btn_def_bold.setChecked(getattr(f, 'default_is_bold', True))
+        self.btn_def_italic.setChecked(getattr(f, 'default_is_italic', False))
+        def_col = getattr(f, 'default_font_color', "#D4AF37")
+        self.btn_def_color.setText(def_col)
+        self.btn_def_color.setStyleSheet(f"background-color: {def_col}; color: #000000; font-weight: bold;")
+        self.spin_def_margin.setValue(getattr(f, 'default_safe_margin', 40))
+
         # Nạp danh sách ô ảnh vào selector
         self.combo_slots_selector.blockSignals(True)
         self.combo_slots_selector.clear()
@@ -1203,6 +1596,36 @@ class FrameDesignerPage(QWidget):
             self._populate_logo_controls(0)
 
         self._is_updating_ui = False
+        self._update_preview(full_render=True)
+
+    # ==============================================================
+    # ĐIỀU KHIỂN & ĐỒNG BỘ VĂN BẢN MẶC ĐỊNH CHO KHUNG
+    # ==============================================================
+    def _choose_def_text_color(self):
+        col = QColorDialog.getColor(QColor(self.btn_def_color.text()), self, "Chọn Màu Văn Bản Mặc Định")
+        if col.isValid():
+            hex_c = col.name().upper()
+            self.btn_def_color.setText(hex_c)
+            self.btn_def_color.setStyleSheet(f"background-color: {hex_c}; color: #000000; font-weight: bold;")
+            if self.current_frame:
+                self.current_frame.default_font_color = hex_c
+
+    def _apply_default_to_selected_text(self):
+        if not self.current_frame or not self.current_frame.text_layers:
+            return
+        idx = self.combo_text_selector.currentIndex()
+        if not (0 <= idx < len(self.current_frame.text_layers)):
+            return
+
+        t = self.current_frame.text_layers[idx]
+        t.font_name = self.combo_def_font.currentText()
+        t.font_size = self.spin_def_size.value()
+        t.font_color = self.btn_def_color.text()
+        t.is_bold = self.btn_def_bold.isChecked()
+        t.is_italic = self.btn_def_italic.isChecked()
+        t.safe_margin = self.spin_def_margin.value()
+
+        self._populate_text_controls(idx)
         self._update_preview(full_render=True)
 
     # ==============================================================
@@ -1376,8 +1799,28 @@ class FrameDesignerPage(QWidget):
             self._populate_ui_from_frame(self.current_frame)
 
     # ==============================================================
-    # ĐIỀU KHIỂN & ĐỒNG BỘ VĂN BẢN (TEXT LAYERS)
     # ==============================================================
+    # ĐIỀU KHIỂN & ĐỒNG BỘ VĂN BẢN (TEXT LAYERS)
+    # TỰ DO ĐẶT TỌA ĐỘ VÀ KHÔNG BAO GIỜ TỰ NHẢY VỀ GIỮA
+    # ==============================================================
+    def _populate_font_combo(self, category: str = "all"):
+        self.combo_font.blockSignals(True)
+        cur_data = self.combo_font.currentData()
+        self.combo_font.clear()
+        FontRegistry.initialize()
+        fonts = FontRegistry.list_fonts(category)
+        for f in fonts:
+            self.combo_font.addItem(f"{f.display_name} ({f.category_label})", f.family_name)
+        if cur_data:
+            idx = self.combo_font.findData(cur_data)
+            if idx >= 0:
+                self.combo_font.setCurrentIndex(idx)
+        self.combo_font.blockSignals(False)
+
+    def _filter_fonts_by_category(self, category: str):
+        self._populate_font_combo(category)
+        self._on_text_style_changed()
+
     def _populate_text_controls(self, txt_idx: int):
         if not self.current_frame or not (0 <= txt_idx < len(self.current_frame.text_layers)):
             return
@@ -1386,7 +1829,10 @@ class FrameDesignerPage(QWidget):
         self._is_updating_ui = True
 
         self.txt_content.setText(t.text or "")
-        f_idx = self.combo_font.findText(getattr(t, 'font_name', 'Arial'), Qt.MatchContains)
+        f_name = getattr(t, 'font_name', 'Arial')
+        f_idx = self.combo_font.findData(f_name)
+        if f_idx < 0:
+            f_idx = self.combo_font.findText(f_name, Qt.MatchContains)
         if f_idx >= 0:
             self.combo_font.setCurrentIndex(f_idx)
 
@@ -1402,13 +1848,23 @@ class FrameDesignerPage(QWidget):
         self.btn_align_center.setChecked(align == 'center')
         self.btn_align_right.setChecked(align == 'right')
 
-        pos = getattr(t, 'position_mode', 'bottom')
-        self.btn_pos_top.setChecked(pos == 'top')
-        self.btn_pos_mid.setChecked(pos == 'middle')
-        self.btn_pos_bot.setChecked(pos == 'bottom')
-        self.btn_pos_custom.setChecked(pos == 'custom')
+        is_locked = getattr(t, 'is_locked', False)
+        self.btn_lock_text.setChecked(is_locked)
+        self.btn_lock_text.setText("🔒 Vị Trí: Đã Khóa" if is_locked else "🔓 Vị Trí: Cho Phép Kéo")
+
+        is_vis = getattr(t, 'is_visible', True)
+        self.btn_toggle_visible_text.setText("👁️ Đang Hiện" if is_vis else "👁️‍🗨️ Đang Ẩn")
 
         self.spin_safe_margin.setValue(getattr(t, 'safe_margin', 40))
+
+        # Cập nhật xem trước phông chữ
+        fam = self.combo_font.currentData() or self.combo_font.currentText()
+        pf = QFont(fam, 14)
+        pf.setBold(self.btn_bold.isChecked())
+        pf.setItalic(self.btn_italic.isChecked())
+        self.lbl_font_preview.setFont(pf)
+        preview_sample = (t.text or "1998 TEAM • Studio Phóng Sự Cưới").split("\n")[0][:28]
+        self.lbl_font_preview.setText(preview_sample or "1998 TEAM • Studio Phóng Sự Cưới")
 
         self.canvas.selected_item_type = "text"
         self.canvas.selected_text_index = txt_idx
@@ -1434,10 +1890,18 @@ class FrameDesignerPage(QWidget):
         idx = self.combo_text_selector.currentIndex()
         if 0 <= idx < len(self.current_frame.text_layers):
             t = self.current_frame.text_layers[idx]
-            t.font_name = self.combo_font.currentText()
+            fam = self.combo_font.currentData() or self.combo_font.currentText()
+            t.font_name = fam
             t.font_size = self.spin_font_size.value()
             t.is_bold = self.btn_bold.isChecked()
             t.is_italic = self.btn_italic.isChecked()
+
+            # Cập nhật nhãn xem trước
+            pf = QFont(fam, 14)
+            pf.setBold(t.is_bold)
+            pf.setItalic(t.is_italic)
+            self.lbl_font_preview.setFont(pf)
+
             self._update_preview(full_render=True)
 
     def _choose_text_color(self):
@@ -1469,13 +1933,66 @@ class FrameDesignerPage(QWidget):
             self.current_frame.text_layers[idx].alignment = align
             self._update_preview(full_render=True)
 
-    def _set_text_position_mode(self, pos_mode: str):
-        if self._is_updating_ui or not self.current_frame:
+    def _center_selected_text(self):
+        """Chủ động căn giữa lớp chữ theo chiều ngang."""
+        if not self.current_frame:
             return
         idx = self.combo_text_selector.currentIndex()
         if 0 <= idx < len(self.current_frame.text_layers):
-            self.current_frame.text_layers[idx].position_mode = pos_mode
+            t = self.current_frame.text_layers[idx]
+            cw = 600 if self.current_frame.is_dual_strip else self.current_frame.canvas_size[0]
+            t.x = cw // 2
+            t.position_mode = "custom"
             self._update_preview(full_render=True)
+
+    def _align_selected_text_top(self):
+        """Chủ động căn lớp chữ lên mép trên cùng an toàn."""
+        if not self.current_frame:
+            return
+        idx = self.combo_text_selector.currentIndex()
+        if 0 <= idx < len(self.current_frame.text_layers):
+            t = self.current_frame.text_layers[idx]
+            t.y = getattr(t, 'safe_margin', 40)
+            t.position_mode = "custom"
+            self._update_preview(full_render=True)
+
+    def _align_selected_text_bottom(self):
+        """Chủ động căn lớp chữ xuống mép dưới cùng an toàn."""
+        if not self.current_frame:
+            return
+        idx = self.combo_text_selector.currentIndex()
+        if 0 <= idx < len(self.current_frame.text_layers):
+            t = self.current_frame.text_layers[idx]
+            ch = self.current_frame.canvas_size[1]
+            safe = getattr(t, 'safe_margin', 40)
+            t.y = ch - safe - int(t.font_size * 2)
+            t.position_mode = "custom"
+            self._update_preview(full_render=True)
+
+    def _reset_selected_text_position(self):
+        """Đặt lại vị trí lớp chữ về chuẩn dưới cùng chính giữa."""
+        if not self.current_frame:
+            return
+        idx = self.combo_text_selector.currentIndex()
+        if 0 <= idx < len(self.current_frame.text_layers):
+            t = self.current_frame.text_layers[idx]
+            cw = 600 if self.current_frame.is_dual_strip else self.current_frame.canvas_size[0]
+            ch = self.current_frame.canvas_size[1]
+            safe = getattr(t, 'safe_margin', 40)
+            t.x = cw // 2
+            t.y = ch - safe - int(t.font_size * 2)
+            t.position_mode = "custom"
+            self._update_preview(full_render=True)
+
+    def _toggle_lock_text(self, locked: bool):
+        if not self.current_frame:
+            return
+        idx = self.combo_text_selector.currentIndex()
+        if 0 <= idx < len(self.current_frame.text_layers):
+            t = self.current_frame.text_layers[idx]
+            t.is_locked = locked
+            self.btn_lock_text.setText("🔒 Vị Trí: Đã Khóa" if locked else "🔓 Vị Trí: Cho Phép Kéo")
+            self.canvas.update()
 
     def _on_text_margin_changed(self, val: int):
         if self._is_updating_ui or not self.current_frame:
@@ -1485,6 +2002,60 @@ class FrameDesignerPage(QWidget):
             self.current_frame.text_layers[idx].safe_margin = val
             self._update_preview(full_render=True)
 
+    def _toggle_visible_selected_text(self):
+        """Bật/tắt trạng thái ẩn/hiện của lớp chữ đang chọn."""
+        if not self.current_frame:
+            return
+        idx = self.combo_text_selector.currentIndex()
+        if 0 <= idx < len(self.current_frame.text_layers):
+            t = self.current_frame.text_layers[idx]
+            cur_vis = getattr(t, 'is_visible', True)
+            t.is_visible = not cur_vis
+            self.btn_toggle_visible_text.setText("👁️ Đang Hiện" if t.is_visible else "👁️‍🗨️ Đang Ẩn")
+            self._update_preview(full_render=True)
+
+    def _distribute_text_layers(self):
+        """Giãn đều khoảng cách các lớp chữ theo chiều dọc."""
+        if not self.current_frame or len(self.current_frame.text_layers) < 2:
+            return
+        visible_layers = [t for t in self.current_frame.text_layers if getattr(t, 'is_visible', True)]
+        if len(visible_layers) < 2:
+            return
+
+        visible_layers.sort(key=lambda t: t.y)
+        ch = self.current_frame.canvas_size[1]
+        safe = getattr(self.current_frame, 'safe_zone_px', 40)
+
+        top_y = max(safe + 40, visible_layers[0].y)
+        bottom_y = min(ch - safe - 60, max(top_y + 100, visible_layers[-1].y))
+        step = (bottom_y - top_y) / float(len(visible_layers) - 1)
+
+        for i, t in enumerate(visible_layers):
+            t.y = int(top_y + i * step)
+            t.position_mode = "custom"
+
+        self._update_preview(full_render=True)
+        self.lbl_props_status.setText("✅ Đã giãn đều các lớp chữ!")
+        QTimer.singleShot(2500, lambda: self.lbl_props_status.setText(""))
+
+    def _check_text_overlaps(self) -> bool:
+        """Kiểm tra xem có bất kỳ hai lớp chữ nào bị đè lên nhau không."""
+        if not self.current_frame or len(self.current_frame.text_layers) < 2:
+            return False
+        rects = []
+        for i in range(len(self.current_frame.text_layers)):
+            txt = self.current_frame.text_layers[i]
+            if getattr(txt, 'is_visible', True):
+                r = self.canvas._get_text_rect_300dpi(i)
+                if not r.isEmpty():
+                    rects.append(r)
+
+        for i in range(len(rects)):
+            for j in range(i + 1, len(rects)):
+                if rects[i].intersects(rects[j]):
+                    return True
+        return False
+
     def _add_text(self):
         if not self.current_frame:
             return
@@ -1492,18 +2063,44 @@ class FrameDesignerPage(QWidget):
         cw = 600 if self.current_frame.is_dual_strip else self.current_frame.canvas_size[0]
         ch = self.current_frame.canvas_size[1]
 
+        # Áp dụng các giá trị văn bản mặc định của khung đã thiết lập
+        f = self.current_frame
+        def_txt = getattr(f, 'default_text', "1998 TEAM • Studio Phóng Sự Cưới")
+        def_font = getattr(f, 'default_font_name', "Be Vietnam Pro")
+        def_size = getattr(f, 'default_font_size', 34)
+        def_color = getattr(f, 'default_font_color', "#D4AF37")
+        def_bold = getattr(f, 'default_is_bold', True)
+        def_italic = getattr(f, 'default_is_italic', False)
+        def_margin = getattr(f, 'default_safe_margin', 40)
+
+        # Smart placement: đặt dưới lớp thấp nhất hiện có để không bị đè lên nhau
+        if self.current_frame.text_layers:
+            lowest_y = max(
+                getattr(t, 'y', ch - def_margin - 60) + int(getattr(t, 'font_size', 34) * 1.6)
+                for t in self.current_frame.text_layers
+            )
+            new_y = lowest_y + 35
+            if new_y > (ch - def_margin - int(def_size * 2)):
+                stagger_idx = len(self.current_frame.text_layers) % 3
+                new_y = ch - def_margin - int(def_size * 2) - stagger_idx * 55
+        else:
+            new_y = ch - def_margin - int(def_size * 2)
+
         new_txt = TextLayer(
             id=f"txt_{num}",
-            text="1998 TEAM • Studio Phóng Sự Cưới",
+            text=def_txt,
             x=cw // 2,
-            y=ch - 140,
-            font_size=34,
-            font_color="#D4AF37",
-            font_name="Arial",
+            y=new_y,
+            font_size=def_size,
+            font_color=def_color,
+            font_name=def_font,
             alignment="center",
-            is_bold=True,
-            position_mode="bottom",
-            safe_margin=40
+            is_bold=def_bold,
+            is_italic=def_italic,
+            is_locked=False,
+            is_visible=True,
+            position_mode="custom",
+            safe_margin=def_margin
         )
         self.current_frame.text_layers.append(new_txt)
         self._populate_ui_from_frame(self.current_frame)
@@ -1639,7 +2236,14 @@ class FrameDesignerPage(QWidget):
             self._populate_slot_controls(slot_index)
 
     def _on_slot_moved_from_canvas(self, slot_index: int, new_x: int, new_y: int):
-        pass  # Đã cập nhật trực tiếp trên model
+        pass
+
+    def _on_slot_resized_from_canvas(self, slot_index: int, new_x: int, new_y: int, new_w: int, new_h: int):
+        if not self.current_frame or not (0 <= slot_index < len(self.current_frame.slots)):
+            return
+        if 0 <= slot_index < self.combo_slots_selector.count():
+            s = self.current_frame.slots[slot_index]
+            self.combo_slots_selector.setItemText(slot_index, f"Ô #{s.id} ({new_w}x{new_h} px)")
 
     def _on_slot_crop_panned_from_canvas(self, slot_index: int, ox: float, oy: float):
         self.lbl_crop_offset.setText(f"Cắt lệch: ({int(ox*100)}%, {int(oy*100)}%)")
@@ -1652,7 +2256,12 @@ class FrameDesignerPage(QWidget):
             self._populate_text_controls(text_index)
 
     def _on_text_moved_from_canvas(self, text_index: int, new_x: int, new_y: int):
-        self.btn_pos_custom.setChecked(True)
+        pass
+
+    def _on_text_resized_from_canvas(self, text_index: int, new_size: int):
+        self._is_updating_ui = True
+        self.spin_font_size.setValue(new_size)
+        self._is_updating_ui = False
 
     def _on_logo_selected_from_canvas(self, logo_index: int):
         if 0 <= logo_index < self.combo_logo_selector.count():
@@ -1663,6 +2272,17 @@ class FrameDesignerPage(QWidget):
 
     def _on_logo_moved_from_canvas(self, logo_index: int, new_x: int, new_y: int):
         pass
+
+    def _apply_frame_properties(self):
+        """Áp dụng thuộc tính khung in từ biểu mẫu vào bản thiết kế và cập nhật xem trước."""
+        if not self.current_frame:
+            return
+        f = self._build_frame_from_ui()
+        if not f:
+            return
+        self._update_preview(full_render=True)
+        self.lbl_props_status.setText("✅ Đã áp dụng thuộc tính khung in!")
+        QTimer.singleShot(2500, lambda: self.lbl_props_status.setText(""))
 
     # ==============================================================
     # CẬP NHẬT PREVIEW & LƯU KHUNG
@@ -1678,6 +2298,16 @@ class FrameDesignerPage(QWidget):
         f.is_dual_strip = self.chk_dual.isChecked()
         f.has_cut_line = self.chk_dual.isChecked()
         f.bg_color = self.btn_bg_color.text()
+
+        # Lưu thiết lập văn bản mặc định
+        f.default_text = self.txt_def_text.text()
+        f.default_font_name = self.combo_def_font.currentText()
+        f.default_font_size = self.spin_def_size.value()
+        f.default_font_color = self.btn_def_color.text()
+        f.default_is_bold = self.btn_def_bold.isChecked()
+        f.default_is_italic = self.btn_def_italic.isChecked()
+        f.default_safe_margin = self.spin_def_margin.value()
+
         return f
 
     def _update_preview(self, full_render: bool = True):
@@ -1694,6 +2324,12 @@ class FrameDesignerPage(QWidget):
             self.lbl_warnings.setText("✅ 300 DPI • An toàn")
             self.lbl_warnings.setToolTip("Trạng thái bố cục: Chuẩn xác 300 DPI, an toàn vùng cắt.")
             self.lbl_warnings.setStyleSheet("color: #10B981; font-weight: 500;")
+
+        # Kiểm tra cảnh báo đè lớp chữ
+        if self._check_text_overlaps():
+            self.lbl_text_overlap.setText("⚠️ Chú ý: Các lớp chữ đang bị đè lên nhau!")
+        else:
+            self.lbl_text_overlap.setText("")
 
         if full_render or not self.canvas.preview_pixmap:
             prev_img = FrameDesigner.render_preview(f, max_height=800)

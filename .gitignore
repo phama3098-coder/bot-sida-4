@@ -6,6 +6,9 @@ __pycache__/
 # PyInstaller
 build/
 dist/
+dist_installer/
+sessions/
+upstream_photobooth/
 *.manifest
 *.spec.bak
 

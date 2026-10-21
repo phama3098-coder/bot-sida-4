@@ -33,6 +33,7 @@ class EventsPage(QWidget):
         print_mgr: PrintManager,
         token_mgr: TokenManager,
         sync_mgr: Optional[SyncManager] = None,
+        auth_mgr=None,
         parent=None
     ):
         super().__init__(parent)
@@ -40,6 +41,7 @@ class EventsPage(QWidget):
         self.print_mgr = print_mgr
         self.token_mgr = token_mgr
         self.sync_mgr = sync_mgr
+        self.auth_mgr = auth_mgr
 
         self._init_ui()
         self._load_events()
@@ -143,21 +145,36 @@ class EventsPage(QWidget):
         for e in events:
             ev_name = e["name"] if isinstance(e, dict) else str(e)
             self.combo_events.addItem(ev_name, ev_name)
-        self.combo_events.blockSignals(False)
 
         active = self.event_mgr.get_active_event_name()
         idx = self.combo_events.findText(active)
         if idx >= 0:
             self.combo_events.setCurrentIndex(idx)
+        self.combo_events.blockSignals(False)
         self._refresh_gallery()
 
     def _on_event_changed(self, index: int):
         ev_name = self.combo_events.currentText()
-        if ev_name:
-            self.event_mgr.set_active_event(ev_name)
-            self._refresh_gallery()
+        if not ev_name:
+            return
+        if ev_name == self.event_mgr.get_active_event_name():
+            return
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Chuyển Đổi Sự Kiện"):
+                self.combo_events.blockSignals(True)
+                active = self.event_mgr.get_active_event_name()
+                idx = self.combo_events.findText(active)
+                if idx >= 0:
+                    self.combo_events.setCurrentIndex(idx)
+                self.combo_events.blockSignals(False)
+                return
+        self.event_mgr.set_active_event(ev_name)
+        self._refresh_gallery()
 
     def _create_event(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Tạo Sự Kiện Mới"):
+                return
         name, ok = QInputDialog.getText(self, "Tạo Sự Kiện Mới", "Nhập tên sự kiện (ví dụ: DamCuoi_TuanLan, SinhNhat_MinhAnh):")
         if ok and name.strip():
             safe_name = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in name.strip())
@@ -174,6 +191,9 @@ class EventsPage(QWidget):
 
     def _sync_all_to_gdrive(self):
         """Đưa toàn bộ ảnh trong sự kiện vào hàng đợi đồng bộ Google Drive."""
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Đồng Bộ Toàn Bộ Ảnh"):
+                return
         if not self.sync_mgr or not self.sync_mgr.is_ready():
             QMessageBox.warning(
                 self,

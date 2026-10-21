@@ -303,4 +303,84 @@ def test_frame_designer_gui_interactions(monkeypatch):
         page.btn_bold.setChecked(True)
         assert t0.is_bold is True
 
+        # 6. Kiểm tra các nút căn chỉnh nhanh và khóa lớp chữ
+        page._center_selected_text()
+        assert t0.position_mode == "custom"
+        assert t0.x > 0
+
+        page._align_selected_text_top()
+        assert t0.y == 40  # default_safe_margin or 40
+
+        page._align_selected_text_bottom()
+        assert t0.y > 40
+
+        # Kiểm tra nút khóa lớp chữ
+        assert t0.is_locked is False
+        page._toggle_lock_text(True)
+        assert t0.is_locked is True
+        page._toggle_lock_text(False)
+        assert t0.is_locked is False
+
+        # 7. Kiểm tra giá trị mặc định chữ của khung
+        page.txt_def_text.setText("1998 STUDIO")
+        page.spin_def_size.setValue(36)
+        built = page._build_frame_from_ui()
+        assert built.default_text == "1998 STUDIO"
+        assert built.default_font_size == 36
+
+
+def test_free_text_dragging_coordinate_invariance():
+    """Kiểm tra việc kéo thả tự do không bị reset về giữa và bảo toàn toạ độ 300 DPI."""
+    from PIL import ImageDraw
+    from vietphotobooth.frames.frame_models import FrameTemplate, TextLayer
+    from vietphotobooth.frames.frame_designer import FrameDesigner, get_windows_font
+
+    template = FrameTemplate(
+        id="test_free_drag",
+        name="Free Drag Test",
+        canvas_size=[600, 1800],
+        slots=[],
+        text_layers=[
+            TextLayer(id=1, text="Tự Do Di Chuyển", font_size=28, x=220, y=480, position_mode="custom", alignment="left")
+        ]
+    )
+
+    t = template.text_layers[0]
+
+    # Gọi get_text_layout_info để kiểm tra toạ độ tính toán
+    dummy = Image.new("RGBA", (600, 1800))
+    draw = ImageDraw.Draw(dummy)
+    font = get_windows_font("arial.ttf", 28)
+    lines, box_x, box_y, box_w, box_h = FrameDesigner.get_text_layout_info(
+        draw, t, t.text, font, 600, 1800
+    )
+    assert box_x == 220
+    assert box_y == 480
+    assert box_w > 0
+    assert box_h > 0
+
+    # Render composite đảm bảo không bị snap về giữa
+    comp = FrameDesigner.render_composite([Image.new("RGB", (100, 100), (255, 255, 255))], template)
+    assert comp.size == (600, 1800)
+    assert t.x == 220
+    assert t.y == 480
+
+
+def test_photo_count_mismatch_composite():
+    """Kiểm tra render composite khi số ảnh khác số ô: không crash, tái sử dụng modulo an toàn."""
+    fm = FrameManager()
+    wedding_frame = fm.get_frame("wedding_2x6_strip3")
+    assert len(wedding_frame.slots) == 3
+
+    # Chụp 1 ảnh nhưng khung 3 ô:
+    single_photo = [Image.new("RGB", (400, 300), (200, 50, 50))]
+    comp1 = FrameDesigner.render_composite(single_photo, wedding_frame)
+    assert comp1.size == (600, 1800)
+
+    # Chụp 5 ảnh nhưng khung 3 ô:
+    five_photos = [Image.new("RGB", (400, 300), (i * 40, i * 40, 100)) for i in range(5)]
+    comp5 = FrameDesigner.render_composite(five_photos, wedding_frame)
+    assert comp5.size == (600, 1800)
+
+
 

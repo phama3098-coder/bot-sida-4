@@ -20,9 +20,10 @@ logger = get_logger()
 class PrintingPage(QWidget):
     """Trang quản trị máy in nhiệt và hàng đợi in Windows Spooler."""
 
-    def __init__(self, print_mgr: PrintManager, parent=None):
+    def __init__(self, print_mgr: PrintManager, auth_mgr=None, parent=None):
         super().__init__(parent)
         self.print_mgr = print_mgr
+        self.auth_mgr = auth_mgr
 
         self._init_ui()
         self._load_printers()
@@ -130,12 +131,18 @@ class PrintingPage(QWidget):
                 self.combo_printers.setCurrentIndex(idx)
 
     def _set_active_printer(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Cài Đặt Máy In"):
+                return
         selected = self.combo_printers.currentData()
         if selected:
             self.print_mgr.set_selected_printer(selected)
             QMessageBox.information(self, "Máy In", f"Đã chọn máy in mặc định: {selected}")
 
     def _print_test_page(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực In Thử Nghiệm"):
+                return
         success = self.print_mgr.print_test_page()
         if success:
             QMessageBox.information(self, "In Kiểm Tra", "Đã gửi thẻ kiểm tra màu và căn lề tới máy in thành công!")
@@ -173,5 +180,8 @@ class PrintingPage(QWidget):
         self.lbl_queue_stats.setText(f"Đang chờ / Đang in: {pending} • Đã in hoàn tất: {completed}")
 
     def _clear_completed_jobs(self):
+        if self.auth_mgr and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Quản Lý Hàng Đợi"):
+                return
         self.print_mgr.clear_completed_jobs()
         self._refresh_queue()

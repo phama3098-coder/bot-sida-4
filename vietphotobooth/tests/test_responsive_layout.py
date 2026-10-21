@@ -61,3 +61,27 @@ def test_main_window_responsive_resolutions():
             assert min_hint.height() <= 620, f"Tab {i} ({window.tabs.tabText(i)}) minSizeHint height={min_hint.height()} vượt quá 620px"
 
     window.close()
+
+
+def test_frame_designer_scroll_margins_and_gutter():
+    """Kiểm tra thanh cuộn của Frame Designer có đủ lề gutter không che nút hay nội dung."""
+    window = MainWindow()
+    fd = window.frame_page
+
+    # 1. Kiểm tra QScrollArea của cột thuộc tính
+    scroll = fd.scroll_area
+    assert scroll.widgetResizable() is True
+
+    # 2. Kiểm tra khoảng trống lề phải (dedicated scrollbar gutter >= 24px)
+    right_margins = fd.right_layout.contentsMargins()
+    assert right_margins.right() >= 24, f"Lề phải {right_margins.right()}px quá nhỏ, thanh cuộn có thể che nội dung!"
+    assert right_margins.bottom() >= 30, f"Lề đáy {right_margins.bottom()}px quá nhỏ, không cuộn hết được trang!"
+
+    # 3. Kiểm tra các nút không bị che trên màn hình cảm ứng 1366x768
+    window.resize(1366, 768)
+    app.processEvents()
+    assert fd.combo_slots_selector is not None
+    assert fd.btn_apply_all_slots is not None
+
+    window.close()
+

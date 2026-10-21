@@ -64,6 +64,8 @@ class TextLayer:
     # Chỉnh sửa văn bản trực quan (Visual Text Editing)
     is_bold: bool = False         # Chữ đậm
     is_italic: bool = False       # Chữ nghiêng
+    is_locked: bool = False       # Khóa vị trí không cho kéo nhầm
+    is_visible: bool = True       # Ẩn / hiện lớp chữ
     position_mode: str = "bottom" # "top" (Trên), "middle" (Giữa), "bottom" (Dưới), "custom" (Tùy chỉnh)
     safe_margin: int = 40         # Khoảng cách lề an toàn (pixel)
     max_width: Optional[int] = None # Chiều rộng tối đa cho phép tự động xuống dòng (multiline wrap)
@@ -126,6 +128,17 @@ class FrameTemplate:
     notes: str = ""               # Ghi chú hướng dẫn sử dụng khung
     version: str = "1.0"
     author: str = "1998 TEAM"
+
+    # Văn bản mặc định của khung (áp dụng khi tạo lớp chữ mới)
+    default_text: str = "1998 TEAM • Studio Phóng Sự Cưới"
+    default_font_name: str = "Arial"
+    default_font_size: int = 34
+    default_font_color: str = "#D4AF37"
+    default_is_bold: bool = True
+    default_is_italic: bool = False
+    default_alignment: str = "center"
+    default_position_mode: str = "bottom"
+    default_safe_margin: int = 40
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

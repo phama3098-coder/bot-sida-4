@@ -11,6 +11,7 @@ from typing import List, Dict, Optional, Tuple, Any
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from vietphotobooth.core.logger import get_logger
+from vietphotobooth.core.font_registry import FontRegistry
 from vietphotobooth.processing.image_processor import ImageProcessor
 from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLayer, LogoLayer, DPI_300_SIZES
 
@@ -57,7 +58,15 @@ def get_windows_font(
     is_bold: bool = False,
     is_italic: bool = False
 ) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Nạp font chữ tiếng Việt từ hệ thống Windows hỗ trợ đậm/nghiêng."""
+    """Nạp font chữ tiếng Việt từ Assets/Fonts hoặc hệ thống Windows hỗ trợ đậm/nghiêng."""
+    # 1. Thử phân giải qua FontRegistry chuyên dụng
+    resolved = FontRegistry.resolve_font_path(font_name)
+    if resolved and os.path.exists(resolved):
+        try:
+            return ImageFont.truetype(resolved, size)
+        except Exception:
+            pass
+
     system_font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
     base_lower = os.path.splitext(os.path.basename(font_name))[0].lower().replace(" ", "")
 
@@ -109,6 +118,8 @@ def get_windows_font(
 
 class FrameDesigner:
     """Bộ tạo dựng bố cục khung in ảnh Photobooth chuẩn 300 DPI với WYSIWYG tuyệt đối."""
+
+    get_windows_font = staticmethod(get_windows_font)
 
     @staticmethod
     def render_composite(
@@ -222,6 +233,8 @@ class FrameDesigner:
         today_str = datetime.date.today().strftime("%d/%m/%Y")
 
         for txt in template.text_layers:
+            if not getattr(txt, 'is_visible', True):
+                continue
             content = txt.text or ""
             # Thay thế biến động
             content = content.replace("{event_name}", event_info.get("name", "1998 TEAM"))
@@ -311,6 +324,71 @@ class FrameDesigner:
         return wrapped_lines if wrapped_lines else [""]
 
     @staticmethod
+    def get_text_layout_info(
+        draw: ImageDraw.ImageDraw,
+        txt: TextLayer,
+        content: str,
+        font: ImageFont.ImageFont,
+        container_w: int,
+        canvas_h: int
+    ) -> Tuple[List[str], int, int, int, int]:
+        """
+        Tính toán chi tiết các dòng chữ và hộp bao bounding box chuẩn xác 300 DPI.
+        Trả về: (lines, box_x, box_y, box_w, box_h)
+        Không bao giờ tự ý đưa chữ về giữa nếu người dùng đã đặt hoặc kéo sang tọa độ x, y!
+        """
+        safe_margin = getattr(txt, 'safe_margin', 40)
+        max_w = getattr(txt, 'max_width', None) or (container_w - 2 * safe_margin)
+        max_w = max(100, max_w)
+
+        lines = FrameDesigner._wrap_text_lines(draw, content, font, max_w)
+        line_height = int(txt.font_size * 1.35)
+        total_text_h = max(line_height, len(lines) * line_height)
+
+        line_widths = []
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_widths.append(bbox[2] - bbox[0])
+        max_line_w = max(line_widths) if line_widths else 100
+
+        # Xác định vị trí Y
+        pos_mode = getattr(txt, 'position_mode', 'custom')
+        if pos_mode == "top":
+            base_y = safe_margin
+        elif pos_mode == "middle":
+            base_y = max(safe_margin, (canvas_h - total_text_h) // 2)
+        elif pos_mode == "bottom":
+            base_y = max(safe_margin, canvas_h - safe_margin - total_text_h)
+        else:
+            base_y = getattr(txt, 'y', canvas_h - safe_margin - total_text_h)
+            if base_y is None or base_y <= 0:
+                base_y = canvas_h - safe_margin - total_text_h
+
+        # Xác định vị trí X
+        align = getattr(txt, 'alignment', 'center')
+        if getattr(txt, 'x', None) is not None and (pos_mode == "custom" or txt.x > 0):
+            base_x = txt.x
+            if align == "center":
+                box_x = base_x - max_line_w // 2
+            elif align == "right":
+                box_x = base_x - max_line_w
+            else:
+                box_x = base_x
+        else:
+            if align == "center":
+                box_x = (container_w - max_line_w) // 2
+            elif align == "right":
+                box_x = container_w - safe_margin - max_line_w
+            else:
+                box_x = safe_margin
+
+        box_y = base_y
+        box_w = max_line_w
+        box_h = total_text_h
+
+        return lines, box_x, box_y, box_w, box_h
+
+    @staticmethod
     def _render_text_layer(
         draw: ImageDraw.ImageDraw,
         txt: TextLayer,
@@ -320,48 +398,24 @@ class FrameDesigner:
         canvas_h: int,
         is_dual_strip: bool
     ):
-        """Vẽ lớp chữ văn bản với đa dòng, căn lề, định vị và bảo vệ vùng an toàn."""
-        safe_margin = getattr(txt, 'safe_margin', 40)
-        max_w = getattr(txt, 'max_width', None) or (container_w - 2 * safe_margin)
-        max_w = max(100, max_w)
-
-        lines = FrameDesigner._wrap_text_lines(draw, content, font, max_w)
+        """Vẽ lớp chữ văn bản với đa dòng, căn lề, định vị tự do và bảo vệ vùng an toàn."""
+        lines, box_x, box_y, box_w, box_h = FrameDesigner.get_text_layout_info(
+            draw=draw, txt=txt, content=content, font=font, container_w=container_w, canvas_h=canvas_h
+        )
         line_height = int(txt.font_size * 1.35)
-        total_text_h = len(lines) * line_height
+        align = getattr(txt, 'alignment', 'center')
 
-        # Tính vị trí Y dựa trên position_mode
-        pos_mode = getattr(txt, 'position_mode', 'bottom')
-        if pos_mode == "top":
-            base_y = safe_margin
-        elif pos_mode == "middle":
-            base_y = max(safe_margin, (canvas_h - total_text_h) // 2)
-        elif pos_mode == "bottom":
-            base_y = max(safe_margin, canvas_h - safe_margin - total_text_h)
-        else:
-            base_y = txt.y
-
-        # Vẽ từng dòng
         for i, line in enumerate(lines):
-            curr_y = base_y + i * line_height
+            curr_y = box_y + i * line_height
             bbox = draw.textbbox((0, 0), line, font=font)
             line_w = bbox[2] - bbox[0]
 
-            align = getattr(txt, 'alignment', 'center')
-            if pos_mode == "custom" and txt.x > 0:
-                if align == "center":
-                    draw_x = txt.x - (line_w // 2)
-                elif align == "right":
-                    draw_x = txt.x - line_w
-                else:
-                    draw_x = txt.x
+            if align == "center":
+                draw_x = box_x + (box_w - line_w) // 2
+            elif align == "right":
+                draw_x = box_x + (box_w - line_w)
             else:
-                # Tự động căn ngang trong vùng thiết kế
-                if align == "center":
-                    draw_x = (container_w - line_w) // 2
-                elif align == "right":
-                    draw_x = container_w - safe_margin - line_w
-                else:
-                    draw_x = safe_margin
+                draw_x = box_x
 
             # Vẽ trên dải trái
             draw.text((draw_x, curr_y), line, font=font, fill=txt.font_color)

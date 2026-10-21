@@ -36,6 +36,8 @@ a = Analysis(
         'win32con',
         'win32crypt',
         'requests',
+        'vietphotobooth.core.auth',
+        'vietphotobooth.core.font_registry',
         'vietphotobooth.cloud',
         'vietphotobooth.cloud.gdrive_auth',
         'vietphotobooth.cloud.gdrive_client',

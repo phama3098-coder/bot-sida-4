@@ -10,12 +10,13 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
     QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar
 )
-from PySide6.QtCore import Qt, QKeyCombination
+from PySide6.QtCore import Qt, QKeyCombination, QTimer
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut, QPixmap
 
 from vietphotobooth.core.config import ConfigManager
 from vietphotobooth.core.events import EventManager
 from vietphotobooth.core.logger import get_logger
+from vietphotobooth.core.auth import AdminAuthManager
 from vietphotobooth.camera.manager import CameraManager
 from vietphotobooth.filters.filter_engine import FilterEngine
 from vietphotobooth.frames.frame_manager import FrameManager
@@ -49,6 +50,10 @@ class MainWindow(QMainWindow):
 
         # 1. Khởi tạo các hệ thống lõi
         self.config_mgr = ConfigManager()
+        self.auth_mgr = AdminAuthManager(self.config_mgr, self)
+        self._switching_tabs: bool = False
+        self._prev_tab_index: int = 0
+        self.PROTECTED_TABS = {2, 3, 4, 5}  # 2: Máy ảnh, 3: Máy in, 4: Sự kiện, 5: Cài đặt (Khung ảnh 1 hoàn toàn tự do)
         self.event_mgr = EventManager()
         self.camera_mgr = CameraManager()
         self.filter_engine = FilterEngine()
@@ -142,82 +147,167 @@ class MainWindow(QMainWindow):
         self.tabs.setTabToolTip(1, "Trình thiết kế khung in ảnh")
 
         # 3. Máy ảnh (Quản Lý Máy Ảnh & Thiết Lập Cảm Biến)
-        self.camera_page = CameraPage(self.camera_mgr)
+        self.camera_page = CameraPage(self.camera_mgr, auth_mgr=self.auth_mgr)
         self.tabs.addTab(self.camera_page, "📷 Máy Ảnh")
         self.tabs.setTabToolTip(2, "Cấu hình thiết bị máy ảnh")
 
         # 4. Máy in (Quản Lý Máy In & Driver In Nhiệt)
-        self.printing_page = PrintingPage(self.print_mgr)
+        self.printing_page = PrintingPage(self.print_mgr, auth_mgr=self.auth_mgr)
         self.tabs.addTab(self.printing_page, "🖨️ Máy In")
         self.tabs.setTabToolTip(3, "Cấu hình máy in & hàng đợi in")
 
         # 5. Sự kiện & Thư viện (Quản Lý Album, Mã QR, Sự Kiện)
-        self.events_page = EventsPage(self.event_mgr, self.print_mgr, self.token_mgr, sync_mgr=self.sync_mgr)
+        self.events_page = EventsPage(self.event_mgr, self.print_mgr, self.token_mgr, sync_mgr=self.sync_mgr, auth_mgr=self.auth_mgr)
         self.tabs.addTab(self.events_page, "📁 Sự Kiện & Thư Viện")
         self.tabs.setTabToolTip(4, "Quản lý sự kiện & thư viện ảnh")
 
         # 6. Cài đặt (Bảo Mật PIN, Kiosk, Quản Lý Bộ Lọc Màu & Bản Quyền)
-        self.settings_page = SettingsPage(self.config_mgr, self.token_mgr, self.filter_engine, sync_mgr=self.sync_mgr)
+        self.settings_page = SettingsPage(self.config_mgr, self.token_mgr, self.filter_engine, sync_mgr=self.sync_mgr, auth_mgr=self.auth_mgr)
         self.settings_page.toggle_fullscreen_requested.connect(self.toggle_fullscreen)
         self.tabs.addTab(self.settings_page, "⚙️ Cài Đặt")
         self.tabs.setTabToolTip(5, "Cài đặt hệ thống, bảo mật & Google Drive")
 
-        # Bảo mật PIN khi chuyển từ Kiosk sang tab Quản Trị
-        self.tabs.tabBarClicked.connect(self._on_tab_bar_clicked)
+        # Nút trạng thái khóa bảo mật Quản trị viên ở góc trên bên phải thanh Tab
+        self.auth_widget = QWidget()
+        auth_layout = QHBoxLayout(self.auth_widget)
+        auth_layout.setContentsMargins(4, 2, 10, 2)
+        auth_layout.setSpacing(6)
+
+        self.btn_auth_status = QPushButton("🔒 Đang Khóa")
+        self.btn_auth_status.setFixedHeight(30)
+        self.btn_auth_status.setCursor(Qt.PointingHandCursor)
+        self.btn_auth_status.setToolTip("Nhấp để mở khóa quyền quản trị hoặc khóa bảo vệ ngay lập tức")
+        self.btn_auth_status.clicked.connect(self._toggle_auth_button_clicked)
+        auth_layout.addWidget(self.btn_auth_status)
+
+        self.tabs.setCornerWidget(self.auth_widget, Qt.TopRightCorner)
+
+        # Bộ đếm thời gian kiểm tra phiên quản trị (Session Timeout)
+        self.auth_timer = QTimer(self)
+        self.auth_timer.setInterval(1000)
+        self.auth_timer.timeout.connect(self._on_auth_timer_tick)
+        self.auth_timer.start()
+
+        # Giám sát chuyển tab để bảo vệ các mục: Máy ảnh (2), Máy in (3), Sự kiện (4), Cài đặt (5)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.auth_mgr.auth_state_changed.connect(lambda _: self._update_auth_ui())
+        self._update_auth_ui()
 
         main_layout.addWidget(self.tabs)
 
+    def _update_auth_ui(self):
+        if not hasattr(self, "btn_auth_status"):
+            return
+        if not self.auth_mgr.is_pin_enabled:
+            self.btn_auth_status.setText("🔓 Không Khóa PIN")
+            self.btn_auth_status.setStyleSheet(
+                "QPushButton { background-color: #0E1A2F; color: #94A3B8; border: 1px solid #1E2D4A; "
+                "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
+            )
+        elif self.auth_mgr.is_authenticated():
+            rem = self.auth_mgr.get_remaining_seconds()
+            m, s = divmod(rem, 60)
+            self.btn_auth_status.setText(f"🔓 Quản Trị ({m:02d}:{s:02d}) | Khóa")
+            self.btn_auth_status.setStyleSheet(
+                "QPushButton { background-color: #052618; color: #10B981; border: 1.5px solid #10B981; "
+                "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
+                "QPushButton:hover { background-color: #073824; }"
+            )
+        else:
+            self.btn_auth_status.setText("🔒 Khóa Quản Trị")
+            self.btn_auth_status.setStyleSheet(
+                "QPushButton { background-color: #1A1308; color: #D4AF37; border: 1.5px solid #D4AF37; "
+                "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
+                "QPushButton:hover { background-color: #291E0D; color: #F7E7CE; }"
+            )
+
+    def _on_auth_timer_tick(self):
+        if self.auth_mgr.is_authenticated():
+            self._update_auth_ui()
+            if self.auth_mgr.get_remaining_seconds() <= 0:
+                self.auth_mgr.lock()
+                self._update_auth_ui()
+                if self.tabs.currentIndex() in self.PROTECTED_TABS:
+                    self._switching_tabs = True
+                    self.tabs.setCurrentIndex(0)
+                    self._prev_tab_index = 0
+                    self._switching_tabs = False
+                    QMessageBox.information(
+                        self, "Phiên Quản Trị",
+                        "Phiên quản trị viên đã hết thời gian hiệu lực. Hệ thống đã tự động khóa lại để bảo vệ thiết bị."
+                    )
+
+    def _toggle_auth_button_clicked(self):
+        if not self.auth_mgr.is_pin_enabled:
+            QMessageBox.information(self, "Bảo Mật", "Chế độ mã PIN đang được tắt trong mục Cài Đặt.")
+            return
+
+        if self.auth_mgr.is_authenticated():
+            ret = QMessageBox.question(
+                self, "Khóa Quản Trị",
+                "Bạn có muốn chủ động khóa phiên quản trị ngay bây giờ không?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if ret == QMessageBox.Yes:
+                self.auth_mgr.lock()
+                if self.tabs.currentIndex() in self.PROTECTED_TABS:
+                    self._switching_tabs = True
+                    self.tabs.setCurrentIndex(0)
+                    self._prev_tab_index = 0
+                    self._switching_tabs = False
+        else:
+            self.auth_mgr.prompt_pin_dialog(self, "Mở Khóa Quản Trị Viên")
+
+    def _on_tab_changed(self, new_index: int):
+        if self._switching_tabs:
+            return
+
+        # Chỉ bảo vệ các tab: 2 (Máy ảnh), 3 (Máy in), 4 (Sự kiện), 5 (Cài đặt)
+        # Tab 0 (Chụp ảnh) và Tab 1 (Khung ảnh) hoàn toàn tự do
+        if new_index in self.PROTECTED_TABS:
+            if not self.auth_mgr.is_authenticated():
+                ok = self.auth_mgr.prompt_pin_dialog(self, f"Mở Khóa Tab: {self.tabs.tabText(new_index)}")
+                if not ok:
+                    # Trở về tab an toàn trước đó
+                    self._switching_tabs = True
+                    self.tabs.setCurrentIndex(self._prev_tab_index)
+                    self._switching_tabs = False
+                    return
+
+        self._prev_tab_index = new_index
+
     def switch_to_tab(self, target_index: int):
-        """Chuyển tab theo yêu cầu từ các trang con (kiểm tra mã PIN nếu rời Kiosk)."""
-        if self.tabs.currentIndex() == 0 and target_index > 0:
-            if not self._verify_admin_pin():
-                return
+        """Chuyển tab theo yêu cầu từ các trang con (kiểm tra quyền quản trị)."""
+        if target_index in self.PROTECTED_TABS:
+            if not self.auth_mgr.is_authenticated():
+                if not self.auth_mgr.prompt_pin_dialog(self, f"Mở Khóa Tab: {self.tabs.tabText(target_index)}"):
+                    return
+        self._prev_tab_index = target_index
         self.tabs.setCurrentIndex(target_index)
+
+    def toggle_fullscreen(self):
+        """Bật/tắt chế độ toàn màn hình Kiosk Mode."""
+        if self.isFullScreen():
+            if self.auth_mgr.is_pin_enabled and not self.auth_mgr.is_authenticated():
+                if not self.auth_mgr.prompt_pin_dialog(self, "Thoát Chế Độ Kiosk"):
+                    return
+            self.showNormal()
+            self.tabs.tabBar().show()
+        else:
+            self.showFullScreen()
+            # Ở chế độ Kiosk toàn màn hình, chuyển về tab Chụp Ảnh và ẩn thanh Tab bar
+            self.tabs.setCurrentIndex(0)
+            self.tabs.tabBar().hide()
+            self.tabs.tabBar().hide()
 
     def _setup_shortcuts(self):
         # F11 để bật/tắt chế độ toàn màn hình Kiosk
         shortcut_f11 = QShortcut(QKeySequence("F11"), self)
         shortcut_f11.activated.connect(self.toggle_fullscreen)
 
-        # Esc để yêu cầu thoát Kiosk (nếu có PIN)
+        # Esc để yêu cầu thoát Kiosk
         shortcut_esc = QShortcut(QKeySequence("Esc"), self)
         shortcut_esc.activated.connect(self._handle_escape_kiosk)
-
-    def _on_tab_bar_clicked(self, target_index: int):
-        current_index = self.tabs.currentIndex()
-        # Nếu đang ở tab Kiosk (0) và muốn chuyển sang tab quản trị (1..6)
-        if current_index == 0 and target_index > 0:
-            if not self._verify_admin_pin():
-                # Chặn không cho đổi tab
-                self.tabs.setCurrentIndex(0)
-
-    def _verify_admin_pin(self) -> bool:
-        pin, ok = QInputDialog.getText(
-            self,
-            "Xác Thực Quyền Quản Trị",
-            "Nhập mã PIN quản trị viên (Mặc định: 1234):",
-            QLineEdit.Password
-        )
-        if not ok:
-            return False
-
-        if self.config_mgr.verify_pin(pin):
-            return True
-        else:
-            QMessageBox.critical(self, "Lỗi Xác Thực", "Mã PIN không chính xác!")
-            return False
-
-    def toggle_fullscreen(self):
-        """Bật/tắt chế độ toàn màn hình Kiosk Mode."""
-        if self.isFullScreen():
-            if self._verify_admin_pin():
-                self.showNormal()
-                self.tabs.tabBar().show()
-        else:
-            self.showFullScreen()
-            # Ở chế độ Kiosk toàn màn hình, chuyển về tab Chụp Ảnh và ẩn thanh Tab bar
-            self.tabs.setCurrentIndex(0)
-            self.tabs.tabBar().hide()
 
     def _handle_escape_kiosk(self):
         if self.isFullScreen():
@@ -250,12 +340,26 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(4, "📁 Sự Kiện & Thư Viện")
             self.tabs.setTabText(5, "⚙️ Cài Đặt")
 
-    def closeEvent(self, event):
-        """Dừng các luồng an toàn khi đóng ứng dụng."""
-        if hasattr(self.kiosk_page, "live_view_worker"):
-            self.kiosk_page.live_view_worker.stop()
-        self.kiosk_page.stop_live_view()
+    def cleanup(self):
+        """Dừng dứt điểm toàn bộ các luồng nền và timer khi ứng dụng kết thúc."""
+        if hasattr(self, "auth_timer") and self.auth_timer.isActive():
+            self.auth_timer.stop()
+        if hasattr(self, "kiosk_page"):
+            if hasattr(self.kiosk_page, "camera_poll_timer") and self.kiosk_page.camera_poll_timer.isActive():
+                self.kiosk_page.camera_poll_timer.stop()
+            if hasattr(self.kiosk_page, "live_view_worker"):
+                self.kiosk_page.live_view_worker.stop()
+            self.kiosk_page.stop_live_view()
         if hasattr(self, "sync_mgr"):
             self.sync_mgr.close()
-        self.camera_mgr.close()
+        if hasattr(self, "camera_mgr"):
+            self.camera_mgr.close()
+
+    def close(self) -> bool:
+        self.cleanup()
+        return super().close()
+
+    def closeEvent(self, event):
+        """Dừng các luồng an toàn khi đóng ứng dụng."""
+        self.cleanup()
         event.accept()
