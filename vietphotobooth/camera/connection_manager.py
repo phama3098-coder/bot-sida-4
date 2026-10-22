@@ -98,6 +98,13 @@ class CameraConnectionManager:
         self._last_frame_data: Optional[FrameData] = None
         self._last_jpeg: Optional[bytes] = None
 
+        # Luồng đọc khung hình ngầm tập trung (Single Background Streamer)
+        self._stream_thread: Optional[threading.Thread] = None
+        self._stream_running: bool = False
+        self._frame_lock = threading.Lock()
+        self._latest_frame: Optional[FrameData] = None
+        self._last_latency_ms: float = 0.0
+
         # Callbacks cho sự kiện giao diện
         self._on_status_changed_callbacks: List[Callable[[ConnectionState], None]] = []
         self._on_frame_callbacks: List[Callable[[FrameData], None]] = []
@@ -147,6 +154,91 @@ class CameraConnectionManager:
         with self._lock:
             return self._backend.get_status()
 
+    def start_stream(self) -> None:
+        """Khởi động luồng đọc Live View ngầm tập trung nếu chưa hoạt động."""
+        with self._lock:
+            if self._stream_running and self._stream_thread and self._stream_thread.is_alive():
+                return
+            self._stream_running = True
+            self._stream_thread = threading.Thread(
+                target=self._stream_loop,
+                name="VietPhotoBooth-LiveView-Streamer",
+                daemon=True
+            )
+            self._stream_thread.start()
+            logger.info("Đã kích hoạt background LiveView Streamer.")
+
+    def stop_stream(self, timeout: float = 1.0) -> None:
+        """Dừng luồng đọc Live View ngầm an toàn và giải phóng tài nguyên."""
+        self._stream_running = False
+        t = self._stream_thread
+        if t and t.is_alive():
+            t.join(timeout=timeout)
+        self._stream_thread = None
+        with self._frame_lock:
+            self._latest_frame = None
+
+    def _stream_loop(self) -> None:
+        """
+        Vòng lặp đọc frame ngầm (Worker Thread) duy nhất:
+        - Tách biệt hoàn toàn I/O camera khỏi UI thread.
+        - Không tích lũy hàng đợi (Single-frame buffer drop frame cũ).
+        - Chuẩn hóa kích thước preview (A3) tránh làm nghẽn GUI với ảnh 6K.
+        """
+        logger.info("LiveView Streamer loop bắt đầu hoạt động.")
+        while self._stream_running:
+            if not self.is_connected():
+                time.sleep(0.06)
+                continue
+
+            t_start = time.perf_counter()
+            frame = None
+            try:
+                frame = self._backend.read_frame()
+            except Exception as e:
+                logger.debug(f"Streamer read frame error: {e}")
+
+            t_end = time.perf_counter()
+            latency_ms = (t_end - t_start) * 1000.0
+
+            if frame and frame.is_valid:
+                self._read_fps_tracker.tick()
+                # A3: Giới hạn độ phân giải preview hợp lý (<= 1280x720) cho UI viewport
+                if frame.has_rgb:
+                    h, w = frame.rgb.shape[:2]
+                    if w > 1280 or h > 720:
+                        import cv2
+                        scale = min(1280.0 / w, 720.0 / h)
+                        nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+                        preview_rgb = cv2.resize(frame.rgb, (nw, nh), interpolation=cv2.INTER_LINEAR)
+                        frame = FrameData(
+                            rgb=preview_rgb,
+                            jpeg=frame.jpeg,
+                            width=nw,
+                            height=nh,
+                            fps=frame.fps,
+                            timestamp=frame.timestamp,
+                            is_valid=True
+                        )
+
+                with self._frame_lock:
+                    self._latest_frame = frame
+                    self._last_frame_data = frame
+                    self._last_latency_ms = latency_ms
+
+                self._notify_frame(frame)
+
+                # Duy trì tốc độ ổn định ~30 FPS (target ~33ms per frame)
+                elapsed = time.perf_counter() - t_start
+                sleep_s = max(0.005, 0.033 - elapsed)
+                time.sleep(sleep_s)
+            else:
+                with self._frame_lock:
+                    self._latest_frame = None
+                time.sleep(0.06)
+
+        logger.info("LiveView Streamer loop đã dừng an toàn.")
+
     # -------------------------------------------------------------------------
     # Điều phối kết nối & Chuyển đổi backend an toàn
     # -------------------------------------------------------------------------
@@ -160,20 +252,23 @@ class CameraConnectionManager:
     ) -> bool:
         """
         Quy trình chuẩn khi chuyển đổi backend:
-        1. Dừng Live View của backend hiện tại.
-        2. Giải phóng tài nguyên phần cứng cũ.
+        1. Dừng background stream thread của backend hiện tại.
+        2. Dừng Live View và giải phóng tài nguyên phần cứng cũ.
         3. Khởi tạo backend mới.
         4. Kết nối tới thiết bị yêu cầu (hoặc thiết bị ưu tiên).
-        5. Cập nhật trạng thái an toàn và kích hoạt callback.
+        5. Kích hoạt Live View và background streamer.
         """
         resolved_backend = backend or backend_type or "simulator"
         resolved_device_id = device_index if device_index is not None else (device_id if device_id is not None else 0)
+
+        # 1. Dừng background streamer trước khi ngắt kết nối
+        self.stop_stream()
 
         with self._lock:
             b_type = str(resolved_backend).lower().strip()
             logger.info(f"Yêu cầu chuyển đổi Camera Backend sang: '{b_type}', thiết bị: '{device_name or resolved_device_id}'")
 
-            # 1. Dừng Live View & ngắt kết nối backend cũ
+            # 2. Dừng Live View & ngắt kết nối backend cũ
             if self._backend:
                 try:
                     self._backend.stop_live_view()
@@ -181,6 +276,8 @@ class CameraConnectionManager:
                 except Exception as e:
                     logger.warning(f"Lỗi khi ngắt kết nối backend cũ: {e}")
 
+            with self._frame_lock:
+                self._latest_frame = None
             self._last_frame_data = None
             self._last_jpeg = None
             self._read_fps_tracker.reset()
@@ -189,7 +286,7 @@ class CameraConnectionManager:
             self._current_device_id = resolved_device_id
             self._current_device_name = device_name
 
-            # 2. Khởi tạo backend mới phù hợp
+            # 3. Khởi tạo backend mới phù hợp
             if b_type == "directshow":
                 self._backend = DirectShowWebcamBackend(
                     device_index=self._current_device_id if isinstance(self._current_device_id, int) else 0,
@@ -206,12 +303,13 @@ class CameraConnectionManager:
 
             self._adapter = self._backend
 
-            # 3. Kết nối tới thiết bị
+            # 4. Kết nối tới thiết bị
             success = self._backend.connect(target_id)
             if success:
                 self._backend.start_live_view()
+                self.start_stream()
 
-            # 4. Lưu lại thiết lập ưu tiên nếu kết nối thành công và là thiết bị thật
+            # 5. Lưu lại thiết lập ưu tiên nếu kết nối thành công và là thiết bị thật
             if success and self._current_backend_type != "simulator":
                 self._save_preferred_device(self._current_backend_type, target_id, self._current_device_name)
 
@@ -229,15 +327,19 @@ class CameraConnectionManager:
             ok = self._backend.connect(target)
             if ok:
                 self._backend.start_live_view()
+                self.start_stream()
             self._notify_status_changed(self._backend.get_status())
             return ok
 
     def disconnect(self) -> None:
         """Ngắt kết nối an toàn."""
+        self.stop_stream()
         with self._lock:
             if self._backend:
                 self._backend.stop_live_view()
                 self._backend.disconnect()
+                with self._frame_lock:
+                    self._latest_frame = None
                 self._last_frame_data = None
                 self._last_jpeg = None
                 self._read_fps_tracker.reset()
@@ -277,10 +379,14 @@ class CameraConnectionManager:
         return results
 
     # -------------------------------------------------------------------------
-    # Đọc khung hình Live View (Thread-safe)
+    # Đọc khung hình Live View (Thread-safe, Non-blocking)
     # -------------------------------------------------------------------------
     def get_frame_data(self) -> Optional[FrameData]:
-        """Đọc đối tượng FrameData đầy đủ."""
+        """Đọc đối tượng FrameData đầy đủ (Ưu tiên lấy từ background stream buffer)."""
+        with self._frame_lock:
+            if self._latest_frame is not None and self._latest_frame.is_valid:
+                return self._latest_frame
+
         with self._lock:
             if not self._backend:
                 return None
@@ -290,7 +396,6 @@ class CameraConnectionManager:
                 self._last_frame_data = frame
                 self._notify_frame(frame)
                 return frame
-            # Nếu backend không trả về frame hợp lệ, trả về None (không trả frame cũ/giả)
             return None
 
     def get_read_fps(self) -> float:
@@ -298,7 +403,11 @@ class CameraConnectionManager:
         return self._read_fps_tracker.get_fps()
 
     def get_liveview_rgb(self) -> Optional[np.ndarray]:
-        """Lấy mảng RGB numpy cho viewport giao diện PySide6 (siêu mượt)."""
+        """Lấy mảng RGB numpy cho viewport giao diện PySide6 (non-blocking, siêu mượt)."""
+        with self._frame_lock:
+            if self._latest_frame is not None and self._latest_frame.has_rgb:
+                return self._latest_frame.rgb
+        # Fallback cho trường hợp stream ngầm chưa kịp có frame hoặc test synchronous
         fd = self.get_frame_data()
         if fd and fd.has_rgb:
             return fd.rgb
@@ -362,7 +471,7 @@ class CameraConnectionManager:
     # Báo cáo chẩn đoán & Thông tin thiết bị
     # -------------------------------------------------------------------------
     def get_info(self) -> Dict[str, Any]:
-        """Lấy thông tin tổng hợp của thiết bị đang hoạt động."""
+        """Lấy thông tin tổng hợp của thiết bị đang hoạt động (FPS trung thực, phân biệt Live View vs Chụp)."""
         with self._lock:
             caps = self._backend.get_capabilities()
             params = self._backend.get_parameters()
@@ -370,8 +479,40 @@ class CameraConnectionManager:
             err = self._backend.get_error()
 
             is_sim = (self._current_backend_type == "simulator")
+            is_digicam = (self._current_backend_type in ("digicam", "dslr"))
             read_fps = self._read_fps_tracker.get_fps()
-            reported_fps = float(getattr(caps, "max_fps", 30.0) or 30.0)
+
+            # Source FPS: Chỉ lấy nếu backend thực sự cung cấp hoặc đã đo được
+            reported_fps = getattr(caps, "max_fps", 30.0)
+            if is_digicam and st == ConnectionState.CONNECTED_NO_FRAME:
+                source_fps = None
+            else:
+                source_fps = float(reported_fps) if reported_fps else None
+
+            # Live view resolution vs Capture resolution
+            live_w, live_h = 0, 0
+            with self._frame_lock:
+                if self._latest_frame and self._latest_frame.is_valid:
+                    live_w, live_h = self._latest_frame.width, self._latest_frame.height
+            if live_w == 0 and self._last_frame_data and self._last_frame_data.is_valid:
+                live_w, live_h = self._last_frame_data.width, self._last_frame_data.height
+
+            if is_digicam:
+                capture_res = (6000, 4000)
+            elif caps.supported_resolutions:
+                capture_res = caps.supported_resolutions[0]
+            else:
+                capture_res = (live_w or 1920, live_h or 1080)
+
+            # Live View Active state: chỉ True khi thực sự có luồng hình ảnh hoặc simulator
+            is_lv_active = (st == ConnectionState.LIVE_VIEW_ACTIVE) and (read_fps > 0 or is_sim)
+
+            if is_digicam and not is_lv_active:
+                status_display = "Sẵn sàng (Chế độ chụp tĩnh Tethered 6000×4000 • Live View: Tắt)"
+            elif is_sim and st in (ConnectionState.CONNECTED, ConnectionState.LIVE_VIEW_ACTIVE):
+                status_display = "Mô phỏng đang chạy"
+            else:
+                status_display = st.display_name
 
             d = {
                 "name": self.device_name,
@@ -382,15 +523,20 @@ class CameraConnectionManager:
                 "device_index": self.device_index,
                 "device_name": self.device_name,
                 "is_simulator": is_sim,
-                "status": "Mô phỏng đang chạy" if (is_sim and st in (ConnectionState.CONNECTED, ConnectionState.LIVE_VIEW_ACTIVE)) else st.display_name,
+                "status": status_display,
                 "connection_state": st.value,
                 "last_error": err.message if err else "",
                 "capabilities": caps.to_dict(),
                 "parameters": params,
-                "actual_resolution": (caps.supported_resolutions[0] if caps.supported_resolutions else (0, 0)),
-                "read_fps": read_fps,
-                "reported_fps": reported_fps,
-                "fps": read_fps or reported_fps or 30.0
+                "actual_resolution": (live_w, live_h) if is_lv_active else (0, 0),
+                "live_view_resolution": (live_w, live_h),
+                "capture_resolution": capture_res,
+                "is_live_view_active": is_lv_active,
+                "read_fps": read_fps if is_lv_active else 0.0,
+                "reported_fps": source_fps or 0.0,
+                "source_fps": source_fps,
+                "fps": read_fps if is_lv_active else 0.0,
+                "latency_ms": getattr(self, "_last_latency_ms", 0.0)
             }
             return d
 
@@ -408,7 +554,8 @@ class CameraConnectionManager:
             return self._backend.set_parameters(params)
 
     def close(self) -> None:
-        """Đóng an toàn kết nối."""
+        """Đóng an toàn kết nối và dừng mọi worker."""
+        self.stop_stream()
         self.disconnect()
 
     # -------------------------------------------------------------------------

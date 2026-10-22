@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QDialog, QTextEdit, QApplication, QCheckBox, QSizePolicy,
     QAbstractScrollArea, QBoxLayout
 )
-from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtCore import Qt, QTimer, QSize, QThread, Signal
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QPainter, QPen
 
 from vietphotobooth.camera.manager import CameraManager
@@ -36,6 +36,19 @@ from vietphotobooth.desktop.icons import get_svg_icon
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
+
+
+class DiagnosticWorker(QThread):
+    """Luồng chạy ngầm dò quét thiết bị và chẩn đoán nguồn video, không bao giờ chặn UI thread."""
+    report_ready = Signal(dict)
+
+    def run(self):
+        try:
+            report = run_full_camera_diagnostics()
+            self.report_ready.emit(report)
+        except Exception as e:
+            logger.warning(f"Lỗi khi chạy chẩn đoán ngầm: {e}")
+            self.report_ready.emit({})
 
 
 class CameraDiagnosticDialog(QDialog):
@@ -137,15 +150,23 @@ class CameraPage(QWidget):
         # Đo đạc FPS hiển thị trực quan (Render FPS)
         self._render_fps_tracker = FPSTracker(window_seconds=1.5)
 
+        # Timer chu kỳ render khung hình xem trước (~30 FPS)
         self._timer = QTimer(self)
-        self._timer.setInterval(33)  # ~30 FPS
+        self._timer.setInterval(33)
         self._timer.timeout.connect(self._update_preview)
+
+        # Timer chu kỳ riêng biệt cập nhật thông số và trạng thái (A5 - không chạy ở mỗi frame)
+        self._stats_timer = QTimer(self)
+        self._stats_timer.setInterval(500)
+        self._stats_timer.timeout.connect(self._update_stats_display)
+
+        self._diag_worker: Optional[DiagnosticWorker] = None
 
         self._init_ui()
         self._populate_devices()
         self._refresh_camera_info()
 
-        # Dò quét chẩn đoán ban đầu
+        # Dò quét chẩn đoán ban đầu qua background worker
         QTimer.singleShot(300, self._run_diagnostics)
 
     def minimumSizeHint(self) -> QSize:
@@ -163,14 +184,31 @@ class CameraPage(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._timer.start()
+        self._stats_timer.start()
 
     def hideEvent(self, event):
         super().hideEvent(event)
         self._timer.stop()
+        self._stats_timer.stop()
+
+    def close(self) -> bool:
+        if hasattr(self, '_timer') and self._timer.isActive():
+            self._timer.stop()
+        if hasattr(self, '_stats_timer') and self._stats_timer.isActive():
+            self._stats_timer.stop()
+        if hasattr(self, '_diag_worker') and self._diag_worker and self._diag_worker.isRunning():
+            self._diag_worker.quit()
+            self._diag_worker.wait(500)
+        return super().close()
 
     def closeEvent(self, event):
         if hasattr(self, '_timer') and self._timer.isActive():
             self._timer.stop()
+        if hasattr(self, '_stats_timer') and self._stats_timer.isActive():
+            self._stats_timer.stop()
+        if hasattr(self, '_diag_worker') and self._diag_worker and self._diag_worker.isRunning():
+            self._diag_worker.quit()
+            self._diag_worker.wait(500)
         super().closeEvent(event)
 
     def _init_ui(self):
@@ -579,7 +617,7 @@ class CameraPage(QWidget):
     # LIVE PREVIEW & RENDER LOGIC
     # -------------------------------------------------------------------------
     def _update_preview(self):
-        """Cập nhật khung hình xem trước lên Viewport ở tần số ~30 FPS."""
+        """Cập nhật khung hình xem trước lên Viewport ở tần số ~30 FPS (Non-blocking)."""
         if not self.isVisible():
             return
 
@@ -594,7 +632,7 @@ class CameraPage(QWidget):
             vw = self.lbl_viewport.width()
             vh = self.lbl_viewport.height()
             if vw > 20 and vh > 20:
-                scaled = pixmap.scaled(vw, vh, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                scaled = pixmap.scaled(vw, vh, Qt.KeepAspectRatio, Qt.FastTransformation)
 
                 # Vẽ lưới căn chỉnh 3x3 nếu bật
                 if self.grid_enabled:
@@ -603,46 +641,70 @@ class CameraPage(QWidget):
                     painter.setPen(pen)
                     sw = scaled.width()
                     sh = scaled.height()
-                    # 2 đường dọc
                     painter.drawLine(int(sw / 3), 0, int(sw / 3), sh)
                     painter.drawLine(int(2 * sw / 3), 0, int(2 * sw / 3), sh)
-                    # 2 đường ngang
                     painter.drawLine(0, int(sh / 3), sw, int(sh / 3))
                     painter.drawLine(0, int(2 * sh / 3), sw, int(2 * sh / 3))
                     painter.end()
 
                 self.lbl_viewport.setPixmap(scaled)
-
-            # Cập nhật thông số FPS đa chiều (Đọc luồng / Hiển thị / Nguồn)
-            info = self.camera_mgr.get_info()
-            read_fps = float(info.get("read_fps") or 0.0)
-            render_fps = float(self._render_fps_tracker.get_fps())
-            reported_fps = float(info.get("reported_fps") or 0.0)
-            backend_code = self.camera_mgr.current_backend_name.upper()
-
-            if read_fps > 0:
-                self.lbl_preview_stats.setText(
-                    f"{w} × {h}  |  Đọc: {read_fps:.1f} FPS  |  Hiển thị: {render_fps:.1f} FPS  |  Nguồn: {reported_fps:.1f}  |  {backend_code}"
+        else:
+            # Không có tín hiệu hoặc Live View tắt
+            backend = self.camera_mgr.current_backend_name
+            if backend == "digicam":
+                self.lbl_viewport.setText(
+                    "MÁY ẢNH DSLR NIKON / CANON (TETHERED)\n\n"
+                    "• Chế độ chụp ảnh tĩnh độ phân giải cao 6000 × 4000 (24 MP) đang sẵn sàng.\n"
+                    "• Luồng Live View HTTP 5513 hiện đang tắt trong digiCamControl.\n"
+                    "• Để xem trực tiếp: Hãy chọn nguồn DirectShow 'Nikon Webcam Utility'."
+                )
+                self.lbl_viewport.setStyleSheet(
+                    "background-color: #03050A; border-radius: 8px; border: 1px dashed #334155; color: #D4AF37; font-size: 13px; font-weight: 600; padding: 16px;"
                 )
             else:
-                self.lbl_preview_stats.setText(
-                    f"{w} × {h}  |  Hiển thị: {render_fps:.1f} FPS  |  Nguồn: {reported_fps:.1f}  |  {backend_code}"
+                self.lbl_viewport.setText("CHƯA CÓ TÍN HIỆU HÌNH ẢNH\nVui lòng kiểm tra cáp USB hoặc chọn lại nguồn camera.")
+                self.lbl_viewport.setStyleSheet(
+                    "background-color: #03050A; border-radius: 8px; border: 1px dashed #334155; color: #64748B; font-size: 14px; font-weight: bold;"
                 )
 
+    def _update_stats_display(self):
+        """Cập nhật thông số FPS đa chiều và trạng thái badge theo chu kỳ riêng (A5 & A6)."""
+        if not self.isVisible():
+            return
+
+        info = self.camera_mgr.get_info()
+        is_lv_active = info.get("is_live_view_active", False)
+        read_fps = float(info.get("read_fps") or 0.0)
+        render_fps = float(self._render_fps_tracker.get_fps())
+        source_fps = info.get("source_fps")
+        source_fps_str = f"{source_fps:.1f} FPS" if source_fps is not None else "N/A"
+        latency_ms = float(info.get("latency_ms") or 0.0)
+        backend_code = self.camera_mgr.current_backend_name.upper()
+        w, h = info.get("live_view_resolution", (0, 0))
+
+        if is_lv_active and (read_fps > 0 or self.camera_mgr.current_backend_name == "simulator"):
+            self.lbl_preview_stats.setText(
+                f"{w} × {h}  |  Đọc: {read_fps:.1f} FPS  |  Hiển thị: {render_fps:.1f} FPS  |  Nguồn: {source_fps_str}  |  Độ trễ: {latency_ms:.0f}ms  |  {backend_code}"
+            )
             if self.camera_mgr.current_backend_name == "simulator":
                 self.lbl_live_badge.setText("🔴 MÔ PHỎNG (SIMULATOR)")
                 self.lbl_live_badge.setStyleSheet("background-color: #D97706; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
             else:
                 self.lbl_live_badge.setText("🔴 LIVE PREVIEW")
-                self.lbl_live_badge.setStyleSheet("background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
-        else:
-            # Không có tín hiệu
-            self.lbl_viewport.setText("CHƯA CÓ TÍN HIỆU HÌNH ẢNH\nVui lòng kiểm tra cáp USB hoặc chọn lại nguồn camera.")
-            self.lbl_viewport.setStyleSheet(
-                "background-color: #03050A; border-radius: 8px; border: 1px dashed #334155; color: #64748B; font-size: 14px; font-weight: bold;"
+                self.lbl_live_badge.setStyleSheet("background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #EF4444;")
+        elif self.camera_mgr.current_backend_name == "digicam":
+            self.lbl_preview_stats.setText(
+                f"Live View: Tắt (Chế độ chụp tĩnh Tethered 6000×4000)  |  Đọc: 0.0 FPS  |  Hiển thị: 0.0 FPS  |  Nguồn: N/A  |  DIGICAM"
             )
-            self.lbl_live_badge.setText("⚠️ MẤT TÍN HIỆU")
+            self.lbl_live_badge.setText("🟡 CHẾ ĐỘ CHỤP TĨNH (TETHERED)")
+            self.lbl_live_badge.setStyleSheet("background-color: #B45309; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
+        else:
+            self.lbl_preview_stats.setText(
+                f"Live View: Tắt  |  Đọc: 0.0 FPS  |  Hiển thị: 0.0 FPS  |  Nguồn: {source_fps_str}  |  {backend_code}"
+            )
+            self.lbl_live_badge.setText("⚠️ LIVE VIEW TẮT")
             self.lbl_live_badge.setStyleSheet("background-color: #EF4444; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
+
 
     def _toggle_grid(self):
         self.grid_enabled = not self.grid_enabled
@@ -736,8 +798,20 @@ class CameraPage(QWidget):
             self.camera_mgr.config_mgr.save()
 
     def _run_diagnostics(self):
-        """Chạy kiểm tra thực tế trên từng nguồn video và điền vào bảng."""
-        report = run_full_camera_diagnostics()
+        """Chạy kiểm tra thực tế trên từng nguồn video trong luồng ngầm (A5 - không chặn UI)."""
+        if self._diag_worker and self._diag_worker.isRunning():
+            return
+        if hasattr(self, "btn_run_diag"):
+            self.btn_run_diag.setEnabled(False)
+            self.btn_run_diag.setText("⏳ Đang Chẩn Đoán...")
+        self._diag_worker = DiagnosticWorker(self)
+        self._diag_worker.report_ready.connect(self._on_diagnostics_completed)
+        self._diag_worker.start()
+
+    def _on_diagnostics_completed(self, report: dict):
+        if hasattr(self, "btn_run_diag"):
+            self.btn_run_diag.setEnabled(True)
+            self.btn_run_diag.setText("🔄 Chạy Lại Chẩn Đoán")
         devs = report.get("directshow_devices", [])
 
         self.table_diag.setRowCount(0)
@@ -824,11 +898,21 @@ class CameraPage(QWidget):
         self.lbl_status.setText(f"Trình điều khiển: {curr_backend.upper()} • {status_text}")
         self.lbl_status.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {color};")
 
-        # Cập nhật bảng tính năng
+        # Cập nhật bảng tính năng trung thực (A6)
+        is_lv_active = info.get("is_live_view_active", False)
+        live_w, live_h = info.get("live_view_resolution", (0, 0))
+        capture_w, capture_h = info.get("capture_resolution", (1920, 1080))
+
         self.table_caps.setItem(0, 1, QTableWidgetItem(dev_name or f"{curr_backend.upper()} Active Device"))
-        self.table_caps.setItem(1, 1, QTableWidgetItem(f"Hỗ trợ ({w}×{h})" if is_connected else "Không khả dụng"))
-        self.table_caps.setItem(2, 1, QTableWidgetItem("Hỗ trợ chụp độ phân giải cao" if is_connected else "Không"))
-        self.table_caps.setItem(3, 1, QTableWidgetItem(f"{w} × {h}" if (w > 0 and h > 0) else "6000 × 4000 (24 MP)" if curr_backend == "digicam" else "1920 × 1080"))
+        self.table_caps.setItem(
+            1, 1, QTableWidgetItem(f"Hoạt động ({live_w}×{live_h})" if is_lv_active else ("Tắt (Tethered mode)" if curr_backend == "digicam" else "Không khả dụng"))
+        )
+        self.table_caps.setItem(2, 1, QTableWidgetItem(f"Hỗ trợ chụp ({capture_w}×{capture_h})" if is_connected else "Không"))
+        self.table_caps.setItem(
+            3, 1, QTableWidgetItem(
+                f"Live: {live_w}×{live_h} | Chụp: {capture_w}×{capture_h}" if is_lv_active else f"Chụp: {capture_w}×{capture_h} (Live View: Tắt)"
+            )
+        )
         self.table_caps.setItem(4, 1, QTableWidgetItem(info.get("status") or ("Sẵn sàng" if is_connected else "Lỗi kết nối")))
 
     def _switch_backend(self):

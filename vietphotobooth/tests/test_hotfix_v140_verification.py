@@ -57,6 +57,7 @@ def test_scenario_1_and_6_liveview_run_and_clean_close(qapp):
 
     window.close()
     qapp.processEvents()
+    qapp.processEvents()
     assert not worker.isRunning()
 
 
@@ -99,6 +100,8 @@ def test_scenario_2_switch_tabs_10_times_worker_lifecycle(qapp):
         assert kiosk.live_view_worker is worker
 
     window.close()
+    qapp.processEvents()
+    qapp.processEvents()
 
 
 def test_scenario_3_and_4_simulator_switch_backend_release(qapp):
@@ -163,6 +166,8 @@ def test_scenario_5_disconnect_during_liveview(qapp):
     assert not kiosk.panel_disconnected.isHidden()
 
     window.close()
+    qapp.processEvents()
+    qapp.processEvents()
 
 
 def test_scenario_7_to_10_responsive_resolutions(qapp):
@@ -214,3 +219,4 @@ def test_scenario_7_to_10_responsive_resolutions(qapp):
         assert not kiosk.card_filters.isHidden()
 
     window.close()
+    qapp.processEvents()

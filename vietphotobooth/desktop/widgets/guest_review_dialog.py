@@ -33,7 +33,8 @@ from vietphotobooth.core.font_registry import FontRegistry
 from vietphotobooth.core.logger import get_logger
 from vietphotobooth.desktop.icons import (
     get_svg_pixmap, get_svg_icon, COLOR_GOLD, COLOR_GOLD_LIGHT,
-    COLOR_WHITE, COLOR_SLATE, COLOR_NAVY, COLOR_BLUE, COLOR_GREEN
+    COLOR_WHITE, COLOR_SLATE, COLOR_NAVY, COLOR_BLUE, COLOR_GREEN,
+    get_brand_logo_pixmap
 )
 
 logger = get_logger()
@@ -995,14 +996,16 @@ class GuestReviewWidget(QWidget):
         h_head = QHBoxLayout()
         h_head.setSpacing(14)
 
-        # Logo 1998 Studio
+        # Logo 1998 TEAM SVG chính thức
         lbl_brand = QLabel()
-        if os.path.exists(LOGO_PATH):
-            pix_logo = QPixmap(LOGO_PATH)
-            lbl_brand.setPixmap(pix_logo.scaledToHeight(40, Qt.SmoothTransformation))
+        pix_logo = get_brand_logo_pixmap(height=40)
+        if not pix_logo.isNull():
+            lbl_brand.setPixmap(pix_logo)
         else:
-            lbl_brand.setText("<b>1998 STUDIO</b>")
+            lbl_brand.setText("<b>1998 TEAM</b>")
             lbl_brand.setStyleSheet(f"color: {COLOR_GOLD}; font-size: 16px; font-weight: 900;")
+        lbl_brand.setToolTip("1998 TEAM — Photobooth")
+        lbl_brand.setAccessibleName("Logo 1998 TEAM Photobooth")
         h_head.addWidget(lbl_brand)
 
         # Tiêu đề & phụ đề

@@ -100,10 +100,13 @@ class UpdateNotificationDialog(QDialog):
 
         # Header: Logo & Tiêu đề
         h_layout = QHBoxLayout()
-        if os.path.exists(LOGO_PATH):
+        from vietphotobooth.desktop.icons import get_brand_logo_pixmap
+        pix = get_brand_logo_pixmap(height=48)
+        if not pix.isNull():
             lbl_logo = QLabel()
-            pix = QPixmap(LOGO_PATH)
-            lbl_logo.setPixmap(pix.scaledToHeight(48, Qt.SmoothTransformation))
+            lbl_logo.setPixmap(pix)
+            lbl_logo.setToolTip("1998 TEAM — Photobooth")
+            lbl_logo.setAccessibleName("Logo 1998 TEAM Photobooth")
             h_layout.addWidget(lbl_logo)
 
         v_head = QVBoxLayout()

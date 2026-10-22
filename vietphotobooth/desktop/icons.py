@@ -30,10 +30,12 @@ compatible with PySide6 desktop framework and offline Windows installer.
 Avoids low-resolution emojis on functional buttons.
 """
 
+import os
+import sys
 import math
 from typing import Optional, Tuple, Callable
 from PySide6.QtGui import (
-    QIcon, QPixmap, QPainter, QColor, QPainterPath, QPen, QBrush, QFont
+    QIcon, QPixmap, QPainter, QColor, QPainterPath, QPen, QBrush, QFont, QImage
 )
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtCore import (
@@ -458,4 +460,96 @@ class MorphIconButton(QPushButton):
         painter.end()
         self.setIcon(QIcon(pix))
         self.setIconSize(QSize(self.icon_size, self.icon_size))
+
+
+def get_brand_logo_svg_path() -> str:
+    """
+    Trả về đường dẫn tuyệt đối tới file logo SVG chính thức của 1998 TEAM.
+    Hỗ trợ tìm kiếm đa môi trường: PyInstaller frozen (_MEIPASS), thư mục thực thi,
+    cây mã nguồn phát triển và đường dẫn tương đối.
+    """
+    candidates = []
+    # 1. PyInstaller MEIPASS
+    if hasattr(sys, "_MEIPASS"):
+        candidates.append(os.path.join(sys._MEIPASS, "Assets", "Branding", "1998-team-logo.svg"))
+        candidates.append(os.path.join(sys._MEIPASS, "assets", "branding", "1998-team-logo.svg"))
+    # 2. Executable directory
+    exe_dir = os.path.dirname(sys.executable)
+    candidates.append(os.path.join(exe_dir, "Assets", "Branding", "1998-team-logo.svg"))
+    candidates.append(os.path.join(exe_dir, "assets", "branding", "1998-team-logo.svg"))
+    # 3. Source tree root relative to this file
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    candidates.append(os.path.join(root, "Assets", "Branding", "1998-team-logo.svg"))
+    candidates.append(os.path.join(root, "assets", "branding", "1998-team-logo.svg"))
+    # 4. Fallback relative to current working directory
+    candidates.append(os.path.abspath("Assets/Branding/1998-team-logo.svg"))
+    candidates.append(os.path.abspath("assets/branding/1998-team-logo.svg"))
+
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+
+    return os.path.abspath(candidates[0] if candidates else "Assets/Branding/1998-team-logo.svg")
+
+
+def get_brand_logo_pixmap(height: int = 36, width: Optional[int] = None) -> QPixmap:
+    """
+    Render logo SVG chính thức của 1998 TEAM thành QPixmap sắc nét, bảo toàn tuyệt đối
+    tỷ lệ gốc (Aspect Ratio 2:3) và độ trong suốt mà không crop hoặc méo hình.
+    """
+    svg_path = get_brand_logo_svg_path()
+    if not os.path.exists(svg_path):
+        # Fallback to PNG nếu file SVG chưa có
+        png_path = svg_path.replace("1998-team-logo.svg", "logo_1998_studio.png")
+        if os.path.exists(png_path):
+            pix = QPixmap(png_path)
+            return pix.scaledToHeight(height, Qt.SmoothTransformation)
+        return QPixmap()
+
+    renderer = QSvgRenderer(svg_path)
+    if not renderer.isValid():
+        return QPixmap()
+
+    def_sz = renderer.defaultSize()
+    def_w = def_sz.width() if def_sz.width() > 0 else 810
+    def_h = def_sz.height() if def_sz.height() > 0 else 1215
+    aspect = def_w / def_h
+
+    if width is not None and height is not None:
+        if width / height > aspect:
+            target_h = height
+            target_w = max(1, int(target_h * aspect))
+        else:
+            target_w = width
+            target_h = max(1, int(target_w / aspect))
+    elif height is not None:
+        target_h = height
+        target_w = max(1, int(target_h * aspect))
+    else:
+        target_w = width or 36
+        target_h = max(1, int(target_w / aspect))
+
+    img = QImage(target_w, target_h, QImage.Format_ARGB32_Premultiplied)
+    img.fill(Qt.transparent)
+    painter = QPainter(img)
+    renderer.render(painter)
+    painter.end()
+    return QPixmap.fromImage(img)
+
+
+def create_brand_logo_widget(height: int = 36, width: Optional[int] = None, parent=None):
+    """Tạo widget hiển thị logo 1998 TEAM với thuộc tính hỗ trợ đọc màn hình và tooltip."""
+    from PySide6.QtWidgets import QLabel
+    lbl = QLabel(parent)
+    pix = get_brand_logo_pixmap(height=height, width=width)
+    if not pix.isNull():
+        lbl.setPixmap(pix)
+        lbl.setFixedSize(pix.size())
+    else:
+        lbl.setText("1998 TEAM")
+        lbl.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
+    lbl.setToolTip("1998 TEAM — Photobooth")
+    lbl.setAccessibleName("Logo 1998 TEAM Photobooth")
+    return lbl
+
 

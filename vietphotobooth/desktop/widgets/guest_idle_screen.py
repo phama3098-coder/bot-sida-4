@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QSize
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QCursor, QLinearGradient
 
-from vietphotobooth.desktop.icons import get_svg_pixmap, COLOR_GOLD, COLOR_WHITE, COLOR_BLUE
+from vietphotobooth.desktop.icons import (
+    get_svg_pixmap, COLOR_GOLD, COLOR_WHITE, COLOR_BLUE, get_brand_logo_pixmap
+)
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
@@ -93,16 +95,18 @@ class GuestIdleScreen(QWidget):
         v_center.setAlignment(Qt.AlignCenter)
         v_center.setSpacing(20)
 
-        # Logo 1998 Studio
-        if os.path.exists(LOGO_PATH):
+        # Logo 1998 TEAM SVG chính thức
+        pix = get_brand_logo_pixmap(height=90)
+        if not pix.isNull():
             lbl_logo = QLabel()
-            pix = QPixmap(LOGO_PATH)
-            lbl_logo.setPixmap(pix.scaledToHeight(75, Qt.SmoothTransformation))
+            lbl_logo.setPixmap(pix)
             lbl_logo.setAlignment(Qt.AlignCenter)
+            lbl_logo.setToolTip("1998 TEAM — Photobooth")
+            lbl_logo.setAccessibleName("Logo 1998 TEAM Photobooth")
             v_center.addWidget(lbl_logo)
         else:
-            lbl_logo_text = QLabel("1998 Studio")
-            lbl_logo_text.setStyleSheet("font-size: 38px; font-weight: 900; color: #D4AF37; font-family: 'Great Vibes', cursive;")
+            lbl_logo_text = QLabel("1998 TEAM")
+            lbl_logo_text.setStyleSheet("font-size: 38px; font-weight: 900; color: #D4AF37;")
             lbl_logo_text.setAlignment(Qt.AlignCenter)
             v_center.addWidget(lbl_logo_text)
 

@@ -176,7 +176,13 @@ class CameraLiveViewWorker(QThread):
                 continue
 
             try:
-                # Đọc trực tiếp RGB bỏ qua chu trình nén/giải nén JPEG (~8x nhanh hơn)
+                # A4: Kiểm tra nếu UI đang vẽ frame trước thì bỏ qua frame cũ (Single-frame drop)
+                parent_widget = self.parent()
+                if parent_widget and getattr(parent_widget, "_is_rendering_frame", False):
+                    time.sleep(0.01)
+                    continue
+
+                # Đọc trực tiếp RGB non-blocking từ camera_mgr
                 frame_rgb = self.camera_mgr.get_liveview_rgb()
                 if frame_rgb is not None and frame_rgb.size > 0:
                     if not self._first_frame_logged:
@@ -1315,34 +1321,38 @@ class KioskPage(QWidget):
         if not self.camera_mgr.is_connected():
             return
 
-        self._last_live_frame_time = time.time()
-        if hasattr(self, "panel_no_feed"):
-            self.panel_no_feed.hide()
+        self._is_rendering_frame = True
+        try:
+            self._last_live_frame_time = time.time()
+            if hasattr(self, "panel_no_feed"):
+                self.panel_no_feed.hide()
 
-        if hasattr(self, "panel_disconnected"):
-            self.panel_disconnected.hide()
+            if hasattr(self, "panel_disconnected"):
+                self.panel_disconnected.hide()
 
-        h, w, ch = frame_rgb.shape
-        qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888)
-        if qimg.isNull():
-            return
+            h, w, ch = frame_rgb.shape
+            qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888)
+            if qimg.isNull():
+                return
 
-        pixmap = QPixmap.fromImage(qimg)
-        lbl_w = self.lbl_viewport.width()
-        lbl_h = self.lbl_viewport.height()
-        if lbl_w <= 0 or lbl_h <= 0:
-            return
+            pixmap = QPixmap.fromImage(qimg)
+            lbl_w = self.lbl_viewport.width()
+            lbl_h = self.lbl_viewport.height()
+            if lbl_w <= 0 or lbl_h <= 0:
+                return
 
-        # FastTransformation: siêu mượt 30+ FPS không tiêu tốn CPU rasterization
-        scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.FastTransformation)
-        self.lbl_viewport.setPixmap(scaled)
+            # FastTransformation: siêu mượt 30+ FPS không tiêu tốn CPU rasterization
+            scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.FastTransformation)
+            self.lbl_viewport.setPixmap(scaled)
 
-        # Căn giữa nhãn đếm ngược & trạng thái
-        if self.lbl_countdown.isVisible():
-            self.lbl_countdown.setGeometry((lbl_w - 220) // 2, (lbl_h - 220) // 2, 220, 220)
-        if self.lbl_status_badge.isVisible():
-            badge_w = min(max(360, self.lbl_status_badge.sizeHint().width() + 32), max(360, lbl_w - 40))
-            self.lbl_status_badge.setGeometry((lbl_w - badge_w) // 2, lbl_h - 75, badge_w, 48)
+            # Căn giữa nhãn đếm ngược & trạng thái
+            if self.lbl_countdown.isVisible():
+                self.lbl_countdown.setGeometry((lbl_w - 220) // 2, (lbl_h - 220) // 2, 220, 220)
+            if self.lbl_status_badge.isVisible():
+                badge_w = min(max(360, self.lbl_status_badge.sizeHint().width() + 32), max(360, lbl_w - 40))
+                self.lbl_status_badge.setGeometry((lbl_w - badge_w) // 2, lbl_h - 75, badge_w, 48)
+        finally:
+            self._is_rendering_frame = False
 
     def _reconnect_camera(self):
         """Thử dò quét và kết nối lại máy ảnh thực tế, ưu tiên Nikon Webcam Utility nếu có."""

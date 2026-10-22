@@ -25,6 +25,7 @@ from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorDialog
 from vietphotobooth.cloud import SyncManager, GDriveAuth, GDriveClient
 from vietphotobooth.core.logger import get_logger
 from vietphotobooth.version import get_version_string, __release_date__, __version__, __build__
+from vietphotobooth.desktop.icons import get_brand_logo_pixmap
 from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
 
 logger = get_logger()
@@ -247,11 +248,12 @@ class SettingsPage(QWidget):
         l_sys.setSpacing(12)
 
         r_brand = QHBoxLayout()
-        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
-        if os.path.exists(logo_path):
+        pix = get_brand_logo_pixmap(height=64)
+        if not pix.isNull():
             lbl_logo = QLabel()
-            pix = QPixmap(logo_path)
-            lbl_logo.setPixmap(pix.scaledToHeight(64, Qt.SmoothTransformation))
+            lbl_logo.setPixmap(pix)
+            lbl_logo.setToolTip("1998 TEAM — Photobooth")
+            lbl_logo.setAccessibleName("Logo 1998 TEAM Photobooth")
             r_brand.addWidget(lbl_logo)
 
         brand_info = QVBoxLayout()

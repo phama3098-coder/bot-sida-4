@@ -34,7 +34,10 @@ from vietphotobooth.desktop.widgets.camera_page import CameraPage
 from vietphotobooth.desktop.widgets.printing_page import PrintingPage
 from vietphotobooth.desktop.widgets.events_page import EventsPage
 from vietphotobooth.desktop.widgets.settings_page import SettingsPage
-from vietphotobooth.desktop.icons import get_svg_icon, MorphIconButton, COLOR_GOLD, COLOR_GREEN
+from vietphotobooth.desktop.icons import (
+    get_svg_icon, MorphIconButton, COLOR_GOLD, COLOR_GREEN,
+    get_brand_logo_pixmap, get_brand_logo_svg_path
+)
 from vietphotobooth.version import __version__, get_version_string
 from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
 
@@ -107,8 +110,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setElideMode(Qt.ElideRight)
         self.tabs.tabBar().setExpanding(False)
 
-        # Thanh thương hiệu Logo 1998 Studio bên trái hàng tab (Co giãn thông minh)
-        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
+        # Thanh thương hiệu Logo 1998 TEAM bên trái hàng tab (Co giãn thông minh, SVG chính thức)
         self.brand_widget = QWidget()
         self.brand_widget.setMaximumWidth(210)
         self.brand_layout = QHBoxLayout(self.brand_widget)
@@ -116,12 +118,14 @@ class MainWindow(QMainWindow):
         self.brand_layout.setSpacing(6)
 
         self.lbl_logo = QLabel()
-        if os.path.exists(logo_path):
-            pix = QPixmap(logo_path)
-            self.lbl_logo.setPixmap(pix.scaledToHeight(30, Qt.SmoothTransformation))
+        logo_pix = get_brand_logo_pixmap(height=30)
+        if not logo_pix.isNull():
+            self.lbl_logo.setPixmap(logo_pix)
         else:
-            self.lbl_logo.setText("1998 STUDIO")
+            self.lbl_logo.setText("1998 TEAM")
             self.lbl_logo.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
+        self.lbl_logo.setToolTip("1998 TEAM — Photobooth")
+        self.lbl_logo.setAccessibleName("Logo 1998 TEAM Photobooth")
         self.brand_layout.addWidget(self.lbl_logo)
 
         self.lbl_title = QLabel("<b>1998 TEAM</b>")
@@ -539,6 +543,8 @@ class MainWindow(QMainWindow):
             if hasattr(self.kiosk_page, "live_view_worker"):
                 self.kiosk_page.live_view_worker.stop()
             self.kiosk_page.stop_live_view()
+        if hasattr(self, "camera_page"):
+            self.camera_page.close()
         if hasattr(self, "sync_mgr"):
             self.sync_mgr.close()
         if hasattr(self, "camera_mgr"):
