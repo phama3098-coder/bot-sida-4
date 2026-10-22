@@ -8,6 +8,7 @@ import threading
 import time
 import os
 import logging
+from collections import deque
 from typing import Dict, Any, List, Optional, Tuple, Callable
 import numpy as np
 from PIL import Image
@@ -23,6 +24,47 @@ from vietphotobooth.camera.backends.device_discovery import DeviceDiscoveryServi
 from vietphotobooth.core.config import ConfigManager
 
 logger = logging.getLogger("VietPhotoBooth.camera.connection_manager")
+
+
+class FPSTracker:
+    """
+    Bộ đo đạc FPS trượt theo thời gian thực (Sliding Window FPS Tracker).
+    Đo chính xác tần số khung hình trong cửa sổ thời gian gần nhất (mặc định 1.5 giây),
+    tránh phụ thuộc vào số giả định hoặc timer tĩnh.
+    """
+
+    def __init__(self, window_seconds: float = 1.5, max_samples: int = 150):
+        self._window_seconds = max(0.5, window_seconds)
+        self._timestamps = deque(maxlen=max_samples)
+        self._lock = threading.Lock()
+
+    def tick(self) -> None:
+        """Ghi nhận thời điểm đến của một khung hình mới."""
+        now = time.time()
+        with self._lock:
+            self._timestamps.append(now)
+
+    def get_fps(self) -> float:
+        """Tính toán FPS thực tế dựa trên các khung hình trong cửa sổ trượt."""
+        with self._lock:
+            if len(self._timestamps) < 2:
+                return 0.0
+            now = time.time()
+            cutoff = now - self._window_seconds
+            while self._timestamps and self._timestamps[0] < cutoff:
+                self._timestamps.popleft()
+            if len(self._timestamps) < 2:
+                return 0.0
+            duration = self._timestamps[-1] - self._timestamps[0]
+            if duration <= 0.001:
+                return 0.0
+            fps = (len(self._timestamps) - 1) / duration
+            return round(fps, 1)
+
+    def reset(self) -> None:
+        """Đặt lại bộ đệm thời gian khi chuyển đổi hoặc ngắt kết nối camera."""
+        with self._lock:
+            self._timestamps.clear()
 
 
 class CameraConnectionManager:
@@ -60,6 +102,9 @@ class CameraConnectionManager:
         self._on_status_changed_callbacks: List[Callable[[ConnectionState], None]] = []
         self._on_frame_callbacks: List[Callable[[FrameData], None]] = []
         self._on_error_callbacks: List[Callable[[CameraError], None]] = []
+
+        # Đo đạc FPS đọc luồng thực tế (Sliding Window)
+        self._read_fps_tracker = FPSTracker(window_seconds=1.5)
 
         # Khởi tạo backend ban đầu
         self.switch_backend(self._current_backend_type, self._current_device_id, self._current_device_name)
@@ -138,6 +183,7 @@ class CameraConnectionManager:
 
             self._last_frame_data = None
             self._last_jpeg = None
+            self._read_fps_tracker.reset()
 
             self._current_backend_type = b_type
             self._current_device_id = resolved_device_id
@@ -194,6 +240,7 @@ class CameraConnectionManager:
                 self._backend.disconnect()
                 self._last_frame_data = None
                 self._last_jpeg = None
+                self._read_fps_tracker.reset()
                 self._notify_status_changed(ConnectionState.DISCONNECTED)
 
     def is_connected(self) -> bool:
@@ -239,11 +286,16 @@ class CameraConnectionManager:
                 return None
             frame = self._backend.read_frame()
             if frame and frame.is_valid:
+                self._read_fps_tracker.tick()
                 self._last_frame_data = frame
                 self._notify_frame(frame)
                 return frame
             # Nếu backend không trả về frame hợp lệ, trả về None (không trả frame cũ/giả)
             return None
+
+    def get_read_fps(self) -> float:
+        """Lấy tốc độ đọc khung hình thực tế từ phần cứng (Read FPS)."""
+        return self._read_fps_tracker.get_fps()
 
     def get_liveview_rgb(self) -> Optional[np.ndarray]:
         """Lấy mảng RGB numpy cho viewport giao diện PySide6 (siêu mượt)."""
@@ -318,6 +370,9 @@ class CameraConnectionManager:
             err = self._backend.get_error()
 
             is_sim = (self._current_backend_type == "simulator")
+            read_fps = self._read_fps_tracker.get_fps()
+            reported_fps = float(getattr(caps, "max_fps", 30.0) or 30.0)
+
             d = {
                 "name": self.device_name,
                 "brand": "Simulator" if is_sim else ("Nikon" if "nikon" in self.device_name.lower() else "Logitech" if "logi" in self.device_name.lower() else "Generic"),
@@ -332,7 +387,10 @@ class CameraConnectionManager:
                 "last_error": err.message if err else "",
                 "capabilities": caps.to_dict(),
                 "parameters": params,
-                "actual_resolution": (caps.supported_resolutions[0] if caps.supported_resolutions else (0, 0))
+                "actual_resolution": (caps.supported_resolutions[0] if caps.supported_resolutions else (0, 0)),
+                "read_fps": read_fps,
+                "reported_fps": reported_fps,
+                "fps": read_fps or reported_fps or 30.0
             }
             return d
 

@@ -71,6 +71,10 @@ class CameraCapabilities:
     supported_fps: List[float] = field(default_factory=list)
     format_name: str = "RGB"
 
+    @property
+    def max_fps(self) -> float:
+        return max(self.supported_fps) if self.supported_fps else 30.0
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "can_capture": self.can_capture,
@@ -79,6 +83,7 @@ class CameraCapabilities:
             "can_adjust_parameters": self.can_adjust_parameters,
             "supported_resolutions": self.supported_resolutions,
             "supported_fps": self.supported_fps,
+            "max_fps": self.max_fps,
             "format_name": self.format_name
         }
 

@@ -188,14 +188,14 @@ def _enumerate_directshow_via_registry() -> List[Dict[str, Any]]:
 def probe_video_source(
     device_index: int,
     backend: int = cv2.CAP_DSHOW,
-    timeout_frames: int = 3
+    timeout_frames: int = 10
 ) -> Dict[str, Any]:
     """
     Kiểm tra toàn diện một nguồn video thực tế:
     - Có mở được nguồn không (isOpened).
     - Có đọc được frame hợp lệ không (read).
     - Độ phân giải thực tế (Width x Height).
-    - Tốc độ khung hình (FPS) đo đạc thực tế.
+    - Tốc độ khung hình (FPS) đo đạc thực tế (loại bỏ độ trễ khởi động camera ban đầu).
     - Độ sáng trung bình (Mean Pixel) để cảnh báo màn hình đen/nắp ống kính đóng.
     """
     result: Dict[str, Any] = {
@@ -223,27 +223,41 @@ def probe_video_source(
             return result
 
         result["openable"] = True
-        result["reported_fps"] = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        reported_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        result["reported_fps"] = reported_fps
 
-        # Đọc thử một vài frame để xả đệm và đo FPS thực tế
-        frames_read = 0
-        t_start = time.time()
+        # 1. Khởi động / warmup: đọc frame đầu tiên để camera đồng bộ AGC/phơi sáng
         last_frame = None
+        ret_init, frame_init = cap.read()
+        if ret_init and frame_init is not None and frame_init.size > 0:
+            last_frame = frame_init
 
-        for _ in range(timeout_frames):
+        # 2. Đo FPS thực tế trên các khung hình tiếp theo
+        frames_measured = 0
+        t_start = time.time()
+        num_probe = max(2, timeout_frames - 1)
+
+        for _ in range(num_probe):
             ret, frame = cap.read()
             if ret and frame is not None and frame.size > 0:
-                frames_read += 1
+                frames_measured += 1
                 last_frame = frame
-            time.sleep(0.01)
 
         t_elapsed = time.time() - t_start
-        if frames_read > 0 and last_frame is not None:
+
+        if last_frame is not None and (frames_measured > 0 or ret_init):
             result["frame_readable"] = True
             h, w = last_frame.shape[:2]
             result["actual_width"] = int(w)
             result["actual_height"] = int(h)
-            result["measured_fps"] = round(frames_read / max(t_elapsed, 0.001), 1)
+
+            if frames_measured > 0 and t_elapsed > 0.005:
+                calc_fps = round(frames_measured / t_elapsed, 1)
+                result["measured_fps"] = calc_fps
+            elif reported_fps > 0:
+                result["measured_fps"] = reported_fps
+            else:
+                result["measured_fps"] = 30.0
 
             # Tính độ sáng trung bình (0 .. 255)
             mean_b = float(np.mean(last_frame))

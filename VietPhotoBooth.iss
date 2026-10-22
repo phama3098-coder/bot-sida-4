@@ -6,11 +6,11 @@
 #endif
 
 #ifndef MyAppVersion
-#define MyAppVersion "1.4.1"
+#define MyAppVersion "1.4.2"
 #endif
 
 #ifndef MyAppBuild
-#define MyAppBuild "141"
+#define MyAppBuild "142"
 #endif
 
 #ifndef MyAppPublisher
@@ -26,7 +26,7 @@
 #endif
 
 #ifndef MyOutputFilename
-#define MyOutputFilename "1998-TEAM-Setup-v1.4.1-Build141"
+#define MyOutputFilename "1998-TEAM-Setup-v1.4.2-Build142"
 #endif
 
 [Setup]

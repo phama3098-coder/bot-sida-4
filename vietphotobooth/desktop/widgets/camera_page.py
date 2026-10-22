@@ -18,12 +18,14 @@ from typing import Optional, Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox, QMessageBox, QFrame,
-    QScrollArea, QDialog, QTextEdit, QApplication, QCheckBox, QSizePolicy
+    QScrollArea, QDialog, QTextEdit, QApplication, QCheckBox, QSizePolicy,
+    QAbstractScrollArea, QBoxLayout
 )
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QPainter, QPen
 
 from vietphotobooth.camera.manager import CameraManager
+from vietphotobooth.camera.connection_manager import FPSTracker
 from vietphotobooth.camera.models import ConnectionState
 from vietphotobooth.camera.compatibility import CAMERA_COMPATIBILITY_MATRIX
 from vietphotobooth.camera.enumerator import enumerate_directshow_devices, probe_video_source
@@ -132,6 +134,9 @@ class CameraPage(QWidget):
         self.auth_mgr = auth_mgr
         self.grid_enabled = False
 
+        # Đo đạc FPS hiển thị trực quan (Render FPS)
+        self._render_fps_tracker = FPSTracker(window_seconds=1.5)
+
         self._timer = QTimer(self)
         self._timer.setInterval(33)  # ~30 FPS
         self._timer.timeout.connect(self._update_preview)
@@ -145,6 +150,15 @@ class CameraPage(QWidget):
 
     def minimumSizeHint(self) -> QSize:
         return QSize(720, 480)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = event.size().width()
+        if hasattr(self, "cols_layout"):
+            if w < 960 and self.cols_layout.direction() != QBoxLayout.TopToBottom:
+                self.cols_layout.setDirection(QBoxLayout.TopToBottom)
+            elif w >= 960 and self.cols_layout.direction() != QBoxLayout.LeftToRight:
+                self.cols_layout.setDirection(QBoxLayout.LeftToRight)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -166,7 +180,7 @@ class CameraPage(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         content = QWidget()
         layout = QVBoxLayout(content)
@@ -187,15 +201,17 @@ class CameraPage(QWidget):
         layout.addLayout(header_box)
 
         # =========================================================================
-        # BỐ CỤC CHÍNH 2 CỘT (SCREEN 5)
+        # BỐ CỤC CHÍNH 2 CỘT (SCREEN 5) - RESPONSIVE 2-COLUMN LAYOUT
         # =========================================================================
-        cols_layout = QHBoxLayout()
-        cols_layout.setSpacing(16)
+        self.cols_layout = QBoxLayout(QBoxLayout.LeftToRight)
+        self.cols_layout.setSpacing(16)
 
         # -------------------------------------------------------------------------
         # CỘT TRÁI: LIVE PREVIEW VIEWPORT (62% WIDTH)
         # -------------------------------------------------------------------------
-        col_left = QVBoxLayout()
+        self.col_left_widget = QWidget()
+        col_left = QVBoxLayout(self.col_left_widget)
+        col_left.setContentsMargins(0, 0, 0, 0)
         col_left.setSpacing(10)
 
         self.card_preview = QFrame()
@@ -236,10 +252,10 @@ class CameraPage(QWidget):
             "background-color: #03050A; border-radius: 8px; border: 1px solid #162033;"
         )
         self.lbl_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.lbl_viewport.setMinimumHeight(380)
+        self.lbl_viewport.setMinimumHeight(280)
         l_prev.addWidget(self.lbl_viewport, 1)
 
-        # Footer preview: Thông số trực tiếp (Resolution | Aspect Ratio | FPS)
+        # Footer preview: Thông số trực tiếp (Resolution | Aspect Ratio | Read/Render FPS)
         self.lbl_preview_stats = QLabel("1920 × 1080  |  16:9  |  30.0 FPS")
         self.lbl_preview_stats.setAlignment(Qt.AlignCenter)
         self.lbl_preview_stats.setStyleSheet(
@@ -254,45 +270,47 @@ class CameraPage(QWidget):
         h_prev_actions.setSpacing(10)
 
         self.btn_reset = QPushButton("↺ Đặt Lại")
-        self.btn_reset.setFixedHeight(40)
+        self.btn_reset.setFixedHeight(38)
         self.btn_reset.setCursor(Qt.PointingHandCursor)
         self.btn_reset.setStyleSheet(
             "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 18px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 14px; }"
             "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
         )
         self.btn_reset.clicked.connect(self._reset_camera_stream)
         h_prev_actions.addWidget(self.btn_reset)
 
         self.btn_test_shot = QPushButton("📸 Chụp Thử Nghiệm")
-        self.btn_test_shot.setFixedHeight(40)
+        self.btn_test_shot.setFixedHeight(38)
         self.btn_test_shot.setCursor(Qt.PointingHandCursor)
         self.btn_test_shot.setStyleSheet(
             "QPushButton { background-color: #1E3A5F; border: 1.5px solid #38BDF8; color: #FFFFFF; "
-            "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 22px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 16px; }"
             "QPushButton:hover { background-color: #2563EB; border: 1.5px solid #60A5FA; }"
         )
         self.btn_test_shot.clicked.connect(self._take_test_shot)
         h_prev_actions.addWidget(self.btn_test_shot)
 
-        self.btn_grid = QPushButton("▦ Lưới Căn Chỉnh: Tắt")
-        self.btn_grid.setFixedHeight(40)
+        self.btn_grid = QPushButton("▦ Lưới: Tắt")
+        self.btn_grid.setFixedHeight(38)
         self.btn_grid.setCursor(Qt.PointingHandCursor)
         self.btn_grid.setStyleSheet(
             "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 18px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 14px; }"
             "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
         )
         self.btn_grid.clicked.connect(self._toggle_grid)
         h_prev_actions.addWidget(self.btn_grid)
 
         col_left.addLayout(h_prev_actions)
-        cols_layout.addLayout(col_left, 62)
+        self.cols_layout.addWidget(self.col_left_widget, 62)
 
         # -------------------------------------------------------------------------
         # CỘT PHẢI: BẢNG CHỌN THIẾT BỊ & THÔNG TIN PHẦN CỨNG (38% WIDTH)
         # -------------------------------------------------------------------------
-        col_right = QVBoxLayout()
+        self.col_right_widget = QWidget()
+        col_right = QVBoxLayout(self.col_right_widget)
+        col_right.setContentsMargins(0, 0, 0, 0)
         col_right.setSpacing(12)
 
         # Card 1: Chọn Thiết Bị
@@ -355,7 +373,7 @@ class CameraPage(QWidget):
         self.btn_switch.setCursor(Qt.PointingHandCursor)
         self.btn_switch.setStyleSheet(
             "QPushButton { background-color: #D4AF37; border: none; color: #050811; "
-            "font-size: 13px; font-weight: 900; border-radius: 6px; padding: 0 16px; }"
+            "font-size: 12px; font-weight: 900; border-radius: 6px; padding: 0 12px; }"
             "QPushButton:hover { background-color: #F3E5AB; }"
         )
         self.btn_switch.clicked.connect(self._switch_backend)
@@ -366,7 +384,7 @@ class CameraPage(QWidget):
         self.btn_disconnect.setCursor(Qt.PointingHandCursor)
         self.btn_disconnect.setStyleSheet(
             "QPushButton { background-color: #162033; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 14px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }"
             "QPushButton:hover { background-color: #7F1D1D; border-color: #EF4444; color: #FFFFFF; }"
         )
         self.btn_disconnect.clicked.connect(self._disconnect_camera)
@@ -394,7 +412,12 @@ class CameraPage(QWidget):
 
         # Bảng tính năng & thông số tóm tắt
         self.table_caps = QTableWidget(5, 2)
+        self.table_caps.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
+        self.table_caps.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table_caps.setHorizontalHeaderLabels(["Thông Số", "Chi Tiết Thiết Bị Hiện Tại"])
+        self.table_caps.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_caps.verticalHeader().setVisible(False)
+        self.table_caps.setFixedHeight(145)
         self.table_caps.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_caps.verticalHeader().setVisible(False)
         self.table_caps.setFixedHeight(145)
@@ -437,9 +460,9 @@ class CameraPage(QWidget):
 
         col_right.addWidget(grp_info)
         col_right.addStretch()
-        cols_layout.addLayout(col_right, 38)
+        self.cols_layout.addWidget(self.col_right_widget, 38)
 
-        layout.addLayout(cols_layout)
+        layout.addLayout(self.cols_layout)
 
         # =========================================================================
         # BẢNG CHẨN ĐOÁN TOÀN DIỆN CÁC NGUỒN VIDEO TÌM ĐƯỢC (COLLAPSIBLE / EXPANDED)
@@ -459,6 +482,8 @@ class CameraPage(QWidget):
         l_diag.addWidget(lbl_diag_hint)
 
         self.table_diag = QTableWidget(0, 8)
+        self.table_diag.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
+        self.table_diag.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table_diag.setHorizontalHeaderLabels([
             "STT", "Tên Thiết Bị (Friendly Name)", "Giao Thức", "Mở Nguồn",
             "Đọc Frame", "Độ Phân Giải Thực", "FPS Thực", "Đánh Giá / Trạng Thái"
@@ -489,12 +514,18 @@ class CameraPage(QWidget):
         l_compat.setContentsMargins(14, 14, 14, 14)
 
         self.table_compat = QTableWidget(0, 4)
+        self.table_compat.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
+        self.table_compat.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table_compat.setWordWrap(True)
+        self.table_compat.verticalHeader().setVisible(False)
+        self.table_compat.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table_compat.setHorizontalHeaderLabels([
             "Dòng Máy / Thiết Bị", "Mục Đích Sử Dụng", "Giao Thức Khuyến Nghị", "Hướng Dẫn Cài Đặt Cho Studio"
         ])
-        self.table_compat.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table_compat.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table_compat.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table_compat.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.table_compat.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        self.table_compat.verticalHeader().setVisible(False)
         self.table_compat.setStyleSheet(
             "QTableWidget { background-color: #050811; border: 1px solid #1E2D4A; gridline-color: #162033; }"
             "QHeaderView::section { background-color: #0E1626; color: #D4AF37; font-weight: bold; padding: 6px; border: 1px solid #1E2D4A; }"
@@ -504,21 +535,21 @@ class CameraPage(QWidget):
         brands_data = [
             (
                 "Nikon D780 / Z Series",
-                "Xem Live View Mượt Mà",
-                "DirectShow -> 'Nikon Webcam Utility'",
-                "Cắm cáp USB Type-C, gạt cần mở Live View (Lv) trên thân máy. Chọn nguồn 'Nikon Webcam Utility' ở mục Chọn Thiết Bị."
+                "Xem Live View Mượt Mà (DirectShow)",
+                "Nikon Webcam Utility",
+                "Cáp USB-C -> Chọn 'Nikon Webcam Utility'. Giới hạn DirectShow driver Nikon xuất tối đa 1024×768 @ ~30 FPS (không hỗ trợ 60 FPS)."
             ),
             (
                 "Nikon D780 / D7500 / D850",
-                "Chụp Ảnh 24MP Tethered",
+                "Chụp Ảnh 24MP RAW/JPG Tethered",
                 "digiCamControl (DIGICAM)",
-                "Điều khiển tốc độ màn trập, khẩu độ, ISO và tự động tải ảnh gốc RAW/JPEG về máy tính qua USB."
+                "Điều khiển tốc độ màn trập, khẩu độ, ISO và tự động tải ảnh gốc độ phân giải cao 6000×4000 về máy tính qua USB."
             ),
             (
                 "Logitech C270 / C920 / Brio",
-                "Webcam Phần Cứng Dự Phòng",
+                "Webcam Phần Cứng UVC Dự Phòng",
                 "DirectShow UVC",
-                "Nguồn webcam USB tiêu chuẩn, cắm là chạy. Tự động nhận diện độ phân giải thực."
+                "Cắm là chạy. C270: 1280×720 @ 30 FPS. C920: 1080p @ 30 FPS. Brio: hỗ trợ 1080p/4K 30/60 FPS."
             ),
             (
                 "Canon EOS (5D, 6D, R5, R6)",
@@ -530,7 +561,7 @@ class CameraPage(QWidget):
                 "Sony Alpha (a6400, a7 III/IV)",
                 "Live View & Chụp USB",
                 "DirectShow / Imaging Edge Webcam",
-                "Bật chế độ 'PC Remote' trong cài đặt kết nối USB trên máy ảnh Sony."
+                "Bật chế độ 'PC Remote' trong cài đặt kết nối USB trên máy ảnh Sony. Live view ~30 FPS."
             )
         ]
         for row, data in enumerate(brands_data):
@@ -554,6 +585,7 @@ class CameraPage(QWidget):
 
         rgb_frame = self.camera_mgr.get_liveview_rgb()
         if rgb_frame is not None and rgb_frame.size > 0:
+            self._render_fps_tracker.tick()
             h, w = rgb_frame.shape[:2]
             qimg = QImage(rgb_frame.data, w, h, 3 * w, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qimg)
@@ -581,10 +613,21 @@ class CameraPage(QWidget):
 
                 self.lbl_viewport.setPixmap(scaled)
 
-            # Cập nhật thông số đáy
+            # Cập nhật thông số FPS đa chiều (Đọc luồng / Hiển thị / Nguồn)
             info = self.camera_mgr.get_info()
-            fps_val = info.get("fps") or 30.0
-            self.lbl_preview_stats.setText(f"{w} × {h}  |  Tỉ lệ: {w}:{h}  |  {fps_val:.1f} FPS")
+            read_fps = float(info.get("read_fps") or 0.0)
+            render_fps = float(self._render_fps_tracker.get_fps())
+            reported_fps = float(info.get("reported_fps") or 0.0)
+            backend_code = self.camera_mgr.current_backend_name.upper()
+
+            if read_fps > 0:
+                self.lbl_preview_stats.setText(
+                    f"{w} × {h}  |  Đọc: {read_fps:.1f} FPS  |  Hiển thị: {render_fps:.1f} FPS  |  Nguồn: {reported_fps:.1f}  |  {backend_code}"
+                )
+            else:
+                self.lbl_preview_stats.setText(
+                    f"{w} × {h}  |  Hiển thị: {render_fps:.1f} FPS  |  Nguồn: {reported_fps:.1f}  |  {backend_code}"
+                )
 
             if self.camera_mgr.current_backend_name == "simulator":
                 self.lbl_live_badge.setText("🔴 MÔ PHỎNG (SIMULATOR)")

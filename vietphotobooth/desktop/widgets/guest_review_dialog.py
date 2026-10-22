@@ -440,17 +440,40 @@ class GuestInteractiveCanvas(QWidget):
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(ox, oy, rw, rh)
 
-        # Viền viền vàng nổi bật quanh slot đang chọn
-        if not self.preview_mode_only and self.selected_type == "slot" and 0 <= self.selected_index < len(self.template.slots):
-            slot = self.template.slots[self.selected_index]
-            sx = ox + slot.x * scale
-            sy = oy + slot.y * scale
-            sw = slot.w * scale
-            sh = slot.h * scale
+        # Vẽ từng ô (slot) trên Canvas kèm badge số thứ tự và ảnh đang gán
+        if not self.preview_mode_only and self.template and self.template.slots:
+            painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            for idx, slot in enumerate(self.template.slots):
+                sx = ox + slot.x * scale
+                sy = oy + slot.y * scale
+                sw = slot.w * scale
+                sh = slot.h * scale
 
-            painter.setPen(QPen(QColor(COLOR_GOLD), 2.5, Qt.DashLine))
-            painter.setBrush(QColor(212, 175, 55, 30))
-            painter.drawRect(QRectF(sx, sy, sw, sh))
+                is_sel = (self.selected_type == "slot" and idx == self.selected_index)
+
+                # Viền slot (Vàng Champagne nét đứt nếu đang chọn, navy nếu không chọn)
+                if is_sel:
+                    painter.setPen(QPen(QColor(COLOR_GOLD), 2.5, Qt.DashLine))
+                    painter.setBrush(QColor(212, 175, 55, 35))
+                    painter.drawRect(QRectF(sx, sy, sw, sh))
+                else:
+                    painter.setPen(QPen(QColor(30, 45, 74, 180), 1.0, Qt.SolidLine))
+                    painter.setBrush(Qt.NoBrush)
+                    painter.drawRect(QRectF(sx, sy, sw, sh))
+
+                # Badge số ô và ảnh đang nằm trong ô (Góc trên bên trái của slot)
+                badge_w = min(sw - 8, 86)
+                badge_h = min(sh - 8, 22)
+                if badge_w > 30 and badge_h > 14:
+                    badge_rect = QRectF(sx + 4, sy + 4, badge_w, badge_h)
+                    painter.setPen(QPen(QColor(COLOR_GOLD) if is_sel else QColor("#1E2D4A"), 1.2))
+                    painter.setBrush(QColor(7, 11, 22, 215))
+                    painter.drawRoundedRect(badge_rect, 4, 4)
+
+                    p_idx = slot.photo_index
+                    photo_text = f"Ảnh {p_idx + 1}" if 0 <= p_idx < len(self.photos) else "Trống"
+                    painter.setPen(QColor(COLOR_GOLD) if is_sel else QColor("#E2E8F0"))
+                    painter.drawText(badge_rect, Qt.AlignCenter, f"Ô {idx + 1}: {photo_text}")
 
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton or not self.template or self.preview_mode_only:
@@ -559,8 +582,153 @@ class ReviewFrameCard(QFrame):
 
 
 # =========================================================================
-# KHU VỰC C — THẺ SLOT ẢNH (SLOT CARD CHỌN ẢNH CHO TỪNG Ô)
+# KHU VỰC C — THẺ THUMBNAIL ẢNH ĐÃ CHỤP (CLICK-TO-ASSIGN PHOTO CARDS)
 # =========================================================================
+
+class PhotoThumbnailCard(QFrame):
+    """
+    Thẻ thumbnail ảnh chụp ở Khu vực C (Click-to-assign).
+    Hiển thị:
+    - Badge số ảnh: "Ảnh #1", "Ảnh #2"...
+    - Badge gán vào ô: "Ô 1", "Ô 2" hoặc "Chưa gán"
+    - Thumbnail ảnh thu nhỏ rõ nét
+    - Nút Cắt ảnh (Crop)
+    - Viền vàng Champagne #D4AF37 khi được chọn
+    """
+    photo_clicked = Signal(int)
+    slot_clicked = Signal(int)             # Alias tương thích ngược
+    change_photo_requested = Signal(int)   # Alias tương thích ngược
+    crop_requested = Signal(int)
+
+    def __init__(
+        self,
+        photo_idx: int,
+        photo_img: Optional[Image.Image],
+        assigned_slots: Optional[List[int]] = None,
+        is_selected: bool = False,
+        parent=None
+    ):
+        super().__init__(parent)
+        self.photo_idx = photo_idx
+        self.photo_img = photo_img
+        self.assigned_slots = assigned_slots or []
+        self.is_selected = is_selected
+
+        self.setFixedSize(118, 102)
+        self.setCursor(Qt.PointingHandCursor)
+
+        self._init_ui()
+        self.update_style()
+
+    @property
+    def slot_idx(self) -> int:
+        return self.photo_idx
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(3)
+
+        # Header card: Số thứ tự ảnh + Pill ô đã gán
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(4)
+
+        self.lbl_num = QLabel(f"Ảnh #{self.photo_idx + 1}")
+        self.lbl_num.setStyleSheet(
+            f"color: {COLOR_GOLD}; font-size: 11px; font-weight: bold;"
+        )
+        top.addWidget(self.lbl_num)
+        top.addStretch()
+
+        self.lbl_assigned = QLabel()
+        self.lbl_assigned.setFixedHeight(18)
+        self.lbl_assigned.setAlignment(Qt.AlignCenter)
+        self._refresh_assigned_pill()
+        top.addWidget(self.lbl_assigned)
+        layout.addLayout(top)
+
+        # Thumbnail ảnh
+        self.lbl_thumb = QLabel()
+        self.lbl_thumb.setAlignment(Qt.AlignCenter)
+        self.lbl_thumb.setFixedHeight(46)
+        self._refresh_thumb()
+        layout.addWidget(self.lbl_thumb, 1, Qt.AlignCenter)
+
+        # Footer card: Nút Cắt ảnh
+        h_bot = QHBoxLayout()
+        h_bot.setContentsMargins(0, 0, 0, 0)
+        h_bot.setSpacing(4)
+
+        self.btn_crop = QPushButton("Cắt")
+        self.btn_crop.setIcon(get_svg_icon("crop", 11, COLOR_GOLD))
+        self.btn_crop.setFixedHeight(22)
+        self.btn_crop.setCursor(Qt.PointingHandCursor)
+        self.btn_crop.setStyleSheet(
+            "QPushButton { background-color: #142036; border: 1px solid #28395E; color: #CBD5E1; "
+            "border-radius: 4px; font-size: 10px; font-weight: bold; padding: 0 6px; }"
+            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+        )
+        self.btn_crop.clicked.connect(lambda: self.crop_requested.emit(self.photo_idx))
+        h_bot.addWidget(self.btn_crop)
+        h_bot.addStretch()
+        layout.addLayout(h_bot)
+
+    def set_photo(self, photo_img: Optional[Image.Image]):
+        self.photo_img = photo_img
+        self._refresh_thumb()
+
+    def set_assigned_slots(self, slots: List[int]):
+        self.assigned_slots = slots
+        self._refresh_assigned_pill()
+
+    def _refresh_assigned_pill(self):
+        if self.assigned_slots:
+            txt = "Ô " + ", ".join(str(s) for s in self.assigned_slots)
+            self.lbl_assigned.setText(txt)
+            self.lbl_assigned.setStyleSheet(
+                "background-color: #1E3A8A; color: #93C5FD; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 1px 4px;"
+            )
+        else:
+            self.lbl_assigned.setText("Chưa gán")
+            self.lbl_assigned.setStyleSheet(
+                "background-color: #1E293B; color: #94A3B8; border-radius: 3px; font-size: 10px; padding: 1px 4px;"
+            )
+
+    def _refresh_thumb(self):
+        if self.photo_img:
+            rgb = self.photo_img.convert("RGB")
+            w, h = rgb.size
+            data = rgb.tobytes("raw", "RGB")
+            qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
+            pix = QPixmap.fromImage(qimg)
+            self.lbl_thumb.setPixmap(pix.scaled(106, 46, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            self.lbl_thumb.setText("Trống")
+            self.lbl_thumb.setStyleSheet("color: #64748B; font-size: 10px;")
+
+    def set_selected(self, is_selected: bool):
+        self.is_selected = is_selected
+        self.update_style()
+
+    def update_style(self):
+        if self.is_selected:
+            self.setStyleSheet(
+                f"PhotoThumbnailCard {{ background-color: #111C30; border: 2.5px solid {COLOR_GOLD}; border-radius: 8px; }}"
+            )
+            self.lbl_num.setStyleSheet(f"color: {COLOR_GOLD_LIGHT}; font-size: 11px; font-weight: 900;")
+        else:
+            self.setStyleSheet(
+                "PhotoThumbnailCard {{ background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 8px; }}"
+                "PhotoThumbnailCard:hover {{ border: 1.5px solid #38BDF8; background-color: #131E33; }}"
+            )
+            self.lbl_num.setStyleSheet("color: #CBD5E1; font-size: 11px; font-weight: bold;")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.photo_clicked.emit(self.photo_idx)
+            self.slot_clicked.emit(self.photo_idx)
+
 
 class SlotCard(QFrame):
     """Thẻ đại diện cho từng slot ảnh: Số thứ tự, thumbnail ảnh gán, nút Thay ảnh & Cắt ảnh."""
@@ -710,12 +878,14 @@ class GuestReviewWidget(QWidget):
         self.final_composite: Optional[Image.Image] = None
         self.current_template: Optional[FrameTemplate] = None
         self.selected_slot_index: int = 0
+        self.selected_photo_index: int = 0
         self.history_stack: List[str] = []
 
         # Thư viện thumbnail cards & slot cards
         self.frame_cards: Dict[str, ReviewFrameCard] = {}
-        self.slot_cards: List[SlotCard] = []
-        self.thumb_widgets: List[Any] = [QLabel() for _ in range(len(self.photos))]
+        self.photo_cards: List[PhotoThumbnailCard] = []
+        self.slot_cards: List[Any] = []
+        self.thumb_widgets: List[Any] = []
 
         # Nạp template khởi đầu (ưu tiên 'dau_tay' nếu có để khớp ảnh tham chiếu, hoặc initial_frame_id)
         frames = self.frame_mgr.list_frames() if self.frame_mgr else []
@@ -763,8 +933,9 @@ class GuestReviewWidget(QWidget):
         self.is_retake = False
         self.final_composite = None
         self.selected_slot_index = 0
+        self.selected_photo_index = 0
         self.history_stack.clear()
-        self.thumb_widgets = [QLabel() for _ in range(len(self.photos))]
+        self.thumb_widgets = []
 
         target = None
         if initial_frame_id and self.frame_mgr:
@@ -956,7 +1127,7 @@ class GuestReviewWidget(QWidget):
 
         bar_a_bot.addStretch()
 
-        # Nút Xoay, Lật, Đặt lại crop
+        # Nút Xoay, Lật, Đặt lại crop, Cắt ảnh
         btn_rotate = QPushButton("Xoay")
         btn_rotate.setIcon(get_svg_icon("rotate", 14, COLOR_GOLD))
         btn_rotate.setFixedHeight(32)
@@ -992,6 +1163,18 @@ class GuestReviewWidget(QWidget):
         )
         btn_reset_crop.clicked.connect(self._reset_selected_slot_pan)
         bar_a_bot.addWidget(btn_reset_crop)
+
+        btn_crop = QPushButton("Cắt ảnh")
+        btn_crop.setIcon(get_svg_icon("crop", 14, COLOR_GOLD))
+        btn_crop.setFixedHeight(32)
+        btn_crop.setCursor(Qt.PointingHandCursor)
+        btn_crop.setStyleSheet(
+            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "border-radius: 6px; padding: 0 12px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; }"
+        )
+        btn_crop.clicked.connect(self._open_crop_dialog_for_selected_slot)
+        bar_a_bot.addWidget(btn_crop)
 
         l_a.addLayout(bar_a_bot)
         content_split.addWidget(container_a, 55)
@@ -1071,33 +1254,33 @@ class GuestReviewWidget(QWidget):
         main_layout.addLayout(content_split, 1)
 
         # =========================================================================
-        # 3. KHU VỰC C (DƯỚI): CHỌN ẢNH CHO TỪNG Ô (SLOT CARDS)
+        # 3. KHU VỰC C (DƯỚI): CHỌN ẢNH VÀ GÁN VÀO Ô BẰNG CLICK (CLICK-TO-ASSIGN)
         # =========================================================================
         container_c = QFrame()
         container_c.setStyleSheet("background-color: #0B1322; border: 1.5px solid #1E2D4A; border-radius: 12px;")
         l_c = QVBoxLayout(container_c)
-        l_c.setContentsMargins(12, 10, 12, 10)
-        l_c.setSpacing(6)
+        l_c.setContentsMargins(12, 8, 12, 8)
+        l_c.setSpacing(5)
 
         h_c_head = QHBoxLayout()
         icon_c = QLabel()
         icon_c.setPixmap(get_svg_pixmap("image", 18, COLOR_GOLD))
         h_c_head.addWidget(icon_c)
 
-        lbl_c_title = QLabel("<b>CHỌN ẢNH CHO TỪNG Ô</b> — <span style='color: #94A3B8; font-size: 11px;'>Nhấn vào ảnh để thay đổi vị trí hoặc chọn ảnh khác</span>")
+        lbl_c_title = QLabel("<b>ẢNH ĐÃ CHỤP (CHỌN ẢNH & GÁN VÀO Ô)</b> — <span style='color: #94A3B8; font-size: 11px;'>Nhấp vào ảnh để chọn và gán nhanh vào ô trên khung, hoặc nhấp chọn ô rồi chọn ảnh</span>")
         lbl_c_title.setStyleSheet("font-size: 13px; color: #F8FAFC;")
         h_c_head.addWidget(lbl_c_title)
         h_c_head.addStretch()
         l_c.addLayout(h_c_head)
 
-        # Horizontal slots row
+        # Horizontal photo thumbnails row (Gọn gàng ~115px)
         self.slots_scroll = QScrollArea()
         self.slots_scroll.setWidgetResizable(True)
         self.slots_scroll.setFrameShape(QFrame.NoFrame)
-        self.slots_scroll.setFixedHeight(120)
+        self.slots_scroll.setFixedHeight(115)
         self.slots_scroll_content = QWidget()
         self.h_slots_layout = QHBoxLayout(self.slots_scroll_content)
-        self.h_slots_layout.setSpacing(12)
+        self.h_slots_layout.setSpacing(10)
         self.h_slots_layout.setContentsMargins(4, 4, 4, 4)
         self.slots_scroll.setWidget(self.slots_scroll_content)
         l_c.addWidget(self.slots_scroll)
@@ -1288,44 +1471,96 @@ class GuestReviewWidget(QWidget):
         self._push_history()
 
     def _rebuild_slot_cards(self):
-        """Dựng lại các thẻ slot ảnh ở Khu vực C."""
+        """Dựng lại các thẻ ảnh ở Khu vực C (Photo Thumbnail Cards)."""
         while self.h_slots_layout.count():
             item = self.h_slots_layout.takeAt(0)
             w = item.widget()
             if w:
                 w.deleteLater()
+        self.photo_cards.clear()
         self.slot_cards.clear()
         self.thumb_widgets.clear()
 
-        if not self.current_template:
+        if not self.photos:
             return
 
-        for idx, slot in enumerate(self.current_template.slots):
-            p_img = self.photos[slot.photo_index] if 0 <= slot.photo_index < len(self.photos) else None
-            is_sel = (idx == self.selected_slot_index)
-            card = SlotCard(slot_idx=idx, slot=slot, photo_img=p_img, is_selected=is_sel, parent=self)
-            card.slot_clicked.connect(self._on_slot_card_clicked)
-            card.change_photo_requested.connect(self._open_photo_picker_for_slot)
-            card.crop_requested.connect(self._open_crop_dialog_for_slot)
+        # Dựng thẻ cho từng ảnh đã chụp trong phiên (Bảo toàn nguyên vẹn ảnh gốc)
+        for p_idx, p_img in enumerate(self.photos):
+            assigned = self._get_slots_for_photo(p_idx)
+            is_sel = (p_idx == self.selected_photo_index)
+            card = PhotoThumbnailCard(
+                photo_idx=p_idx,
+                photo_img=p_img,
+                assigned_slots=assigned,
+                is_selected=is_sel,
+                parent=self
+            )
+            card.photo_clicked.connect(self._on_photo_thumbnail_clicked)
+            card.crop_requested.connect(self._on_photo_crop_requested)
 
+            self.photo_cards.append(card)
             self.slot_cards.append(card)
-            self.thumb_widgets.append(card)  # Tương thích với test suite
+            self.thumb_widgets.append(card)
             self.h_slots_layout.addWidget(card)
 
         self.h_slots_layout.addStretch()
+        self._update_photo_cards_assigned_slots()
+
+    def _get_slots_for_photo(self, photo_idx: int) -> List[int]:
+        if not self.current_template:
+            return []
+        slots = []
+        for i, s in enumerate(self.current_template.slots):
+            if s.photo_index == photo_idx:
+                slots.append(i + 1)
+        return slots
+
+    def _update_photo_cards_assigned_slots(self):
+        for card in self.photo_cards:
+            assigned = self._get_slots_for_photo(card.photo_idx)
+            card.set_assigned_slots(assigned)
+
+    def _on_photo_thumbnail_clicked(self, photo_idx: int):
+        """Click thumbnail ảnh ở Khu vực C: chọn ảnh và gán ngay vào slot đang chọn."""
+        self.selected_photo_index = photo_idx
+        for pc in self.photo_cards:
+            pc.set_selected(pc.photo_idx == photo_idx)
+
+        # Gán ảnh vào slot đang chọn trên Canvas (nếu có)
+        if self.current_template and 0 <= self.selected_slot_index < len(self.current_template.slots):
+            self._assign_photo_to_slot(self.selected_slot_index, photo_idx)
 
     def _on_canvas_slot_selected(self, slot_idx: int):
-        self.selected_slot_index = slot_idx
-        for i, sc in enumerate(self.slot_cards):
-            sc.set_selected(i == slot_idx)
-
-    def _on_slot_card_clicked(self, slot_idx: int):
+        """Click chọn slot trên Canvas: cập nhật highlight và đồng bộ ảnh tương ứng."""
         self.selected_slot_index = slot_idx
         self.canvas.selected_type = "slot"
         self.canvas.selected_index = slot_idx
         self.canvas.update()
-        for i, sc in enumerate(self.slot_cards):
-            sc.set_selected(i == slot_idx)
+
+        # Đồng bộ highlight thẻ ảnh của slot này ở Khu vực C
+        if self.current_template and 0 <= slot_idx < len(self.current_template.slots):
+            p_idx = self.current_template.slots[slot_idx].photo_index
+            if 0 <= p_idx < len(self.photos):
+                self.selected_photo_index = p_idx
+                for pc in self.photo_cards:
+                    pc.set_selected(pc.photo_idx == p_idx)
+
+    def _on_slot_card_clicked(self, slot_idx: int):
+        self._on_photo_thumbnail_clicked(slot_idx)
+
+    def _on_photo_crop_requested(self, photo_idx: int):
+        """Mở crop dialog cho ảnh: tìm slot chứa ảnh này (hoặc slot đang chọn)."""
+        target_slot_idx = self.selected_slot_index
+        if self.current_template:
+            for i, s in enumerate(self.current_template.slots):
+                if s.photo_index == photo_idx:
+                    target_slot_idx = i
+                    break
+        self._open_crop_dialog_for_slot(target_slot_idx)
+
+    def _open_crop_dialog_for_selected_slot(self):
+        """Mở crop dialog cho slot đang chọn."""
+        self._open_crop_dialog_for_slot(self.selected_slot_index)
 
     def _rotate_selected_slot(self):
         """Xoay ảnh trong slot hiện tại thêm 90 độ."""
@@ -1356,12 +1591,11 @@ class GuestReviewWidget(QWidget):
         slot.rotation = 0
         slot.is_flipped_h = False
         self.canvas.update_preview()
-        if self.selected_slot_index < len(self.slot_cards):
-            self.slot_cards[self.selected_slot_index].set_photo(self.photos[slot.photo_index])
+        self._update_photo_cards_assigned_slots()
         self._push_history()
 
     def _open_photo_picker_for_slot(self, slot_idx: int):
-        """Mở modal chọn ảnh cho slot."""
+        """Mở modal chọn ảnh cho slot (dự phòng)."""
         if not self.current_template or slot_idx >= len(self.current_template.slots):
             return
         slot = self.current_template.slots[slot_idx]
@@ -1387,9 +1621,12 @@ class GuestReviewWidget(QWidget):
             return
         slot = self.current_template.slots[slot_idx]
         slot.photo_index = photo_idx
-        if slot_idx < len(self.slot_cards):
-            self.slot_cards[slot_idx].set_photo(self.photos[photo_idx])
+        # Đặt lại crop offset khi thay ảnh mới vào slot
+        slot.crop_offset_x = 0.0
+        slot.crop_offset_y = 0.0
+        slot.zoom = 1.0
         self.canvas.update_preview()
+        self._update_photo_cards_assigned_slots()
         self._push_history()
 
     # =========================================================================
