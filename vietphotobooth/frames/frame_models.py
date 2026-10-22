@@ -37,6 +37,7 @@ class PhotoSlot:
     zoom: float = 1.0             # Thu phóng ảnh (1.0 = 100%, 1.25 = 125%, tối đa 2.5)
     crop_offset_x: float = 0.0    # Dịch chuyển vùng cắt X (-1.0 đến 1.0 hoặc pixel)
     crop_offset_y: float = 0.0    # Dịch chuyển vùng cắt Y (-1.0 đến 1.0 hoặc pixel)
+    is_flipped_h: bool = False     # Lật ảnh theo trục ngang (mirror)
     use_safe_zone: bool = True    # Bật/tắt bảo vệ vùng an toàn khi in
 
     def to_dict(self) -> Dict[str, Any]:

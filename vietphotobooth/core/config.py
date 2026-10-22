@@ -40,7 +40,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "event_subtitle": "Lưu Giữ Khoảnh Khắc Hạnh Phúc",
     "event_date": "2026-10-20",
     "updates": {
-        "manifest_url": "",
+        "manifest_url": "https://api.github.com/repos/phama3098-coder/bot-sida-4/releases/latest",
         "auto_check_on_startup": True,
         "channel": "stable"
     }
@@ -72,11 +72,25 @@ class ConfigManager:
                     data = json.load(f)
                     self._config.update(data)
                 logger.info(f"Đã tải cấu hình từ {self.config_path}")
-                # Loại bỏ URL mẫu placeholder nếu người dùng từng lưu trước đó
+                # Loại bỏ URL mẫu placeholder hoặc đường dẫn test rác nếu từng lưu trước đó
                 manifest_url = self.get("updates.manifest_url", "")
-                if isinstance(manifest_url, str) and ("example.com" in manifest_url.lower() or "example.org" in manifest_url.lower()):
-                    self.set("updates.manifest_url", "")
-                    self.save()
+                if isinstance(manifest_url, str) and manifest_url:
+                    m_lower = manifest_url.lower()
+                    is_placeholder = any(p in m_lower for p in ["example.com", "example.org", "placeholder", "your-domain.com"])
+                    is_test_path = any(p in m_lower for p in ["pytest-of-", "\\temp\\", "/temp/", "\\tmp\\", "/tmp/"])
+                    is_missing_local = False
+                    if manifest_url.startswith("file://") or (os.path.isabs(manifest_url) and not manifest_url.startswith("http")):
+                        clean_p = manifest_url.replace("file:///", "").replace("file://", "")
+                        if not os.path.exists(clean_p):
+                            is_missing_local = True
+
+                    if is_placeholder or is_test_path or is_missing_local:
+                        logger.info(f"Đã tự động dọn dẹp manifest_url không hợp lệ hoặc do test để lại: {manifest_url}")
+                        self.set("updates.manifest_url", DEFAULT_CONFIG["updates"]["manifest_url"])
+                        self.save()
+                    elif not manifest_url:
+                        self.set("updates.manifest_url", DEFAULT_CONFIG["updates"]["manifest_url"])
+                        self.save()
             except Exception as e:
                 logger.error(f"Lỗi khi đọc file cấu hình {self.config_path}: {e}")
         else:

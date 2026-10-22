@@ -139,18 +139,22 @@ class WindowsPrintSpooler:
         printer_name: str,
         image_path: str,
         copies: int = 1,
-        job_title: str = "VietPhotoBooth Print"
+        job_title: str = "VietPhotoBooth Print",
+        offset_x: int = 0,
+        offset_y: int = 0,
+        zoom: float = 1.0,
+        orientation: str = "portrait"
     ) -> Dict[str, Any]:
         """
         Gửi file ảnh trực tiếp tới Windows Print Spooler sử dụng GDI Device Context (DC).
-        Đảm bảo tỷ lệ 1:1, khớp kích thước vật lý không bị méo và hỗ trợ số bản in.
+        Áp dụng căn chỉnh lề (offset X/Y), độ phóng (zoom), và hướng giấy (orientation) thực tế.
         """
         if not os.path.exists(image_path):
             return {"success": False, "error": f"File ảnh không tồn tại: {image_path}"}
 
         if not WIN32_AVAILABLE:
             time.sleep(0.5)
-            logger.info(f"[Giả lập in] Đã gửi {copies} bản in của {image_path} tới {printer_name}")
+            logger.info(f"[Giả lập in] Đã gửi {copies} bản in của {image_path} tới {printer_name} (Lệch X:{offset_x}, Y:{offset_y}, Zoom:{zoom}, Hướng:{orientation})")
             return {"success": True, "message": f"[Giả lập] Đã in thành công {copies} bản.", "spooler_job_id": 9999}
 
         if not printer_name:
@@ -158,11 +162,30 @@ class WindowsPrintSpooler:
 
         try:
             img = Image.open(image_path)
+
+            # 1. Áp dụng hướng giấy nếu có yêu cầu
+            if orientation.lower() in ("landscape", "ngang") and img.height > img.width:
+                img = img.rotate(90, expand=True)
+            elif orientation.lower() in ("portrait", "dọc") and img.width > img.height:
+                img = img.rotate(90, expand=True)
+
+            # 2. Áp dụng Zoom và Offset lề
+            if zoom != 1.0 or offset_x != 0 or offset_y != 0:
+                orig_w, orig_h = img.size
+                clamped_zoom = max(0.5, min(2.0, zoom))
+                new_w = max(10, int(orig_w * clamped_zoom))
+                new_h = max(10, int(orig_h * clamped_zoom))
+                scaled = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                canvas = Image.new("RGB", (orig_w, orig_h), (255, 255, 255))
+                paste_x = (orig_w - new_w) // 2 + offset_x
+                paste_y = (orig_h - new_h) // 2 + offset_y
+                canvas.paste(scaled, (paste_x, paste_y))
+                img = canvas
+
             # Khởi tạo Windows Print DC
             hdc = win32ui.CreateDC()
             hdc.CreatePrinterDC(printer_name)
 
-            # Lấy thông số độ phân giải của máy in (DPI và kích thước trang)
             horz_res = hdc.GetDeviceCaps(win32con.HORZRES)
             vert_res = hdc.GetDeviceCaps(win32con.VERTRES)
 
@@ -172,7 +195,6 @@ class WindowsPrintSpooler:
                 hdc.StartDoc(f"{job_title} - Bản {copy_idx + 1}/{copies}")
                 hdc.StartPage()
 
-                # Vẽ ảnh phóng đầy khổ in với tỷ lệ gốc
                 dib = ImageWin.Dib(img)
                 dib.draw(hdc.GetHandleOutput(), (0, 0, horz_res, vert_res))
 

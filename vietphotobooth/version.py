@@ -7,9 +7,9 @@ import re
 from typing import Tuple
 
 __app_name__ = "1998 TEAM — Photobooth"
-__version__ = "1.1.0"
-__build__ = 102
-__release_date__ = "2026-10-21"
+__version__ = "1.4.1"
+__build__ = 141
+__release_date__ = "2026-10-22"
 __publisher__ = "1998 Studio phóng sự cưới"
 __copyright__ = "© 2026 1998 Studio. All rights reserved."
 

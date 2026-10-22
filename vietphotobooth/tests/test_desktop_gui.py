@@ -4,6 +4,7 @@ Tests for PySide6 Native Desktop GUI Application
 
 import os
 import sys
+import time
 import pytest
 from PySide6.QtWidgets import QApplication
 
@@ -298,5 +299,101 @@ def test_frame_designer_overlapping_text_cycling_and_smart_placement(qapp):
     assert not page._check_text_overlaps()
 
     page.close()
+
+
+def test_liveview_lifecycle_and_single_worker(qapp):
+    """Kiểm tra vòng đời Live View khi đổi tab: chỉ có tối đa 1 consumer đọc frame, không tạo worker chồng chéo."""
+    window = MainWindow(start_in_kiosk=False)
+    window.show()
+    qapp.processEvents()
+    kiosk = window.kiosk_page
+    cam_page = window.camera_page
+
+    initial_worker = kiosk.live_view_worker
+    assert initial_worker.isRunning()
+
+    # Mặc định đang ở Tab 0: Live View Kiosk hoạt động
+    assert window.tabs.currentIndex() == 0
+    assert not initial_worker._paused
+
+    # Chuyển sang Tab 1 (Khung Ảnh): Kiosk phải tạm dừng đọc frame
+    window.tabs.setCurrentIndex(1)
+    qapp.processEvents()
+    assert initial_worker._paused
+    assert not cam_page._timer.isActive()
+
+    # Mở khóa PIN để chuyển sang Tab 2 (Máy Ảnh)
+    window.auth_mgr._authenticated = True
+    window.auth_mgr._last_auth_time = time.time()
+    window.tabs.setCurrentIndex(2)
+    qapp.processEvents()
+    assert initial_worker._paused
+    assert cam_page._timer.isActive()
+
+    # Chuyển về lại Tab 0 (Chụp Ảnh)
+    window.tabs.setCurrentIndex(0)
+    qapp.processEvents()
+    assert not initial_worker._paused
+    assert not cam_page._timer.isActive()
+    # Phải giữ nguyên worker instance ban đầu, không tạo mới rò rỉ luồng
+    assert kiosk.live_view_worker is initial_worker
+
+    # Chuyển tab qua lại 10 lần liên tục
+    for _ in range(10):
+        window.tabs.setCurrentIndex(1)
+        qapp.processEvents()
+        assert initial_worker._paused
+
+        window.auth_mgr._last_auth_time = time.time()
+        window.tabs.setCurrentIndex(2)
+        qapp.processEvents()
+        assert initial_worker._paused
+        assert cam_page._timer.isActive()
+
+        window.tabs.setCurrentIndex(0)
+        qapp.processEvents()
+        assert not initial_worker._paused
+        assert not cam_page._timer.isActive()
+
+    assert kiosk.live_view_worker is initial_worker
+    window.close()
+
+
+def test_simulator_status_and_preview_display(qapp):
+    """Kiểm tra hiển thị trạng thái Simulator rõ ràng, không báo camera thật và không bị che panel."""
+    import numpy as np
+
+    window = MainWindow(start_in_kiosk=False)
+    window.show()
+    qapp.processEvents()
+    kiosk = window.kiosk_page
+
+    # Chuyển sang Simulator
+    kiosk.camera_mgr.switch_backend("simulator")
+    kiosk._update_camera_status_ui()
+    qapp.processEvents()
+
+    assert kiosk.lbl_cam_dot.text() == "🟡"
+    assert "Mô phỏng" in kiosk.lbl_cam_status_text.text()
+    assert "SIMULATOR" in kiosk.lbl_live_badge.text()
+    assert kiosk.panel_disconnected.isHidden()
+
+    # Nhận frame mô phỏng
+    frame = kiosk.camera_mgr.get_liveview_rgb()
+    assert frame is not None and frame.size > 0
+    kiosk._on_live_view_frame(frame)
+    assert not kiosk.lbl_viewport.pixmap().isNull()
+
+    # Khi ngắt kết nối: phải chuyển sang trạng thái 🔴 Chưa kết nối
+    kiosk.camera_mgr.disconnect()
+    kiosk._update_camera_status_ui()
+    qapp.processEvents()
+
+    assert kiosk.lbl_cam_dot.text() == "🔴"
+    assert "Chưa kết nối" in kiosk.lbl_cam_status_text.text()
+    assert not kiosk.panel_disconnected.isHidden()
+
+    window.close()
+
 
 

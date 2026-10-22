@@ -1,24 +1,104 @@
 """
-VietPhotoBooth Print Management Page
-Controls Windows Spooler printers, DNP DS-RX1HS 2-inch cut profiles, test prints, and queue management.
+1998 TEAM — Photobooth Printing Page
+Matches exact design of Panel 2:
+- Dual printer configuration: Máy in strip (2x6) & Máy in full (4x6).
+- Real printer detection and status indicator directly from Windows Spooler.
+- Visual print margin & orientation alignment preview.
+- Interactive steppers for Offset X/Y, Zoom with reset button.
+- Real paper sheet counter with progress bar, quick refill buttons (+100, +400, +700), and warning threshold.
+- Test print execution and persistent settings.
 """
 
-from typing import Optional
+import os
+from typing import Optional, Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox, QMessageBox,
-    QCheckBox, QSpinBox, QScrollArea, QFrame
+    QProgressBar, QSpinBox, QDoubleSpinBox, QFrame, QScrollArea,
+    QMessageBox, QSizePolicy, QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont
 
 from vietphotobooth.printing.manager import PrintManager
 from vietphotobooth.printing.spooler import WindowsPrintSpooler
+from vietphotobooth.desktop.icons import get_svg_icon, get_svg_pixmap, COLOR_GOLD, COLOR_WHITE, COLOR_SLATE, COLOR_BLUE, COLOR_GREEN, COLOR_RED
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
 
+class PrintMarginPreviewWidget(QFrame):
+    """Bản vẽ trực quan mô phỏng khổ giấy in, căn chỉnh lề (offset X/Y) và thu phóng (zoom)."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(140, 210)
+        self.setStyleSheet("background-color: #070A12; border: 1.5px solid #1E2D4A; border-radius: 8px;")
+        self.offset_x = 0
+        self.offset_y = 0
+        self.zoom = 1.0
+        self.orientation = "portrait"
+
+    def update_params(self, offset_x: int, offset_y: int, zoom: float, orientation: str):
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        self.zoom = zoom
+        self.orientation = orientation
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+
+        # Khổ giấy in nền
+        paper_x, paper_y = 12, 12
+        paper_w, paper_h = w - 24, h - 24
+
+        painter.setPen(QPen(QColor("#334155"), 1.5))
+        painter.setBrush(QBrush(QColor("#0F172A")))
+        painter.drawRoundedRect(paper_x, paper_y, paper_w, paper_h, 6, 6)
+
+        # Mô phỏng nội dung dải ảnh với offset và zoom
+        base_content_w = paper_w - 20
+        base_content_h = paper_h - 20
+
+        scaled_w = max(10, int(base_content_w * self.zoom))
+        scaled_h = max(10, int(base_content_h * self.zoom))
+
+        # Dịch pixel theo tỷ lệ preview
+        shift_x = int(self.offset_x * 0.25)
+        shift_y = int(self.offset_y * 0.25)
+
+        cx = paper_x + (paper_w - scaled_w) // 2 + shift_x
+        cy = paper_y + (paper_h - scaled_h) // 2 + shift_y
+
+        # Viền nội dung ảnh in (màu vàng champagne)
+        painter.setPen(QPen(QColor("#D4AF37"), 1.5, Qt.DashLine))
+        painter.setBrush(QBrush(QColor(212, 175, 55, 35)))
+        painter.drawRoundedRect(cx, cy, scaled_w, scaled_h, 4, 4)
+
+        # 3 ô ảnh thumbnail minh họa
+        slot_h = max(4, (scaled_h - 16) // 3)
+        slot_w = max(4, scaled_w - 8)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(QColor(212, 175, 55, 80)))
+
+        for i in range(3):
+            sy = cy + 4 + i * (slot_h + 4)
+            if sy + slot_h <= cy + scaled_h:
+                painter.drawRoundedRect(cx + 4, sy, slot_w, slot_h, 2, 2)
+
+        painter.end()
+
+
 class PrintingPage(QWidget):
-    """Trang quản trị máy in nhiệt và hàng đợi in Windows Spooler."""
+    """Trang Cài Đặt Máy In chuẩn 1998 TEAM Photobooth."""
+
+    def minimumSizeHint(self):
+        from PySide6.QtCore import QSize
+        return QSize(720, 420)
 
     def __init__(self, print_mgr: PrintManager, auth_mgr=None, parent=None):
         super().__init__(parent)
@@ -27,16 +107,16 @@ class PrintingPage(QWidget):
 
         self._init_ui()
         self._load_printers()
-        self._refresh_queue()
+        self._load_current_settings()
 
-        # Timer cập nhật hàng đợi in mỗi 2 giây
-        self.queue_timer = QTimer(self)
-        self.queue_timer.timeout.connect(self._refresh_queue)
-        self.queue_timer.start(2000)
+        # Timer quét trạng thái máy in mỗi 3 giây
+        self.status_timer = QTimer(self)
+        self.status_timer.timeout.connect(self._check_printer_statuses)
+        self.status_timer.start(3000)
 
     def _init_ui(self):
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -45,143 +125,551 @@ class PrintingPage(QWidget):
 
         content = QWidget()
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(16)
 
-        # 1. CẤU HÌNH THIẾT BỊ MÁY IN
-        grp_printer = QGroupBox("1. Cấu Hình Máy In Windows")
-        l_prn = QVBoxLayout(grp_printer)
+        # 1. HEADER CÀI ĐẶT MÁY IN
+        h_head = QHBoxLayout()
+        h_head.setSpacing(12)
 
-        r1 = QHBoxLayout()
-        r1.addWidget(QLabel("<b>Máy In Khả Dụng:</b>"))
-        self.combo_printers = QComboBox()
-        self.combo_printers.setMinimumWidth(280)
-        r1.addWidget(self.combo_printers, 1)
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(get_svg_pixmap("printer", 28, COLOR_GOLD))
+        h_head.addWidget(icon_lbl)
 
-        btn_refresh_prn = QPushButton("Quét Lại Driver")
-        btn_refresh_prn.setObjectName("btn_secondary")
-        btn_refresh_prn.clicked.connect(self._load_printers)
-        r1.addWidget(btn_refresh_prn)
+        v_head = QVBoxLayout()
+        lbl_title = QLabel("CÀI ĐẶT MÁY IN")
+        lbl_title.setStyleSheet("font-size: 20px; font-weight: 900; color: #D4AF37; letter-spacing: 0.5px;")
+        lbl_sub = QLabel("Chọn máy in và chỉnh thông số in phù hợp với khổ ảnh.")
+        lbl_sub.setStyleSheet("font-size: 13px; color: #94A3B8;")
+        v_head.addWidget(lbl_title)
+        v_head.addWidget(lbl_sub)
+        h_head.addLayout(v_head)
 
-        btn_set_default = QPushButton("Đặt Làm Mặc Định")
-        btn_set_default.setObjectName("btn_secondary")
-        btn_set_default.clicked.connect(self._set_active_printer)
-        r1.addWidget(btn_set_default)
-        l_prn.addLayout(r1)
+        h_head.addStretch()
 
-        r2 = QHBoxLayout()
-        r2.addWidget(QLabel("Khổ Giấy:"))
-        self.combo_paper = QComboBox()
-        self.combo_paper.addItems(["4x6 inch (10x15 cm Postcard)", "2x6 inch (5x15 cm Photo Strip)", "A4 (210x297 mm)"])
-        r2.addWidget(self.combo_paper)
+        self.btn_refresh = QPushButton("Tải lại danh sách máy in")
+        self.btn_refresh.setIcon(get_svg_icon("refresh", 16, COLOR_GOLD))
+        self.btn_refresh.setObjectName("btn_secondary")
+        self.btn_refresh.setFixedHeight(36)
+        self.btn_refresh.setCursor(Qt.PointingHandCursor)
+        self.btn_refresh.clicked.connect(self._load_printers)
+        h_head.addWidget(self.btn_refresh)
 
-        self.chk_dnp_cut = QCheckBox("Bật chế độ Tự Cắt Đôi 2x6 (DNP DS-RX1HS)")
-        self.chk_dnp_cut.setChecked(True)
-        r2.addWidget(self.chk_dnp_cut)
+        layout.addLayout(h_head)
 
-        btn_test_print = QPushButton("🖨️ In Trang Kiểm Tra Căn Lề")
-        btn_test_print.setObjectName("btn_success")
-        btn_test_print.clicked.connect(self._print_test_page)
-        r2.addWidget(btn_test_print)
-        l_prn.addLayout(r2)
+        # 2. KHU VỰC PHÂN BIỆT 2 MÁY IN: MÁY IN STRIP & MÁY IN FULL
+        h_printers = QHBoxLayout()
+        h_printers.setSpacing(16)
 
-        layout.addWidget(grp_printer)
+        # Card Máy in Strip (2x6)
+        card_strip = QFrame()
+        card_strip.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 10px;")
+        l_strip = QVBoxLayout(card_strip)
+        l_strip.setSpacing(10)
 
-        # 2. HÀNG ĐỢI IN (PRINT QUEUE STATUS)
-        grp_queue = QGroupBox("2. Hàng Đợi In Thời Gian Thực (Print Spooler Queue)")
-        l_queue = QVBoxLayout(grp_queue)
+        h_strip_title = QHBoxLayout()
+        icon_strip = QLabel()
+        icon_strip.setPixmap(get_svg_pixmap("paper", 22, COLOR_BLUE))
+        h_strip_title.addWidget(icon_strip)
+        v_st = QVBoxLayout()
+        lbl_st_name = QLabel("<b>Máy in strip</b>")
+        lbl_st_name.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_st_sub = QLabel("Dùng cho ảnh strip dọc, ví dụ 2x6.")
+        lbl_st_sub.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        v_st.addWidget(lbl_st_name)
+        v_st.addWidget(lbl_st_sub)
+        h_strip_title.addLayout(v_st)
+        h_strip_title.addStretch()
+        l_strip.addLayout(h_strip_title)
 
-        self.table_queue = QTableWidget(0, 5)
-        self.table_queue.setHorizontalHeaderLabels(["Mã Lệnh (Job ID)", "File Ảnh", "Số Bản", "Trạng Thái", "Thời Gian"])
-        self.table_queue.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        l_queue.addWidget(self.table_queue)
+        r_strip_select = QHBoxLayout()
+        self.combo_strip = QComboBox()
+        self.combo_strip.setFixedHeight(38)
+        self.combo_strip.setStyleSheet(
+            "QComboBox { background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: bold; }"
+            "QComboBox:hover { border: 1px solid #D4AF37; }"
+        )
+        self.combo_strip.currentIndexChanged.connect(self._check_printer_statuses)
+        r_strip_select.addWidget(self.combo_strip, 1)
 
-        bar_q = QHBoxLayout()
-        self.lbl_queue_stats = QLabel("Đang chờ: 0 • Đã in: 0")
-        self.lbl_queue_stats.setStyleSheet("color: #38BDF8; font-weight: bold;")
-        bar_q.addWidget(self.lbl_queue_stats, 1)
+        self.lbl_strip_status = QLabel("Sẵn sàng")
+        self.lbl_strip_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px; padding-left: 6px;")
+        r_strip_select.addWidget(self.lbl_strip_status)
+        l_strip.addLayout(r_strip_select)
 
-        btn_clear_queue = QPushButton("Xóa Lịch Sử Đã Hoàn Tất")
-        btn_clear_queue.setObjectName("btn_secondary")
-        btn_clear_queue.clicked.connect(self._clear_completed_jobs)
-        bar_q.addWidget(btn_clear_queue)
-        l_queue.addLayout(bar_q)
+        h_printers.addWidget(card_strip, 1)
 
-        layout.addWidget(grp_queue)
+        # Card Máy in Full (4x6)
+        card_full = QFrame()
+        card_full.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 10px;")
+        l_full = QVBoxLayout(card_full)
+        l_full.setSpacing(10)
+
+        h_full_title = QHBoxLayout()
+        icon_full = QLabel()
+        icon_full.setPixmap(get_svg_pixmap("frame", 22, "#A855F7"))
+        h_full_title.addWidget(icon_full)
+        v_ft = QVBoxLayout()
+        lbl_ft_name = QLabel("<b>Máy in full</b>")
+        lbl_ft_name.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_ft_sub = QLabel("Dùng cho ảnh lớn ngang hoặc vuông, ví dụ 4x6.")
+        lbl_ft_sub.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        v_ft.addWidget(lbl_ft_name)
+        v_ft.addWidget(lbl_ft_sub)
+        h_full_title.addLayout(v_ft)
+        h_full_title.addStretch()
+        l_full.addLayout(h_full_title)
+
+        r_full_select = QHBoxLayout()
+        self.combo_full = QComboBox()
+        self.combo_full.setFixedHeight(38)
+        self.combo_full.setStyleSheet(
+            "QComboBox { background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: bold; }"
+            "QComboBox:hover { border: 1px solid #D4AF37; }"
+        )
+        self.combo_full.currentIndexChanged.connect(self._check_printer_statuses)
+        r_full_select.addWidget(self.combo_full, 1)
+
+        self.lbl_full_status = QLabel("Sẵn sàng")
+        self.lbl_full_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px; padding-left: 6px;")
+        r_full_select.addWidget(self.lbl_full_status)
+        l_full.addLayout(r_full_select)
+
+        h_printers.addWidget(card_full, 1)
+
+        layout.addLayout(h_printers)
+
+        # 3. KHU VỰC CĂN CHỈNH LỀ & HƯỚNG IN
+        grp_align = QFrame()
+        grp_align.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 12px;")
+        l_align = QVBoxLayout(grp_align)
+        l_align.setSpacing(12)
+
+        lbl_al_title = QLabel("<b>Căn chỉnh lề & hướng in</b>")
+        lbl_al_title.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        l_align.addWidget(lbl_al_title)
+
+        h_align_body = QHBoxLayout()
+        h_align_body.setSpacing(18)
+
+        # Preview diagram bên trái
+        self.preview_widget = PrintMarginPreviewWidget()
+        h_align_body.addWidget(self.preview_widget)
+
+        # Điều khiển bên phải
+        v_controls = QVBoxLayout()
+        v_controls.setSpacing(12)
+
+        # Hàng điều khiển: Hướng giấy, Lệch X, Lệch Y, Zoom, Nút Đặt lại 1.0
+        r_ctrl = QHBoxLayout()
+        r_ctrl.setSpacing(12)
+
+        # Hướng giấy
+        v_orient = QVBoxLayout()
+        v_orient.addWidget(QLabel("Hướng giấy"))
+        self.combo_orient = QComboBox()
+        self.combo_orient.setFixedHeight(36)
+        self.combo_orient.addItems(["Dọc (Portrait)", "Ngang (Landscape)"])
+        self.combo_orient.setStyleSheet(
+            "QComboBox { background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "border-radius: 8px; padding: 4px 10px; font-size: 13px; }"
+        )
+        self.combo_orient.currentIndexChanged.connect(self._on_margin_changed)
+        v_orient.addWidget(self.combo_orient)
+        r_ctrl.addLayout(v_orient, 2)
+
+        # Lệch X (px)
+        v_x = QVBoxLayout()
+        v_x.addWidget(QLabel("Lệch X (px)"))
+        h_x_stepper = QHBoxLayout()
+        h_x_stepper.setSpacing(4)
+        btn_x_dec = QPushButton("-")
+        btn_x_dec.setFixedSize(30, 36)
+        btn_x_dec.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_x_dec.clicked.connect(lambda: self.spin_x.setValue(self.spin_x.value() - 2))
+        h_x_stepper.addWidget(btn_x_dec)
+
+        self.spin_x = QSpinBox()
+        self.spin_x.setRange(-150, 150)
+        self.spin_x.setValue(0)
+        self.spin_x.setFixedHeight(36)
+        self.spin_x.setAlignment(Qt.AlignCenter)
+        self.spin_x.setStyleSheet(
+            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+        )
+        self.spin_x.valueChanged.connect(self._on_margin_changed)
+        h_x_stepper.addWidget(self.spin_x)
+
+        btn_x_inc = QPushButton("+")
+        btn_x_inc.setFixedSize(30, 36)
+        btn_x_inc.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_x_inc.clicked.connect(lambda: self.spin_x.setValue(self.spin_x.value() + 2))
+        h_x_stepper.addWidget(btn_x_inc)
+        v_x.addLayout(h_x_stepper)
+        r_ctrl.addLayout(v_x, 2)
+
+        # Lệch Y (px)
+        v_y = QVBoxLayout()
+        v_y.addWidget(QLabel("Lệch Y (px)"))
+        h_y_stepper = QHBoxLayout()
+        h_y_stepper.setSpacing(4)
+        btn_y_dec = QPushButton("-")
+        btn_y_dec.setFixedSize(30, 36)
+        btn_y_dec.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_y_dec.clicked.connect(lambda: self.spin_y.setValue(self.spin_y.value() - 2))
+        h_y_stepper.addWidget(btn_y_dec)
+
+        self.spin_y = QSpinBox()
+        self.spin_y.setRange(-150, 150)
+        self.spin_y.setValue(0)
+        self.spin_y.setFixedHeight(36)
+        self.spin_y.setAlignment(Qt.AlignCenter)
+        self.spin_y.setStyleSheet(
+            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+        )
+        self.spin_y.valueChanged.connect(self._on_margin_changed)
+        h_y_stepper.addWidget(self.spin_y)
+
+        btn_y_inc = QPushButton("+")
+        btn_y_inc.setFixedSize(30, 36)
+        btn_y_inc.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_y_inc.clicked.connect(lambda: self.spin_y.setValue(self.spin_y.value() + 2))
+        h_y_stepper.addWidget(btn_y_inc)
+        v_y.addLayout(h_y_stepper)
+        r_ctrl.addLayout(v_y, 2)
+
+        # Zoom
+        v_zoom = QVBoxLayout()
+        v_zoom.addWidget(QLabel("Zoom"))
+        self.spin_zoom = QDoubleSpinBox()
+        self.spin_zoom.setRange(0.50, 1.50)
+        self.spin_zoom.setSingleStep(0.01)
+        self.spin_zoom.setValue(0.98)
+        self.spin_zoom.setFixedHeight(36)
+        self.spin_zoom.setAlignment(Qt.AlignCenter)
+        self.spin_zoom.setStyleSheet(
+            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+        )
+        self.spin_zoom.valueChanged.connect(self._on_margin_changed)
+        v_zoom.addWidget(self.spin_zoom)
+        r_ctrl.addLayout(v_zoom, 1)
+
+        # Nút Đặt lại 1.0
+        v_rst = QVBoxLayout()
+        v_rst.addWidget(QLabel(" "))
+        self.btn_reset_align = QPushButton("Đặt lại 1.0")
+        self.btn_reset_align.setFixedHeight(36)
+        self.btn_reset_align.setCursor(Qt.PointingHandCursor)
+        self.btn_reset_align.setStyleSheet(
+            "background-color: #16223B; color: #E2E8F0; border: 1px solid #28395E; border-radius: 6px; padding: 4px 12px;"
+        )
+        self.btn_reset_align.clicked.connect(self._reset_margins)
+        v_rst.addWidget(self.btn_reset_align)
+        r_ctrl.addLayout(v_rst, 1)
+
+        v_controls.addLayout(r_ctrl)
+        h_align_body.addLayout(v_controls, 1)
+
+        l_align.addLayout(h_align_body)
+        layout.addWidget(grp_align)
+
+        # 4. KHU VỰC BỘ ĐẾM GIẤY
+        grp_paper = QFrame()
+        grp_paper.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 12px;")
+        l_paper = QVBoxLayout(grp_paper)
+        l_paper.setSpacing(10)
+
+        # Header bộ đếm
+        h_p_head = QHBoxLayout()
+        h_p_title = QHBoxLayout()
+        p_icon = QLabel()
+        p_icon.setPixmap(get_svg_pixmap("paper", 22, COLOR_GOLD))
+        h_p_title.addWidget(p_icon)
+        v_pt = QVBoxLayout()
+        lbl_p_name = QLabel("<b>Bộ đếm giấy</b>")
+        lbl_p_name.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_p_sub = QLabel("App tự trừ giấy sau mỗi lần in.")
+        lbl_p_sub.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        v_pt.addWidget(lbl_p_name)
+        v_pt.addWidget(lbl_p_sub)
+        h_p_title.addLayout(v_pt)
+        h_p_head.addLayout(h_p_title)
+        h_p_head.addStretch()
+
+        self.lbl_paper_stats = QLabel("Còn lại: 120 tờ / 400 tờ (30%)")
+        self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #F8FAFC;")
+        h_p_head.addWidget(self.lbl_paper_stats)
+        l_paper.addLayout(h_p_head)
+
+        # Thanh tiến trình giấy in
+        self.prog_paper = QProgressBar()
+        self.prog_paper.setFixedHeight(18)
+        self.prog_paper.setRange(0, 400)
+        self.prog_paper.setValue(120)
+        self.prog_paper.setTextVisible(False)
+        self.prog_paper.setStyleSheet(
+            "QProgressBar { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 9px; }"
+            "QProgressBar::chunk { background-color: #10B981; border-radius: 8px; }"
+        )
+        l_paper.addWidget(self.prog_paper)
+
+        # Các nút nạp nhanh giấy & Ngưỡng cảnh báo
+        h_refill = QHBoxLayout()
+        h_refill.setSpacing(10)
+
+        for amount in [100, 400, 700]:
+            btn = QPushButton(f"+ Nạp {amount} tờ")
+            btn.setFixedHeight(34)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setStyleSheet(
+                "background-color: #121F33; color: #38BDF8; font-weight: bold; border: 1px solid #1E3A8A; "
+                "border-radius: 8px; padding: 4px 14px;"
+            )
+            btn.clicked.connect(lambda checked=False, a=amount: self._refill_paper(a))
+            h_refill.addWidget(btn)
+
+        h_refill.addStretch()
+
+        h_refill.addWidget(QLabel("Ngưỡng cảnh báo:"))
+        h_warn_stepper = QHBoxLayout()
+        h_warn_stepper.setSpacing(4)
+        btn_w_dec = QPushButton("-")
+        btn_w_dec.setFixedSize(28, 34)
+        btn_w_dec.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_w_dec.clicked.connect(lambda: self.spin_warning.setValue(self.spin_warning.value() - 10))
+        h_warn_stepper.addWidget(btn_w_dec)
+
+        self.spin_warning = QSpinBox()
+        self.spin_warning.setRange(10, 200)
+        self.spin_warning.setValue(50)
+        self.spin_warning.setFixedHeight(34)
+        self.spin_warning.setAlignment(Qt.AlignCenter)
+        self.spin_warning.setStyleSheet(
+            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+        )
+        h_warn_stepper.addWidget(self.spin_warning)
+
+        btn_w_inc = QPushButton("+")
+        btn_w_inc.setFixedSize(28, 34)
+        btn_w_inc.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_w_inc.clicked.connect(lambda: self.spin_warning.setValue(self.spin_warning.value() + 10))
+        h_warn_stepper.addWidget(btn_w_inc)
+        h_refill.addLayout(h_warn_stepper)
+
+        l_paper.addLayout(h_refill)
+        layout.addWidget(grp_paper)
+
+        # 5. BOTTOM ACTION BAR
+        h_action = QHBoxLayout()
+        h_action.setSpacing(12)
+
+        self.btn_test_print = QPushButton("In thử trang test")
+        self.btn_test_print.setIcon(get_svg_icon("printer", 16, COLOR_GOLD))
+        self.btn_test_print.setFixedHeight(40)
+        self.btn_test_print.setCursor(Qt.PointingHandCursor)
+        self.btn_test_print.setStyleSheet(
+            "background-color: #121F33; color: #F8FAFC; border: 1px solid #28395E; border-radius: 8px; padding: 4px 18px; font-weight: bold;"
+        )
+        self.btn_test_print.clicked.connect(self._print_test_page)
+        h_action.addWidget(self.btn_test_print)
+
+        h_action.addStretch()
+
+        self.btn_cancel = QPushButton("Hủy thay đổi")
+        self.btn_cancel.setFixedHeight(40)
+        self.btn_cancel.setCursor(Qt.PointingHandCursor)
+        self.btn_cancel.setStyleSheet(
+            "background-color: #1E293B; color: #CBD5E1; border: 1px solid #334155; border-radius: 8px; padding: 4px 18px;"
+        )
+        self.btn_cancel.clicked.connect(self._load_current_settings)
+        h_action.addWidget(self.btn_cancel)
+
+        self.btn_save = QPushButton("Lưu cài đặt")
+        self.btn_save.setIcon(get_svg_icon("save", 16, "#070A12"))
+        self.btn_save.setFixedHeight(40)
+        self.btn_save.setCursor(Qt.PointingHandCursor)
+        self.btn_save.setStyleSheet(
+            "background-color: #D4AF37; color: #070A12; font-weight: 900; border: none; border-radius: 8px; padding: 4px 24px; font-size: 14px;"
+        )
+        self.btn_save.clicked.connect(self._save_settings)
+        h_action.addWidget(self.btn_save)
+
+        layout.addLayout(h_action)
 
         scroll.setWidget(content)
-        outer_layout.addWidget(scroll)
+        main_layout.addWidget(scroll)
 
     def _load_printers(self):
-        self.combo_printers.clear()
+        """Quét và tải danh sách máy in thực tế từ Windows Spooler."""
+        self.combo_strip.blockSignals(True)
+        self.combo_full.blockSignals(True)
+        self.combo_strip.clear()
+        self.combo_full.clear()
+
         printers = WindowsPrintSpooler.get_installed_printers()
         default_p = WindowsPrintSpooler.get_default_printer()
 
         if not printers:
-            self.combo_printers.addItem("Không tìm thấy máy in (Dùng Virtual Spooler)", None)
+            self.combo_strip.addItem("Không tìm thấy máy in (Virtual)", "")
+            self.combo_full.addItem("Không tìm thấy máy in (Virtual)", "")
         else:
             for p in printers:
                 p_name = p["name"] if isinstance(p, dict) else str(p)
-                label = f"{p_name} [Mặc Định]" if p_name == default_p else p_name
-                self.combo_printers.addItem(label, p_name)
+                self.combo_strip.addItem(p_name, p_name)
+                self.combo_full.addItem(p_name, p_name)
 
-        if default_p:
-            idx = self.combo_printers.findData(default_p)
+        self.combo_strip.blockSignals(False)
+        self.combo_full.blockSignals(False)
+        self._check_printer_statuses()
+
+    def _load_current_settings(self):
+        """Nạp các giá trị cài đặt máy in, lề và giấy in từ PrintManager."""
+        self.print_mgr.load_settings()
+
+        # Chọn máy in strip
+        if self.print_mgr.strip_printer_name:
+            idx = self.combo_strip.findData(self.print_mgr.strip_printer_name)
             if idx >= 0:
-                self.combo_printers.setCurrentIndex(idx)
+                self.combo_strip.setCurrentIndex(idx)
 
-    def _set_active_printer(self):
+        # Chọn máy in full
+        if self.print_mgr.full_printer_name:
+            idx = self.combo_full.findData(self.print_mgr.full_printer_name)
+            if idx >= 0:
+                self.combo_full.setCurrentIndex(idx)
+
+        # Hướng giấy
+        orient_idx = 1 if self.print_mgr.orientation.lower() in ("landscape", "ngang") else 0
+        self.combo_orient.setCurrentIndex(orient_idx)
+
+        # Căn lề và zoom
+        self.spin_x.setValue(self.print_mgr.offset_x)
+        self.spin_y.setValue(self.print_mgr.offset_y)
+        self.spin_zoom.setValue(self.print_mgr.zoom)
+
+        # Bộ đếm giấy
+        self.prog_paper.setMaximum(max(100, self.print_mgr.paper_max))
+        self.prog_paper.setValue(self.print_mgr.paper_count)
+        self.spin_warning.setValue(self.print_mgr.paper_warning_threshold)
+        self._update_paper_ui()
+
+        self._on_margin_changed()
+        self._check_printer_statuses()
+
+    def _on_margin_changed(self):
+        """Cập nhật bản vẽ xem trước căn chỉnh lề theo các thông số nhập."""
+        ox = self.spin_x.value()
+        oy = self.spin_y.value()
+        zm = self.spin_zoom.value()
+        ori = "landscape" if self.combo_orient.currentIndex() == 1 else "portrait"
+        self.preview_widget.update_params(ox, oy, zm, ori)
+
+    def _reset_margins(self):
+        """Khôi phục căn lề và zoom về chuẩn mặc định 1.0 và offset 0."""
+        self.spin_x.setValue(0)
+        self.spin_y.setValue(0)
+        self.spin_zoom.setValue(1.0)
+        self._on_margin_changed()
+
+    def _update_paper_ui(self):
+        """Cập nhật giao diện thống kê lượng giấy còn lại và đổi màu thanh tiến trình."""
+        curr = self.print_mgr.paper_count
+        tot = self.print_mgr.paper_max
+        pct = int((curr / tot) * 100) if tot > 0 else 0
+
+        self.prog_paper.setValue(curr)
+        self.lbl_paper_stats.setText(f"Còn lại: {curr} tờ / {tot} tờ ({pct}%)")
+
+        if curr <= self.spin_warning.value():
+            self.prog_paper.setStyleSheet(
+                "QProgressBar { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 9px; }"
+                "QProgressBar::chunk { background-color: #EF4444; border-radius: 8px; }"
+            )
+            self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #EF4444;")
+        else:
+            self.prog_paper.setStyleSheet(
+                "QProgressBar { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 9px; }"
+                "QProgressBar::chunk { background-color: #10B981; border-radius: 8px; }"
+            )
+            self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #F8FAFC;")
+
+    def _refill_paper(self, amount: int):
+        """Xử lý nút nạp thêm giấy nhanh."""
+        new_total = self.print_mgr.refill_paper(amount)
+        self._update_paper_ui()
+
+    def _check_printer_statuses(self):
+        """Kiểm tra trạng thái kết nối thực tế từ Windows Spooler cho cả 2 máy in."""
+        # 1. Kiểm tra máy in strip
+        p_strip = self.combo_strip.currentData()
+        if p_strip:
+            status_s = WindowsPrintSpooler.get_printer_status(p_strip)
+            if status_s.get("is_online", False):
+                self.lbl_strip_status.setText("🟢 Sẵn sàng")
+                self.lbl_strip_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
+            else:
+                self.lbl_strip_status.setText(f"🔴 {status_s.get('status_text', 'Mất kết nối')}")
+                self.lbl_strip_status.setStyleSheet("color: #EF4444; font-weight: bold; font-size: 12px;")
+        else:
+            self.lbl_strip_status.setText("⚪ Chưa chọn")
+            self.lbl_strip_status.setStyleSheet("color: #94A3B8; font-size: 12px;")
+
+        # 2. Kiểm tra máy in full
+        p_full = self.combo_full.currentData()
+        if p_full:
+            status_f = WindowsPrintSpooler.get_printer_status(p_full)
+            if status_f.get("is_online", False):
+                self.lbl_full_status.setText("🟢 Sẵn sàng")
+                self.lbl_full_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 12px;")
+            else:
+                self.lbl_full_status.setText(f"🔴 {status_f.get('status_text', 'Mất kết nối')}")
+                self.lbl_full_status.setStyleSheet("color: #EF4444; font-weight: bold; font-size: 12px;")
+        else:
+            self.lbl_full_status.setText("⚪ Chưa chọn")
+            self.lbl_full_status.setStyleSheet("color: #94A3B8; font-size: 12px;")
+
+    def _save_settings(self):
+        """Lưu toàn bộ cài đặt máy in, căn lề và ngưỡng giấy."""
         if self.auth_mgr and not self.auth_mgr.is_authenticated():
-            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Cài Đặt Máy In"):
+            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Lưu Cài Đặt Máy In"):
                 return
-        selected = self.combo_printers.currentData()
-        if selected:
-            self.print_mgr.set_selected_printer(selected)
-            QMessageBox.information(self, "Máy In", f"Đã chọn máy in mặc định: {selected}")
+
+        self.print_mgr.strip_printer_name = self.combo_strip.currentData() or ""
+        self.print_mgr.full_printer_name = self.combo_full.currentData() or ""
+        self.print_mgr.orientation = "landscape" if self.combo_orient.currentIndex() == 1 else "portrait"
+        self.print_mgr.offset_x = self.spin_x.value()
+        self.print_mgr.offset_y = self.spin_y.value()
+        self.print_mgr.zoom = self.spin_zoom.value()
+        self.print_mgr.paper_warning_threshold = self.spin_warning.value()
+
+        if self.print_mgr.strip_printer_name:
+            self.print_mgr.selected_printer = self.print_mgr.strip_printer_name
+
+        self.print_mgr.save_settings()
+        QMessageBox.information(self, "Cài Đặt Máy In", "Đã lưu thành công cấu hình máy in, căn lề và bộ đếm giấy!")
 
     def _print_test_page(self):
+        """In trang kiểm tra căn lề thực tế ra máy in."""
         if self.auth_mgr and not self.auth_mgr.is_authenticated():
             if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực In Thử Nghiệm"):
                 return
+
+        active_p = self.combo_strip.currentData() or self.print_mgr.get_selected_printer()
+        if not active_p:
+            QMessageBox.warning(self, "Máy In", "Vui lòng chọn máy in trước khi in thử nghiệm.")
+            return
+
         success = self.print_mgr.print_test_page()
         if success:
-            QMessageBox.information(self, "In Kiểm Tra", "Đã gửi thẻ kiểm tra màu và căn lề tới máy in thành công!")
-            self._refresh_queue()
+            QMessageBox.information(
+                self, "In Kiểm Tra",
+                f"Đã gửi trang in thử nghiệm tới máy in '{active_p}'. Vui lòng kiểm tra khay giấy ra."
+            )
+            self._update_paper_ui()
         else:
-            QMessageBox.warning(self, "Thông Báo", "Không thể in trang kiểm tra. Vui lòng kiểm tra cáp USB và nguồn máy in.")
-
-    def _refresh_queue(self):
-        jobs = self.print_mgr.get_job_queue()
-        self.table_queue.setRowCount(0)
-
-        pending = 0
-        completed = 0
-
-        for j in reversed(jobs):
-            row = self.table_queue.rowCount()
-            self.table_queue.insertRow(row)
-            self.table_queue.setItem(row, 0, QTableWidgetItem(str(j.get("id", ""))))
-            self.table_queue.setItem(row, 1, QTableWidgetItem(str(j.get("filename", ""))))
-            self.table_queue.setItem(row, 2, QTableWidgetItem(str(j.get("copies", 1))))
-
-            status = j.get("status", "QUEUED")
-            item_status = QTableWidgetItem(status)
-            if status == "COMPLETED":
-                item_status.setForeground(Qt.green)
-                completed += 1
-            elif status == "FAILED":
-                item_status.setForeground(Qt.red)
-            else:
-                item_status.setForeground(Qt.yellow)
-                pending += 1
-            self.table_queue.setItem(row, 3, item_status)
-            self.table_queue.setItem(row, 4, QTableWidgetItem(str(j.get("created_at", ""))))
-
-        self.lbl_queue_stats.setText(f"Đang chờ / Đang in: {pending} • Đã in hoàn tất: {completed}")
-
-    def _clear_completed_jobs(self):
-        if self.auth_mgr and not self.auth_mgr.is_authenticated():
-            if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Quản Lý Hàng Đợi"):
-                return
-        self.print_mgr.clear_completed_jobs()
-        self._refresh_queue()
+            QMessageBox.warning(
+                self, "Lỗi In",
+                f"Không thể gửi lệnh in tới '{active_p}'. Vui lòng kiểm tra cáp kết nối và nguồn điện máy in."
+            )

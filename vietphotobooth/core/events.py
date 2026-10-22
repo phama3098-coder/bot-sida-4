@@ -115,6 +115,29 @@ class EventManager:
             logger.error(f"Lỗi khi đổi tên sự kiện: {e}")
             return False
 
+    def delete_event(self, event_name: str) -> bool:
+        """Xóa an toàn một sự kiện và toàn bộ thư mục ảnh liên quan."""
+        event_dir = self.get_event_path(event_name)
+        if not os.path.exists(event_dir):
+            logger.warning(f"Sự kiện {event_name} không tồn tại để xóa.")
+            return False
+
+        try:
+            shutil.rmtree(event_dir, ignore_errors=True)
+            logger.info(f"Đã xóa an toàn sự kiện: {event_name}")
+
+            # Nếu sự kiện vừa xóa đang là active event, chuyển sang sự kiện mặc định hoặc sự kiện còn lại
+            if self.current_event == event_name:
+                remaining = [e for e in self.list_events() if e["name"] != event_name]
+                if remaining:
+                    self.set_active_event(remaining[0]["name"])
+                else:
+                    self.set_active_event("SuKien_MacDinh")
+            return True
+        except Exception as e:
+            logger.error(f"Lỗi khi xóa sự kiện {event_name}: {e}")
+            return False
+
     def get_event_stats(self, event_name: str) -> Dict[str, Any]:
         """Lấy thông số chi tiết của sự kiện."""
         event_dir = self.get_event_path(event_name)

@@ -287,11 +287,11 @@ class SettingsPage(QWidget):
         r_up1 = QHBoxLayout()
         r_up1.addWidget(QLabel("Địa chỉ Manifest Cập Nhật (URL / Đường Dẫn):"))
         self.txt_manifest_url = QLineEdit()
-        self.txt_manifest_url.setPlaceholderText("https://raw.githubusercontent.com/.../update_manifest.json hoặc đường dẫn tệp local")
+        self.txt_manifest_url.setPlaceholderText("https://api.github.com/repos/phama3098-coder/bot-sida-4/releases/latest")
         r_up1.addWidget(self.txt_manifest_url, 1)
         l_sys.addLayout(r_up1)
 
-        lbl_up_hint = QLabel("💡 <i>Để trống nếu chưa có máy chủ phát hành. Không sử dụng các URL mẫu như example.com.</i>")
+        lbl_up_hint = QLabel("💡 <i>Nguồn cập nhật mặc định: GitHub Release chính thức (phama3098-coder/bot-sida-4). Hỗ trợ GitHub Releases API hoặc file JSON manifest.</i>")
         lbl_up_hint.setStyleSheet("color: #64748B; font-size: 11px;")
         l_sys.addWidget(lbl_up_hint)
 

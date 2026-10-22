@@ -136,16 +136,20 @@ class UpdateNotificationDialog(QDialog):
         meta_layout = QHBoxLayout()
         if self.manifest.release_date:
             lbl_date = QLabel(f"📅 Ngày phát hành: <b>{self.manifest.release_date}</b>")
-            lbl_date.setStyleSheet("color: #CBD5E1; font-size: 12px;")
-            meta_layout.addWidget(lbl_date)
+        else:
+            lbl_date = QLabel("📅 Ngày phát hành: <b>Chưa xác định</b>")
+        lbl_date.setStyleSheet("color: #CBD5E1; font-size: 12px;")
+        meta_layout.addWidget(lbl_date)
+
+        meta_layout.addStretch()
+
         if self.manifest.file_size_bytes > 0:
             size_mb = self.manifest.file_size_bytes / (1024 * 1024)
             lbl_size = QLabel(f"📦 Dung lượng gói cài: <b>{size_mb:.1f} MB</b>")
-            lbl_size.setStyleSheet("color: #CBD5E1; font-size: 12px;")
-            meta_layout.addStretch()
-            meta_layout.addWidget(lbl_size)
         else:
-            meta_layout.addStretch()
+            lbl_size = QLabel("📦 Dung lượng gói cài: <b>Chưa xác định</b>")
+        lbl_size.setStyleSheet("color: #CBD5E1; font-size: 12px;")
+        meta_layout.addWidget(lbl_size)
         layout.addLayout(meta_layout)
 
         # Khu vực nội dung thay đổi (Release Notes)
@@ -218,7 +222,11 @@ class UpdateProgressDialog(QDialog):
         self.progress_bar.setValue(0)
         layout.addWidget(self.progress_bar)
 
-        self.lbl_details = QLabel("0 MB / 0 MB (0%)")
+        if self.manifest.file_size_bytes > 0:
+            tot_mb = self.manifest.file_size_bytes / (1024 * 1024)
+            self.lbl_details = QLabel(f"0.0 MB / {tot_mb:.1f} MB (0%)")
+        else:
+            self.lbl_details = QLabel("Đang kết nối đến máy chủ...")
         self.lbl_details.setStyleSheet("color: #94A3B8; font-size: 12px;")
         layout.addWidget(self.lbl_details)
 
@@ -230,6 +238,12 @@ class UpdateProgressDialog(QDialog):
 
         btn_bar = QHBoxLayout()
         btn_bar.addStretch()
+
+        self.btn_retry = QPushButton("🔄 Thử Lại")
+        self.btn_retry.setObjectName("btn_secondary")
+        self.btn_retry.setVisible(False)
+        self.btn_retry.clicked.connect(self._retry_download)
+        btn_bar.addWidget(self.btn_retry)
 
         self.btn_action = QPushButton("Hủy Tải")
         self.btn_action.setObjectName("btn_secondary")
@@ -243,27 +257,48 @@ class UpdateProgressDialog(QDialog):
         self.update_mgr.download_completed.connect(self._on_finished)
 
     def _on_progress(self, percent: int, downloaded: int, total: int):
-        self.progress_bar.setValue(percent)
         dl_mb = downloaded / (1024 * 1024)
-        tot_mb = total / (1024 * 1024)
-        self.lbl_status.setText(f"Đang tải bản cập nhật: {percent}%...")
-        self.lbl_details.setText(f"{dl_mb:.1f} MB / {tot_mb:.1f} MB ({percent}%)")
+        if percent == -1 or total <= 0:
+            self.progress_bar.setRange(0, 0)  # Hiệu ứng chuyển động không rõ kích thước
+            self.lbl_status.setText("Đang tải bản cập nhật...")
+            self.lbl_details.setText(f"Đã tải: {dl_mb:.1f} MB (Đang tải...)")
+        else:
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(percent)
+            tot_mb = total / (1024 * 1024)
+            self.lbl_status.setText(f"Đang tải bản cập nhật: {percent}%...")
+            self.lbl_details.setText(f"{dl_mb:.1f} MB / {tot_mb:.1f} MB ({percent}%)")
 
     def _on_finished(self, success: bool, installer_path: str, err_msg: str):
         if success:
             self.installer_path = installer_path
+            self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(100)
             self.lbl_status.setText("✅ Đã tải và xác thực SHA-256 an toàn!")
             self.lbl_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 14px;")
             self.lbl_details.setText("Gói cài đặt sẵn sàng. Dữ liệu ảnh và cấu hình sẽ được giữ nguyên.")
+            self.btn_retry.setVisible(False)
             self.btn_action.setText("🚀 Cài Đặt Ngay")
             self.btn_action.setObjectName("btn_primary")
             self.btn_action.setStyle(self.btn_action.style())  # Refresh stylesheet
         else:
+            self.progress_bar.setRange(0, 100)
             self.lbl_status.setText("❌ Tải bản cập nhật thất bại")
             self.lbl_status.setStyleSheet("color: #EF4444; font-weight: bold; font-size: 14px;")
             self.lbl_details.setText(err_msg or "Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.")
+            self.btn_retry.setVisible(True)
             self.btn_action.setText("Đóng")
+
+    def _retry_download(self):
+        """Khởi động lại tiến trình tải xuống."""
+        self.btn_retry.setVisible(False)
+        self.lbl_status.setText(f"Đang thử lại tải phiên bản v{self.manifest.version}...")
+        self.lbl_status.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
+        self.lbl_details.setText("Đang kết nối lại đến máy chủ...")
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.btn_action.setText("Hủy Tải")
+        self.update_mgr.start_download(self.manifest)
 
     def reject(self):
         if not self.installer_path and self.update_mgr:

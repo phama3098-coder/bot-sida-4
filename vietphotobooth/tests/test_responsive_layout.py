@@ -41,15 +41,15 @@ def test_main_window_responsive_resolutions():
         assert brand_w <= 260
         assert brand_w < (width * 0.4)
 
-        # Kiểm tra nhãn tab co giãn phù hợp
+        # Kiểm tra nhãn tab co giãn phù hợp (đã chuyển sang dùng SVG icon, nhãn thuần chữ)
         if width < 1000:
-            assert window.tabs.tabText(0) == "📸 Chụp"
-            assert window.tabs.tabText(1) == "🖼️ Khung"
-            assert window.tabs.tabText(5) == "⚙️ Cài Đặt"
+            assert window.tabs.tabText(0) == "Chụp"
+            assert window.tabs.tabText(1) == "Khung"
+            assert window.tabs.tabText(5) == "Cài Đặt"
         else:
-            assert window.tabs.tabText(0) == "📸 Chụp Ảnh"
-            assert window.tabs.tabText(1) == "🖼️ Khung Ảnh"
-            assert window.tabs.tabText(5) == "⚙️ Cài Đặt"
+            assert window.tabs.tabText(0) == "Chụp Ảnh"
+            assert window.tabs.tabText(1) == "Khung Ảnh"
+            assert window.tabs.tabText(5) == "Cài Đặt"
 
         # Kiểm tra minSizeHint của từng tab không vượt quá giới hạn cửa sổ
         for i in range(window.tabs.count()):

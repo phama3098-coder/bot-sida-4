@@ -14,10 +14,7 @@ from vietphotobooth.desktop.widgets.guest_review_dialog import GuestReviewDialog
 from vietphotobooth.frames.frame_manager import FrameManager
 from vietphotobooth.core.config import ConfigManager
 
-# Khởi tạo QApplication cho pytest nếu chưa có
-app = QApplication.instance()
-if not app:
-    app = QApplication(sys.argv)
+# Sử dụng fixture qapp từ conftest.py
 
 
 @pytest.fixture
@@ -61,6 +58,7 @@ def test_guest_review_dialog_init(sample_photos, frame_manager):
         assert orig_template.slots[0].x != dlg.current_template.slots[0].x
 
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_slot_photo_swap(sample_photos, frame_manager):
@@ -79,6 +77,7 @@ def test_guest_review_slot_photo_swap(sample_photos, frame_manager):
 
     assert dlg.current_template.slots[0].photo_index == 3
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_slot_zoom_and_crop(sample_photos, frame_manager):
@@ -107,6 +106,7 @@ def test_guest_review_slot_zoom_and_crop(sample_photos, frame_manager):
     assert slot.zoom == 1.0
 
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_text_editing(sample_photos, frame_manager):
@@ -135,6 +135,7 @@ def test_guest_review_text_editing(sample_photos, frame_manager):
     assert len(dlg.current_template.text_layers) == init_text_count
 
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_sticker_adding_and_removing(sample_photos, frame_manager):
@@ -165,6 +166,7 @@ def test_guest_review_sticker_adding_and_removing(sample_photos, frame_manager):
         assert len(dlg.current_template.logo_layers) == init_sticker_count
 
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_undo(sample_photos, frame_manager):
@@ -187,6 +189,7 @@ def test_guest_review_undo(sample_photos, frame_manager):
     assert dlg.current_template.slots[0].photo_index == init_slots_photo[0]
 
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_confirm_and_render_parity(sample_photos, frame_manager):
@@ -205,6 +208,7 @@ def test_guest_review_confirm_and_render_parity(sample_photos, frame_manager):
     assert dlg.final_composite.info.get("dpi") == (300, 300)
 
     dlg.close()
+    dlg.deleteLater()
 
 
 def test_guest_review_retake_flow(sample_photos, frame_manager):
@@ -221,3 +225,4 @@ def test_guest_review_retake_flow(sample_photos, frame_manager):
     assert dlg.is_retake is True
     assert dlg.final_composite is None
     dlg.close()
+    dlg.deleteLater()

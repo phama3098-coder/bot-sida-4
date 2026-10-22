@@ -62,13 +62,68 @@ class PrintJob:
         }
 
 class PrintManager:
-    def __init__(self, default_printer: str = ""):
+    def __init__(self, default_printer: str = "", config_mgr=None):
+        self.config_mgr = config_mgr
         self.selected_printer = default_printer or WindowsPrintSpooler.get_default_printer()
+        self.strip_printer_name = ""
+        self.full_printer_name = ""
+        self.offset_x = 0
+        self.offset_y = 0
+        self.zoom = 1.0
+        self.orientation = "portrait"
+        self.paper_count = 120
+        self.paper_max = 400
+        self.paper_warning_threshold = 50
+
+        if self.config_mgr:
+            self.load_settings()
+
         self.jobs: List[PrintJob] = []
         self._lock = threading.Lock()
         self._running = True
         self._worker_thread = threading.Thread(target=self._process_queue_loop, daemon=True)
         self._worker_thread.start()
+
+    def load_settings(self) -> None:
+        """Đọc toàn bộ cấu hình máy in, căn lề và bộ đếm giấy từ ConfigManager."""
+        if not self.config_mgr:
+            return
+        self.strip_printer_name = str(self.config_mgr.get("printer.strip_printer_name", "")).strip()
+        self.full_printer_name = str(self.config_mgr.get("printer.full_printer_name", "")).strip()
+        self.offset_x = int(self.config_mgr.get("printer.offset_x", 0))
+        self.offset_y = int(self.config_mgr.get("printer.offset_y", 0))
+        self.zoom = float(self.config_mgr.get("printer.zoom", 1.0))
+        self.orientation = str(self.config_mgr.get("printer.orientation", "portrait"))
+        self.paper_count = int(self.config_mgr.get("printer.paper_count", 120))
+        self.paper_max = int(self.config_mgr.get("printer.paper_max", 400))
+        self.paper_warning_threshold = int(self.config_mgr.get("printer.paper_warning_threshold", 50))
+        sp = self.config_mgr.get("printer_name", "")
+        if sp:
+            self.selected_printer = sp
+
+    def save_settings(self) -> None:
+        """Lưu toàn bộ cài đặt máy in, căn chỉnh lề và bộ đếm giấy vào ConfigManager."""
+        if not self.config_mgr:
+            return
+        self.config_mgr.set("printer.strip_printer_name", self.strip_printer_name)
+        self.config_mgr.set("printer.full_printer_name", self.full_printer_name)
+        self.config_mgr.set("printer.offset_x", self.offset_x)
+        self.config_mgr.set("printer.offset_y", self.offset_y)
+        self.config_mgr.set("printer.zoom", self.zoom)
+        self.config_mgr.set("printer.orientation", self.orientation)
+        self.config_mgr.set("printer.paper_count", self.paper_count)
+        self.config_mgr.set("printer.paper_max", self.paper_max)
+        self.config_mgr.set("printer.paper_warning_threshold", self.paper_warning_threshold)
+        if self.selected_printer:
+            self.config_mgr.set("printer_name", self.selected_printer)
+        self.config_mgr.save()
+
+    def refill_paper(self, amount: int) -> int:
+        """Nạp thêm giấy in vào khay."""
+        self.paper_count = max(0, min(self.paper_max, self.paper_count + amount))
+        self.save_settings()
+        logger.info(f"Đã nạp thêm {amount} tờ giấy. Hiện có: {self.paper_count}/{self.paper_max} tờ.")
+        return self.paper_count
 
     def stop(self) -> None:
         """Dừng tiến trình nền in ấn một cách an toàn."""
@@ -96,19 +151,26 @@ class PrintManager:
         paper_size: str = "4x6",
         event_name: str = ""
     ) -> PrintJob:
-        """Thêm một lệnh in mới vào hàng đợi."""
+        """Thêm một lệnh in mới vào hàng đợi, tự động định tuyến máy in strip hoặc full."""
         job_id = f"JOB-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+
+        target_printer = self.get_selected_printer()
+        if "2x6" in paper_size and self.strip_printer_name:
+            target_printer = self.strip_printer_name
+        elif "4x6" in paper_size and self.full_printer_name:
+            target_printer = self.full_printer_name
+
         job = PrintJob(
             job_id=job_id,
             image_path=image_path,
-            printer_name=self.get_selected_printer(),
+            printer_name=target_printer,
             copies=max(1, copies),
             paper_size=paper_size,
             event_name=event_name
         )
         with self._lock:
             self.jobs.append(job)
-        logger.info(f"Đã thêm lệnh in {job_id} vào hàng đợi ({copies} bản, máy in: '{job.printer_name}')")
+        logger.info(f"Đã thêm lệnh in {job_id} vào hàng đợi ({copies} bản, khổ: {paper_size}, máy in: '{job.printer_name}')")
         return job
 
     def cancel_job(self, job_id: str) -> bool:
@@ -175,21 +237,30 @@ class PrintManager:
             logger.error(job.error_message)
             return
 
-        # 3. Gửi lệnh in vào Windows Spooler
+        # 3. Gửi lệnh in vào Windows Spooler với đầy đủ căn chỉnh lề, zoom và hướng giấy
         res = WindowsPrintSpooler.send_image_to_printer(
             printer_name=job.printer_name,
             image_path=job.image_path,
             copies=job.copies,
-            job_title=f"VietPhotoBooth [{job.job_id}]"
+            job_title=f"1998 TEAM Photobooth [{job.job_id}]",
+            offset_x=self.offset_x,
+            offset_y=self.offset_y,
+            zoom=self.zoom,
+            orientation=self.orientation
         )
 
         if res.get("success"):
             job.status = STATUS_SPOOLED
-            # Chờ ngắn để Spooler hoàn thành
+            # Cập nhật trừ giấy in thực tế
+            self.paper_count = max(0, self.paper_count - job.copies)
+            self.save_settings()
+            if self.paper_count <= self.paper_warning_threshold:
+                logger.warning(f"CẢNH BÁO: Giấy in sắp hết! Còn lại {self.paper_count}/{self.paper_max} tờ.")
+
             time.sleep(1.0)
             job.status = STATUS_COMPLETED
             job.completed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            logger.info(f"Lệnh in {job.job_id} hoàn thành thành công.")
+            logger.info(f"Lệnh in {job.job_id} hoàn thành thành công. Giấy còn lại: {self.paper_count} tờ.")
         else:
             job.status = STATUS_ERROR
             job.error_message = res.get("error", "Lỗi không xác định khi gửi tới Spooler.")

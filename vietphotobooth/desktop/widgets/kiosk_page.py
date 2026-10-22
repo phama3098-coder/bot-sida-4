@@ -25,7 +25,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QComboBox,
     QFrame, QSizePolicy, QDialog, QSpinBox, QMessageBox,
-    QCheckBox, QTabWidget, QLineEdit
+    QCheckBox, QTabWidget, QLineEdit, QStackedWidget
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QSize, QThread
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QIntValidator
@@ -165,22 +165,32 @@ class CameraLiveViewWorker(QThread):
         self.camera_mgr = camera_mgr
         self._running = True
         self._paused = False
+        self._first_frame_logged = False
+        self._last_error_log_time = 0.0
 
     def run(self):
+        logger.info("CameraLiveViewWorker bắt đầu hoạt động.")
         while self._running:
-            if self._paused or not self.camera_mgr.is_connected() or self.camera_mgr.current_backend_name == "simulator":
+            if self._paused or not self.camera_mgr.is_connected():
                 time.sleep(0.08)
                 continue
 
             try:
                 # Đọc trực tiếp RGB bỏ qua chu trình nén/giải nén JPEG (~8x nhanh hơn)
                 frame_rgb = self.camera_mgr.get_liveview_rgb()
-                if frame_rgb is not None:
+                if frame_rgb is not None and frame_rgb.size > 0:
+                    if not self._first_frame_logged:
+                        logger.info(f"CameraLiveViewWorker nhận khung hình đầu tiên ({frame_rgb.shape[1]}x{frame_rgb.shape[0]}).")
+                        self._first_frame_logged = True
                     self.frame_ready.emit(frame_rgb)
             except Exception as e:
-                logger.debug(f"Liveview worker capture error: {e}")
+                now = time.time()
+                if now - self._last_error_log_time > 5.0:
+                    logger.debug(f"Liveview worker capture error: {e}")
+                    self._last_error_log_time = now
 
             time.sleep(0.033)  # ~30 FPS
+        logger.info("CameraLiveViewWorker đã dừng.")
 
     def pause(self):
         self._paused = True
@@ -190,7 +200,7 @@ class CameraLiveViewWorker(QThread):
 
     def stop(self):
         self._running = False
-        self.wait(600)
+        self.wait(1000)
 
 
 class CompositeWorker(QThread):
@@ -439,8 +449,19 @@ class KioskPage(QWidget):
 
     def _init_ui(self):
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(14, 10, 14, 12)
-        self.main_layout.setSpacing(10)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+
+        # Bộ chuyển đổi trang nội bộ (QStackedWidget):
+        # Index 0: Giao diện chụp ảnh Kiosk (Live View, nút chụp, chọn filter)
+        # Index 1: Giao diện hoàn thiện ảnh & chọn khung (GuestReviewWidget)
+        self.kiosk_stack = QStackedWidget(self)
+        self.main_layout.addWidget(self.kiosk_stack)
+
+        self.capture_container = QWidget()
+        self.capture_layout = QVBoxLayout(self.capture_container)
+        self.capture_layout.setContentsMargins(14, 10, 14, 12)
+        self.capture_layout.setSpacing(10)
 
         # =============================================================
         # 1. KHU VỰC CHÍNH (LIVE VIEW MỞ RỘNG & TRẠNG THÁI CAMERA)
@@ -534,6 +555,37 @@ class KioskPage(QWidget):
 
         self.panel_disconnected.show()
 
+        # Panel cảnh báo không có luồng hình ảnh Live View (khi camera báo kết nối nhưng không đọc được frame)
+        self.panel_no_feed = QWidget(self.lbl_viewport)
+        l_no_feed = QVBoxLayout(self.panel_no_feed)
+        l_no_feed.setAlignment(Qt.AlignCenter)
+        l_no_feed.setSpacing(10)
+
+        icon_warning = QLabel("⚠️")
+        icon_warning.setAlignment(Qt.AlignCenter)
+        icon_warning.setStyleSheet("font-size: 48px; background: transparent; border: none;")
+        l_no_feed.addWidget(icon_warning)
+
+        self.lbl_no_feed_title = QLabel("CHƯA CÓ TÍN HIỆU LIVE VIEW")
+        self.lbl_no_feed_title.setAlignment(Qt.AlignCenter)
+        self.lbl_no_feed_title.setStyleSheet("color: #FBBF24; font-size: 18px; font-weight: 900; background: transparent; border: none;")
+        l_no_feed.addWidget(self.lbl_no_feed_title)
+
+        self.lbl_no_feed_desc = QLabel(
+            "• Nếu dùng Nikon D780: Hãy gạt cần mở Live View trên máy ảnh, hoặc chọn nguồn 'Nikon Webcam Utility' trong tab Máy Ảnh.\n"
+            "• Nếu dùng DIGICAM: digiCamControl chưa phát luồng Live View qua cổng 5513."
+        )
+        self.lbl_no_feed_desc.setAlignment(Qt.AlignCenter)
+        self.lbl_no_feed_desc.setWordWrap(True)
+        self.lbl_no_feed_desc.setStyleSheet(
+            "color: #E2E8F0; font-size: 13px; background: rgba(15, 23, 42, 0.90); "
+            "padding: 12px 20px; border-radius: 8px; border: 1px solid #334155; line-height: 1.4;"
+        )
+        l_no_feed.addWidget(self.lbl_no_feed_desc)
+
+        self.panel_no_feed.hide()
+        self._last_live_frame_time = 0.0
+
         # Overlay đếm ngược to ở giữa
         self.lbl_countdown = QLabel("", self.lbl_viewport)
         self.lbl_countdown.setAlignment(Qt.AlignCenter)
@@ -608,7 +660,7 @@ class KioskPage(QWidget):
         l_cam.addStretch()
         self.top_row_layout.addWidget(self.card_camera)
 
-        self.main_layout.addLayout(self.top_row_layout, 6)
+        self.capture_layout.addLayout(self.top_row_layout, 6)
 
         # =============================================================
         # 2. HÀNG ĐIỀU KHIỂN PHÍA DƯỚI (4 THẺ: SỐ ẢNH, ĐẾM NGƯỢC, KHUNG, BỘ LỌC)
@@ -844,7 +896,7 @@ class KioskPage(QWidget):
         l_fil.addStretch()
         self.ctrl_row_layout.addWidget(self.card_filters)
 
-        self.main_layout.addLayout(self.ctrl_row_layout, 3)
+        self.capture_layout.addLayout(self.ctrl_row_layout, 3)
 
         # =============================================================
         # 3. ĐÁY MÀN HÌNH: TÙY CHỌN, NÚT BẮT ĐẦU CHỤP VÀNG KHỔNG LỒ & TOÀN MÀN HÌNH
@@ -946,7 +998,28 @@ class KioskPage(QWidget):
         self.btn_fullscreen.clicked.connect(lambda: self.request_fullscreen.emit())
         self.bottom_bar_layout.addWidget(self.btn_fullscreen)
 
-        self.main_layout.addLayout(self.bottom_bar_layout)
+        self.capture_layout.addLayout(self.bottom_bar_layout)
+
+        # Import và tích hợp GuestReviewWidget làm trang hoàn thiện nội bộ (In-window Review)
+        from vietphotobooth.desktop.widgets.guest_review_dialog import GuestReviewWidget
+        self.review_widget = GuestReviewWidget(
+            photos=[],
+            frame_mgr=self.frame_mgr,
+            initial_frame_id=self.selected_frame_id,
+            event_name=self.event_mgr.get_active_event_name(),
+            session_id=self.current_session_id or "Session_001",
+            print_mgr=self.print_mgr,
+            parent=self
+        )
+        self.review_widget.retake_requested.connect(self._on_review_retake)
+        self.review_widget.finish_requested.connect(self._on_review_finish)
+        self.review_widget.photo_saved.connect(self._on_review_photo_saved)
+        self.review_widget.print_completed.connect(self._on_review_print_completed)
+        self.review_widget.frame_changed.connect(self._on_review_frame_changed)
+
+        self.kiosk_stack.addWidget(self.capture_container)  # Index 0: Giao diện chụp ảnh Kiosk
+        self.kiosk_stack.addWidget(self.review_widget)      # Index 1: Hoàn thiện ảnh & chọn khung
+        self.kiosk_stack.setCurrentIndex(0)
 
         # Cập nhật style ban đầu cho các nút chọn
         self._update_countdown_buttons_style()
@@ -1164,8 +1237,23 @@ class KioskPage(QWidget):
             self._render_and_display_composite()
 
     # -------------------------------------------------------------
-    # LIVE VIEW & MÁY ẢNH (ASYNC THREADED 30+ FPS)
+    # VÒNG ĐỜI GIAO DIỆN & LIVE VIEW (ASYNC THREADED 30 FPS)
     # -------------------------------------------------------------
+    def showEvent(self, event):
+        super().showEvent(event)
+        if hasattr(self, 'live_view_worker'):
+            self.live_view_worker.resume()
+        if hasattr(self, 'camera_poll_timer') and not self.camera_poll_timer.isActive():
+            self.camera_poll_timer.start(1500)
+        self._update_camera_status_ui()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if hasattr(self, 'live_view_worker'):
+            self.live_view_worker.pause()
+        if hasattr(self, 'camera_poll_timer') and self.camera_poll_timer.isActive():
+            self.camera_poll_timer.stop()
+
     def start_live_view(self):
         self._live_view_active = True
         if hasattr(self, 'live_view_worker'):
@@ -1173,24 +1261,65 @@ class KioskPage(QWidget):
                 self.live_view_worker = CameraLiveViewWorker(self.camera_mgr, self)
                 self.live_view_worker.frame_ready.connect(self._on_live_view_frame)
                 self.live_view_worker.start()
-            else:
-                self.live_view_worker.resume()
+            self.live_view_worker.resume()
         self._update_camera_status_ui()
 
     def stop_live_view(self):
         self._live_view_active = False
-        if hasattr(self, 'live_view_worker') and self.live_view_worker.isRunning():
-            self.live_view_worker.stop()
+        if hasattr(self, 'live_view_worker'):
+            self.live_view_worker.pause()
 
     def _periodic_camera_check(self):
         if self.current_state in ("IDLE", "COUNTDOWN"):
             self._update_camera_status_ui()
+            self._check_feed_timeout()
+
+    def _check_feed_timeout(self):
+        """Kiểm tra nếu camera kết nối nhưng không phát ra frame nào trong > 2.5s (tránh màn hình đen)."""
+        is_conn = self.camera_mgr.is_connected()
+        backend = self.camera_mgr.current_backend_name
+        if not is_conn or backend == "simulator" or self.current_state not in ("IDLE", "COUNTDOWN"):
+            if hasattr(self, "panel_no_feed") and self.panel_no_feed.isVisible():
+                self.panel_no_feed.hide()
+            return
+
+        elapsed = time.time() - getattr(self, "_last_live_frame_time", 0.0)
+        if elapsed > 2.5:
+            info = self.camera_mgr.get_info()
+            dev_name = info.get("device_name", backend.upper())
+            err = self.camera_mgr.get_last_error()
+
+            if backend in ("digicam", "dslr"):
+                self.lbl_no_feed_title.setText("CHƯA CÓ LUỒNG LIVE VIEW TỪ DIGICAM")
+                self.lbl_no_feed_desc.setText(
+                    "digiCamControl chưa phát luồng Live View (cổng HTTP 5513).\n\n"
+                    "• ĐỂ XEM TRỰC TIẾP TỪ NIKON D780: Vào tab 'Máy Ảnh' và chọn nguồn DirectShow 'Nikon Webcam Utility'.\n"
+                    "• HOẶC: Mở cửa sổ digiCamControl và bấm nút 'Live View'."
+                )
+            else:
+                self.lbl_no_feed_title.setText(f"CHƯA CÓ TÍN HIỆU TỪ {dev_name.upper()}")
+                hint = err if err else "Không nhận được khung hình dữ liệu nào."
+                self.lbl_no_feed_desc.setText(
+                    f"{hint}\n\n"
+                    "• Nếu dùng Nikon D780: Gạt cần bật Live View (Lv) trên máy ảnh hoặc kiểm tra cáp USB.\n"
+                    "• Tắt các ứng dụng khác (Discord, OBS, Zoom) nếu đang chiếm quyền webcam."
+                )
+
+            if hasattr(self, "panel_no_feed"):
+                self.panel_no_feed.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
+                self.panel_no_feed.show()
 
     def _on_live_view_frame(self, frame_rgb: np.ndarray):
         if not getattr(self, "_live_view_active", True) or self.current_state not in ("IDLE", "COUNTDOWN", "CAPTURING"):
             return
+        if not self.camera_mgr.is_connected():
+            return
 
-        if self.panel_disconnected.isVisible():
+        self._last_live_frame_time = time.time()
+        if hasattr(self, "panel_no_feed"):
+            self.panel_no_feed.hide()
+
+        if hasattr(self, "panel_disconnected"):
             self.panel_disconnected.hide()
 
         h, w, ch = frame_rgb.shape
@@ -1216,9 +1345,17 @@ class KioskPage(QWidget):
             self.lbl_status_badge.setGeometry((lbl_w - badge_w) // 2, lbl_h - 75, badge_w, 48)
 
     def _reconnect_camera(self):
-        """Thử dò quét và kết nối lại máy ảnh thực tế."""
+        """Thử dò quét và kết nối lại máy ảnh thực tế, ưu tiên Nikon Webcam Utility nếu có."""
         self.lbl_cam_status_text.setText("Đang kết nối lại...")
-        connected = self.camera_mgr.switch_backend("directshow", 0)
+        from vietphotobooth.camera.enumerator import enumerate_directshow_devices
+        devs = enumerate_directshow_devices()
+        nikon_dev = next((d for d in devs if "nikon" in d["name"].lower()), None)
+
+        connected = False
+        if nikon_dev:
+            connected = self.camera_mgr.switch_backend("directshow", nikon_dev["index"], nikon_dev["name"])
+        if not connected and devs:
+            connected = self.camera_mgr.switch_backend("directshow", devs[0]["index"], devs[0]["name"])
         if not connected:
             connected = self.camera_mgr.switch_backend("digicam")
         if not connected:
@@ -1226,15 +1363,20 @@ class KioskPage(QWidget):
 
         self._update_camera_status_ui()
         if self.camera_mgr.is_connected() and self.camera_mgr.current_backend_name != "simulator":
-            QMessageBox.information(self, "Máy Ảnh", "Đã kết nối thành công với máy ảnh!")
+            info = self.camera_mgr.get_info()
+            dev_name = info.get("device_name", "")
+            QMessageBox.information(self, "Máy Ảnh", f"Đã kết nối thành công với: {dev_name}!")
         else:
             QMessageBox.warning(self, "Máy Ảnh", "Chưa phát hiện máy ảnh USB. Đang giữ ở chế độ chờ kết nối.")
 
     def _update_camera_status_ui(self):
         is_conn = self.camera_mgr.is_connected()
         backend = self.camera_mgr.current_backend_name
+        info = self.camera_mgr.get_info()
+        dev_name = info.get("device_name", backend.upper())
+        w, h = info.get("actual_resolution", (0, 0))
 
-        if not is_conn or (backend == "simulator" and not getattr(self, "_allow_simulator_preview", False)):
+        if not is_conn:
             self.lbl_cam_dot.setText("🔴")
             self.lbl_cam_status_text.setText("Chưa kết nối máy ảnh")
             self.lbl_cam_status_text.setStyleSheet("color: #F87171; font-size: 14px; font-weight: 700; border: none; background: transparent;")
@@ -1242,21 +1384,32 @@ class KioskPage(QWidget):
             self.lbl_live_badge.setStyleSheet(
                 "background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #EF4444;"
             )
-            self.lbl_live_res.setText("LIVE VIEW (Demo) 1920 × 1080")
+            self.lbl_live_res.setText("LIVE VIEW (Chờ kết nối)")
             self.lbl_cam_note.setText("Hãy kết nối máy ảnh và chọn thiết bị trong mục Máy ảnh để bắt đầu chụp.")
-            if not self.panel_disconnected.isVisible():
-                self.panel_disconnected.show()
-                self.lbl_viewport.setPixmap(QPixmap())
+            self.panel_disconnected.show()
+            self.lbl_viewport.setPixmap(QPixmap())
             self.panel_disconnected.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
+        elif backend == "simulator":
+            self.lbl_cam_dot.setText("🟡")
+            self.lbl_cam_status_text.setText("Mô phỏng (Simulator)")
+            self.lbl_cam_status_text.setStyleSheet("color: #FBBF24; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+            self.lbl_live_badge.setText("🟡 CHẾ ĐỘ MÔ PHỎNG (SIMULATOR)")
+            self.lbl_live_badge.setStyleSheet(
+                "background-color: #D97706; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #F59E0B;"
+            )
+            self.lbl_live_res.setText("SIMULATOR 1920 × 1080 (30 FPS)")
+            self.lbl_cam_note.setText("Đang ở chế độ mô phỏng studio. Kết nối máy ảnh thật trong tab 'Máy Ảnh' khi chụp thực tế.")
+            if self.panel_disconnected.isVisible():
+                self.panel_disconnected.hide()
         else:
             self.lbl_cam_dot.setText("🟢")
-            self.lbl_cam_status_text.setText(f"Đã kết nối ({backend.upper()})")
+            self.lbl_cam_status_text.setText(f"Đã kết nối: {dev_name}")
             self.lbl_cam_status_text.setStyleSheet("color: #34D399; font-size: 14px; font-weight: 700; border: none; background: transparent;")
-            self.lbl_live_badge.setText(f"📷 ĐÃ KẾT NỐI MÁY ẢNH ({backend.upper()})")
+            self.lbl_live_badge.setText(f"📷 ĐÃ KẾT NỐI: {dev_name.upper()}")
             self.lbl_live_badge.setStyleSheet(
                 "background-color: #16A34A; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #22C55E;"
             )
-            res_text = "LIVE VIEW 1920 × 1080" if backend != "digicam" else "LIVE VIEW 6000 × 4000"
+            res_text = f"LIVE VIEW {w} × {h}" if (w > 0 and h > 0) else ("LIVE VIEW 1920 × 1080" if backend != "digicam" else "LIVE VIEW 6000 × 4000")
             self.lbl_live_res.setText(res_text)
             self.lbl_cam_note.setText("Máy ảnh đã sẵn sàng hoạt động. Nhấn 'Bắt đầu chụp' để ghi lại khoảnh khắc.")
             if self.panel_disconnected.isVisible():
@@ -1337,15 +1490,35 @@ class KioskPage(QWidget):
         target_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}.jpg")
 
         success, captured_img = self.camera_mgr.capture_photo(target_path)
+        valid_file = False
         if success and captured_img:
+            if not os.path.exists(target_path):
+                try:
+                    captured_img.save(target_path, "JPEG", quality=95)
+                except Exception as e:
+                    logger.warning(f"Lỗi lưu file ảnh chụp: {e}")
+
+            if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
+                try:
+                    # Xác thực tính toàn vẹn và giải mã file ảnh trên đĩa
+                    with Image.open(target_path) as im:
+                        im.verify()
+                    valid_file = True
+                except Exception as e:
+                    logger.error(f"Tệp ảnh chụp trên đĩa không hợp lệ: {e}")
+                    valid_file = False
+
+        if valid_file:
             self.captured_originals.append(captured_img)
             self.captured_paths.append(target_path)
+            logger.info(f"Đã xác thực và ghi nhận ảnh {self.current_shot_index}/{self.total_shots_needed} trên đĩa: {target_path}")
         else:
-            logger.warning("Không chụp được ảnh từ camera thật, tạo ảnh chụp dự phòng.")
-            fallback_img = Image.new("RGB", (1800, 1200), color=(14, 21, 39))
-            fallback_img.save(target_path)
-            self.captured_originals.append(fallback_img)
-            self.captured_paths.append(target_path)
+            logger.error("Không thể ghi nhận ảnh chụp hợp lệ từ thiết bị máy ảnh!")
+            self._abort_capture_due_to_disconnect(
+                "Mất kết nối máy ảnh hoặc thiết bị không trả về dữ liệu ảnh hợp lệ!\n\n"
+                "Vui lòng kiểm tra lại cáp kết nối USB, nguồn pin hoặc gạt lại cần Live View trên thân máy ảnh."
+            )
+            return
 
         if self.current_shot_index < self.total_shots_needed:
             self.current_shot_index += 1
@@ -1354,6 +1527,25 @@ class KioskPage(QWidget):
         else:
             self.lbl_status_badge.setText("✨ Đang tạo khung ảnh thành phẩm...")
             QTimer.singleShot(600, self._enter_review_state)
+
+    def _abort_capture_due_to_disconnect(self, err_msg: str):
+        """Hủy tiến trình chụp ảnh an toàn khi máy ảnh mất kết nối hoặc rút cáp USB."""
+        self.countdown_timer.stop()
+        self.current_state = "IDLE"
+        self.lbl_countdown.hide()
+        self.lbl_status_badge.hide()
+        self.btn_start.setEnabled(True)
+        self.btn_start.show()
+        self.btn_shots_minus.setEnabled(True)
+        self.txt_shots_input.setEnabled(True)
+        self.btn_shots_plus.setEnabled(True)
+        self.btn_cd_3.setEnabled(True)
+        self.btn_cd_5.setEnabled(True)
+        self.btn_cd_10.setEnabled(True)
+        self.captured_originals.clear()
+        self.captured_paths.clear()
+        self.start_live_view()
+        QMessageBox.warning(self, "Lỗi Kết Nối Máy Ảnh", err_msg)
 
     # -------------------------------------------------------------
     # MÀN HÌNH XEM KẾT QUẢ, IN & CHIA SẺ QR (REVIEW STATE)
@@ -1377,52 +1569,24 @@ class KioskPage(QWidget):
         self.btn_print.show()
         self.btn_finish.show()
 
-        active_event = self.event_mgr.get_active_event_name()
+        active_event = getattr(self, "current_event", None) or self.event_mgr.get_active_event_name()
         token_info = self.token_mgr.create_token(active_event, self.current_session_id)
         self.current_token = token_info.token
 
-        # Kiểm tra tùy chọn cho phép khách chọn khung & chỉnh sửa ảnh (Guest Review)
+        # TỰ ĐỘNG CHUYỂN NỘI DUNG SANG TRANG HOÀN THIỆN ẢNH NỘI BỘ (KHÔNG MỞ CỬA SỔ RIÊNG)
         enable_guest_review = self.config_mgr.get("kiosk.enable_guest_review", True)
         if enable_guest_review and self.captured_originals:
-            from vietphotobooth.desktop.widgets.guest_review_dialog import GuestReviewDialog
-            dlg = GuestReviewDialog(
+            self.review_widget.load_session(
                 photos=self.captured_originals,
                 frame_mgr=self.frame_mgr,
                 initial_frame_id=self.selected_frame_id,
                 event_name=active_event,
                 session_id=self.current_session_id or "Session_unknown",
-                parent=self
+                print_mgr=self.print_mgr
             )
-            res = dlg.exec()
-            if getattr(dlg, "is_retake", False):
-                self._reset_to_idle()
-                return
-            elif res == QDialog.Accepted and dlg.final_composite:
-                self.current_composite = dlg.final_composite
-                if dlg.current_template:
-                    self.selected_frame_id = dlg.current_template.id
-
-                # Lưu ảnh thành phẩm 300 DPI vào thư mục Final
-                dirs = self.event_mgr.get_event_dirs(active_event)
-                final_filename = f"{self.current_session_id}_final.jpg"
-                final_path = os.path.join(dirs["final"], final_filename)
-                self.current_composite.save(final_path, "JPEG", quality=95, dpi=(300, 300))
-                self.current_final_path = final_path
-
-                # Cập nhật số ảnh sự kiện tức thời
-                self._increment_event_photo_count()
-
-                # Đưa vào hàng đợi đồng bộ Google Drive nền nếu bật Auto Sync
-                if self.sync_mgr and self.config_mgr.get("cloud.auto_sync", True):
-                    self.sync_mgr.enqueue(final_path, active_event, is_final=True)
-                    logger.info(f"Tự động đưa ảnh {final_path} vào hàng đợi đồng bộ Google Drive.")
-
-                self._display_final_pixmap()
-
-                # Nếu chọn tự động in sau khi chụp
-                if self.chk_autoprint.isChecked():
-                    self._print_composite(direct=True)
-                return
+            self.kiosk_stack.setCurrentIndex(1)
+            logger.info("Đã tự động chuyển sang trang Hoàn Thiện Ảnh & Chọn Frame nội bộ.")
+            return
 
         self._render_and_display_composite()
 
@@ -1746,6 +1910,40 @@ class KioskPage(QWidget):
         self.btn_finish.hide()
 
         self.start_live_view()
+        if hasattr(self, "kiosk_stack"):
+            self.kiosk_stack.setCurrentIndex(0)
+
+    def _on_review_retake(self):
+        """Khách chọn Chụp Lại: quay về màn hình chụp và bắt đầu lượt mới."""
+        logger.info("Khách chọn Chụp Lại: quay về màn hình chụp.")
+        self._reset_to_idle()
+
+    def _on_review_finish(self):
+        """Khách bấm Hoàn Tất: quay về màn hình chụp chuẩn bị cho lượt mới."""
+        logger.info("Khách bấm Hoàn Tất: quay về màn hình chụp.")
+        self._reset_to_idle()
+
+    def _on_review_photo_saved(self, final_path: str):
+        """Xử lý sau khi lưu ảnh thành phẩm từ trang hoàn thiện."""
+        self.current_final_path = final_path
+        self._increment_event_photo_count()
+        if self.sync_mgr and self.config_mgr.get("cloud.auto_sync", True):
+            active_event = self.event_mgr.get_active_event_name()
+            self.sync_mgr.enqueue(final_path, active_event, is_final=True)
+            logger.info(f"Đã đưa ảnh {final_path} vào hàng đợi đồng bộ Google Drive.")
+
+    def _on_review_print_completed(self, final_path: str):
+        """Xử lý sau khi in ảnh thành công từ trang hoàn thiện."""
+        self.current_final_path = final_path
+        self._increment_event_photo_count()
+        if self.sync_mgr and self.config_mgr.get("cloud.auto_sync", True):
+            active_event = self.event_mgr.get_active_event_name()
+            self.sync_mgr.enqueue(final_path, active_event, is_final=True)
+            logger.info(f"Đã đưa ảnh in {final_path} vào hàng đợi đồng bộ Google Drive.")
+
+    def _on_review_frame_changed(self, frame_id: str):
+        """Đồng bộ template được chọn từ trang hoàn thiện."""
+        self.selected_frame_id = frame_id
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1804,12 +2002,16 @@ class KioskPage(QWidget):
         # Căn chỉnh lại panel thông báo chờ kết nối nếu đang hiển thị
         if hasattr(self, "panel_disconnected") and hasattr(self, "lbl_viewport") and self.panel_disconnected.isVisible():
             self.panel_disconnected.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
+        if hasattr(self, "panel_no_feed") and hasattr(self, "lbl_viewport") and self.panel_no_feed.isVisible():
+            self.panel_no_feed.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
 
         # Nếu đang ở chế độ xem kết quả ảnh, cập nhật tỷ lệ hiển thị
         if self.current_state == "REVIEW" and self.current_composite:
             self._display_final_pixmap()
 
     def closeEvent(self, event):
+        if hasattr(self, 'camera_poll_timer'):
+            self.camera_poll_timer.stop()
         if hasattr(self, 'live_view_worker') and self.live_view_worker.isRunning():
             self.live_view_worker.stop()
         super().closeEvent(event)

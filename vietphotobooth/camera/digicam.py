@@ -23,6 +23,7 @@ class DigiCamControlAdapter(CameraAdapter):
         self._camera_name = "Chưa kết nối"
         self._brand = "Không xác định"
         self._model = "Không xác định"
+        self.last_error: str = ""
 
     def detect_devices(self) -> List[Dict[str, Any]]:
         """Dò tìm máy ảnh kết nối qua digiCamControl API hoặc CLI."""
@@ -109,16 +110,20 @@ class DigiCamControlAdapter(CameraAdapter):
             name=f"{self._brand} DSLR ({self._camera_name})",
             brand=self._brand,
             model=self._model,
-            backend_name="digiCamControl Windows Adapter",
+            backend_name="digiCamControl Windows Adapter (Tethered Control)",
             is_simulator=False,
-            status="Sẵn sàng" if self._connected else "Chưa kết nối (Cần mở digiCamControl)",
+            status="Sẵn sàng (Tethered Control)" if self._connected else "Chưa kết nối (Cần mở digiCamControl)",
             capabilities={
                 "can_capture": True,
                 "can_download": True,
                 "can_liveview": True,
                 "can_adjust_parameters": True
             },
-            notes="Điều khiển máy ảnh chuyên nghiệp DSLR/Mirrorless Nikon, Canon, Sony thông qua digiCamControl."
+            notes=(
+                "Điều khiển máy ảnh chuyên nghiệp DSLR/Mirrorless Nikon, Canon, Sony thông qua digiCamControl. "
+                "Chuyên dụng cho kích hoạt chụp ảnh độ nét cao. "
+                "Lưu ý: Để xem Live View mượt mà trên Windows, khuyến nghị dùng nguồn DirectShow 'Nikon Webcam Utility'."
+            )
         )
 
     def capture_image(self) -> Optional[Image.Image]:
@@ -162,13 +167,23 @@ class DigiCamControlAdapter(CameraAdapter):
     def get_liveview_frame(self) -> Optional[bytes]:
         """Lấy khung hình live view từ digiCamControl."""
         if not self._connected:
+            self.last_error = "digiCamControl chưa kết nối."
             return None
         try:
             resp = requests.get(f"{self.api_url}/liveview.jpg", timeout=1.0)
             if resp.status_code == 200 and len(resp.content) > 1000:
+                self.last_error = ""
                 return resp.content
-        except Exception:
-            pass
+            else:
+                self.last_error = (
+                    "digiCamControl Web Server chưa bật luồng Live View (HTTP 5513). "
+                    "Hãy mở digiCamControl và bật Live View, hoặc chuyển sang nguồn video webcam 'Nikon Webcam Utility'."
+                )
+        except Exception as e:
+            self.last_error = (
+                f"Không thể kết nối Live View tới digiCamControl ({e}). "
+                "Khuyến nghị chuyển sang nguồn DirectShow 'Nikon Webcam Utility' trong phần cài đặt máy ảnh."
+            )
         return None
 
     def get_parameters(self) -> Dict[str, Any]:

@@ -190,6 +190,12 @@ class FrameDesigner:
                     slot_photo, slot.w, slot.h, fit_mode=fit_mode, position_mode=position_mode
                 )
 
+            # Lật ảnh theo trục ngang nếu có
+            if getattr(slot, 'is_flipped_h', False):
+                from PIL import ImageOps
+                slot_photo = ImageOps.mirror(slot_photo)
+
+
             # Bo góc tròn nếu yêu cầu
             if slot.corner_radius > 0:
                 slot_photo = FrameDesigner._apply_corner_radius(slot_photo, slot.corner_radius)

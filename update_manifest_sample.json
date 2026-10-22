@@ -2,6 +2,8 @@
   "app": "1998 TEAM Photobooth",
   "version": "1.1.0",
   "build": 102,
+  "package_type": "installer",
+  "architecture": "x64",
   "release_date": "2026-10-21",
   "release_notes": [
     "Khắc phục triệt để lỗi giao diện co giãn trên mọi độ phân giải màn hình",
@@ -10,7 +12,7 @@
     "Hệ thống kiểm tra và cập nhật phần mềm an toàn với chữ ký SHA-256",
     "Tự động đồng bộ ảnh lên Google Drive và tạo mã QR chia sẻ đám mây"
   ],
-  "download_url": "https://github.com/1998team/photobooth/releases/download/v1.1.0/1998-TEAM-Setup.exe",
+  "download_url": "https://raw.githubusercontent.com/1998team/photobooth/main/releases/setup.exe",
   "sha256": "f0f14a10492a2140e8eedab638b4920025b9377e622b325e5a21e64bed77c70b",
   "file_size_bytes": 86150915,
   "minimum_supported_version": "1.0.0",

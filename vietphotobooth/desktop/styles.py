@@ -27,13 +27,13 @@ QTabBar {
 QTabBar::tab {
     background: #10192C;
     color: #E2E8F0;
-    padding: 6px 10px;
-    font-size: 13px;
+    padding: 5px 8px;
+    font-size: 12px;
     font-weight: 600;
-    border-radius: 7px;
+    border-radius: 6px;
     border: 1px solid #223354;
-    margin: 2px 2px;
-    min-width: 60px;
+    margin: 1px 1px;
+    min-width: 48px;
 }
 
 QTabBar::tab:selected {
@@ -54,7 +54,7 @@ QTabBar QToolButton {
     border: 1px solid #28395E;
     border-radius: 4px;
     color: #D4AF37;
-    margin: 2px;
+    margin: 1px;
 }
 
 QTabBar QToolButton:hover {

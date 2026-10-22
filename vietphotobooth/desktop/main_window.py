@@ -8,7 +8,7 @@ import sys
 import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
-    QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar
+    QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar, QStackedWidget
 )
 from PySide6.QtCore import Qt, QKeyCombination, QTimer
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut, QPixmap
@@ -28,10 +28,13 @@ from vietphotobooth.desktop.styles import KIOSK_STYLE
 from vietphotobooth.desktop.widgets.kiosk_page import KioskPage
 from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorPage
 from vietphotobooth.desktop.widgets.frame_designer_page import FrameDesignerPage
+from vietphotobooth.desktop.widgets.frame_tab_container import FrameTabContainer
+from vietphotobooth.desktop.widgets.guest_idle_screen import GuestIdleScreen
 from vietphotobooth.desktop.widgets.camera_page import CameraPage
 from vietphotobooth.desktop.widgets.printing_page import PrintingPage
 from vietphotobooth.desktop.widgets.events_page import EventsPage
 from vietphotobooth.desktop.widgets.settings_page import SettingsPage
+from vietphotobooth.desktop.icons import get_svg_icon, MorphIconButton, COLOR_GOLD, COLOR_GREEN
 from vietphotobooth.version import __version__, get_version_string
 from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
 
@@ -107,26 +110,26 @@ class MainWindow(QMainWindow):
         # Thanh thương hiệu Logo 1998 Studio bên trái hàng tab (Co giãn thông minh)
         logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
         self.brand_widget = QWidget()
-        self.brand_widget.setMaximumWidth(260)
+        self.brand_widget.setMaximumWidth(210)
         self.brand_layout = QHBoxLayout(self.brand_widget)
-        self.brand_layout.setContentsMargins(10, 2, 8, 2)
-        self.brand_layout.setSpacing(8)
+        self.brand_layout.setContentsMargins(6, 2, 6, 2)
+        self.brand_layout.setSpacing(6)
 
         self.lbl_logo = QLabel()
         if os.path.exists(logo_path):
             pix = QPixmap(logo_path)
-            self.lbl_logo.setPixmap(pix.scaledToHeight(38, Qt.SmoothTransformation))
+            self.lbl_logo.setPixmap(pix.scaledToHeight(30, Qt.SmoothTransformation))
         else:
             self.lbl_logo.setText("1998 STUDIO")
-            self.lbl_logo.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 16px;")
+            self.lbl_logo.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
         self.brand_layout.addWidget(self.lbl_logo)
 
-        self.lbl_title = QLabel("<b>1998 TEAM</b> — Photobooth")
-        self.lbl_title.setStyleSheet("color: #F7E7CE; font-size: 15px; font-weight: bold;")
+        self.lbl_title = QLabel("<b>1998 TEAM</b>")
+        self.lbl_title.setStyleSheet("color: #F7E7CE; font-size: 14px; font-weight: bold;")
         self.brand_layout.addWidget(self.lbl_title)
 
         self.lbl_ver = QLabel(f"v{__version__}")
-        self.lbl_ver.setStyleSheet("color: #64748B; font-size: 11px; font-weight: bold; padding-top: 3px;")
+        self.lbl_ver.setStyleSheet("color: #64748B; font-size: 10px; font-weight: bold; padding-top: 2px;")
         self.lbl_ver.setToolTip(f"Phiên bản: {get_version_string()}")
         self.brand_layout.addWidget(self.lbl_ver)
 
@@ -145,28 +148,29 @@ class MainWindow(QMainWindow):
         )
         self.kiosk_page.request_tab_switch.connect(self.switch_to_tab)
         self.kiosk_page.request_fullscreen.connect(self.toggle_fullscreen)
-        self.tabs.addTab(self.kiosk_page, "📸 Chụp Ảnh")
+        self.tabs.addTab(self.kiosk_page, get_svg_icon("camera", 16, COLOR_GOLD), "Chụp Ảnh")
         self.tabs.setTabToolTip(0, "Chụp ảnh Photobooth (Kiosk)")
 
-        # 2. Khung ảnh (Trình Thiết Kế Khung Ảnh)
-        self.frame_page = FrameDesignerPage(self.frame_mgr)
+        # 2. Khung ảnh (Thư Viện Khung & Trình Thiết Kế Khung Ảnh)
+        self.frame_page = FrameTabContainer(self.frame_mgr, auth_mgr=self.auth_mgr)
         self.frame_page.frame_changed.connect(lambda fid: self.kiosk_page._load_frame_options())
-        self.tabs.addTab(self.frame_page, "🖼️ Khung Ảnh")
-        self.tabs.setTabToolTip(1, "Trình thiết kế khung in ảnh")
+        self.frame_page.frame_selected.connect(self._on_frame_selected_from_gallery)
+        self.tabs.addTab(self.frame_page, get_svg_icon("frame", 16, COLOR_GOLD), "Khung Ảnh")
+        self.tabs.setTabToolTip(1, "Thư viện duyệt khung in & trình thiết kế")
 
         # 3. Máy ảnh (Quản Lý Máy Ảnh & Thiết Lập Cảm Biến)
         self.camera_page = CameraPage(self.camera_mgr, auth_mgr=self.auth_mgr)
-        self.tabs.addTab(self.camera_page, "📷 Máy Ảnh")
+        self.tabs.addTab(self.camera_page, get_svg_icon("camera", 16, COLOR_GOLD), "Máy Ảnh")
         self.tabs.setTabToolTip(2, "Cấu hình thiết bị máy ảnh")
 
         # 4. Máy in (Quản Lý Máy In & Driver In Nhiệt)
         self.printing_page = PrintingPage(self.print_mgr, auth_mgr=self.auth_mgr)
-        self.tabs.addTab(self.printing_page, "🖨️ Máy In")
+        self.tabs.addTab(self.printing_page, get_svg_icon("printer", 16, COLOR_GOLD), "Máy In")
         self.tabs.setTabToolTip(3, "Cấu hình máy in & hàng đợi in")
 
         # 5. Sự kiện & Thư viện (Quản Lý Album, Mã QR, Sự Kiện)
         self.events_page = EventsPage(self.event_mgr, self.print_mgr, self.token_mgr, sync_mgr=self.sync_mgr, auth_mgr=self.auth_mgr)
-        self.tabs.addTab(self.events_page, "📁 Sự Kiện & Thư Viện")
+        self.tabs.addTab(self.events_page, get_svg_icon("calendar", 16, COLOR_GOLD), "Sự Kiện & Thư Viện")
         self.tabs.setTabToolTip(4, "Quản lý sự kiện & thư viện ảnh")
 
         # 6. Cài đặt (Bảo Mật PIN, Kiosk, Quản Lý Bộ Lọc Màu & Bản Quyền)
@@ -179,31 +183,26 @@ class MainWindow(QMainWindow):
             update_mgr=self.update_mgr
         )
         self.settings_page.toggle_fullscreen_requested.connect(self.toggle_fullscreen)
-        self.tabs.addTab(self.settings_page, "⚙️ Cài Đặt")
+        self.tabs.addTab(self.settings_page, get_svg_icon("settings", 16, COLOR_GOLD), "Cài Đặt")
         self.tabs.setTabToolTip(5, "Cài đặt hệ thống, bảo mật & Google Drive")
 
-        # Nút trạng thái khóa bảo mật Quản trị viên & Nút kiểm tra cập nhật nhanh ở góc trên bên phải thanh Tab
+        # Thanh điều hướng: Xóa nút Cập nhật và ẩn nút Khóa Quản trị khỏi thanh điều hướng chính
+        # nhưng vẫn giữ nguyên các đối tượng ngầm, cơ chế bảo mật PIN và tính năng trong Cài đặt.
         self.auth_widget = QWidget()
-        auth_layout = QHBoxLayout(self.auth_widget)
-        auth_layout.setContentsMargins(4, 2, 10, 2)
-        auth_layout.setSpacing(6)
+        self.auth_widget.hide()
 
-        self.btn_check_update_quick = QPushButton("🔄 Cập Nhật")
-        self.btn_check_update_quick.setFixedHeight(30)
-        self.btn_check_update_quick.setCursor(Qt.PointingHandCursor)
-        self.btn_check_update_quick.setToolTip("Kiểm tra bản cập nhật phần mềm mới từ máy chủ phát hành")
-        self.btn_check_update_quick.setObjectName("btn_secondary")
+        self.btn_check_update_quick = QPushButton("Cập Nhật", self.auth_widget)
+        self.btn_check_update_quick.hide()
         self.btn_check_update_quick.clicked.connect(self._on_quick_check_update_clicked)
-        auth_layout.addWidget(self.btn_check_update_quick)
 
-        self.btn_auth_status = QPushButton("🔒 Đang Khóa")
-        self.btn_auth_status.setFixedHeight(30)
-        self.btn_auth_status.setCursor(Qt.PointingHandCursor)
-        self.btn_auth_status.setToolTip("Nhấp để mở khóa quyền quản trị hoặc khóa bảo vệ ngay lập tức")
+        self.btn_auth_status = MorphIconButton(icon_a="lock", icon_b="unlock", text=" Khóa Quản Trị", parent=self.auth_widget)
+        self.btn_auth_status.hide()
         self.btn_auth_status.clicked.connect(self._toggle_auth_button_clicked)
-        auth_layout.addWidget(self.btn_auth_status)
 
-        self.tabs.setCornerWidget(self.auth_widget, Qt.TopRightCorner)
+        self.tabs.setCornerWidget(None, Qt.TopRightCorner)
+
+        # Tham chiếu trực tiếp đến trang hoàn thiện ảnh nội bộ
+        self.review_page = self.kiosk_page.review_widget
 
         # Bộ đếm thời gian kiểm tra phiên quản trị (Session Timeout)
         self.auth_timer = QTimer(self)
@@ -221,7 +220,22 @@ class MainWindow(QMainWindow):
         if self.update_mgr.is_auto_check_enabled:
             QTimer.singleShot(2500, self._start_auto_update_check)
 
-        main_layout.addWidget(self.tabs)
+        # Stack chính: Index 0 là Giao diện Tabs vận hành, Index 1 là Màn hình chờ dành cho khách
+        self.window_stack = QStackedWidget()
+        self.window_stack.addWidget(self.tabs)  # Index 0
+
+        self.idle_screen = GuestIdleScreen(auth_mgr=self.auth_mgr, parent=self)
+        self.idle_screen.touch_to_start.connect(self._on_idle_screen_touched)
+        self.idle_screen.admin_requested.connect(self._on_idle_admin_requested)
+        self.window_stack.addWidget(self.idle_screen)  # Index 1
+
+        main_layout.addWidget(self.window_stack)
+
+        # Bộ đếm thời gian chuyển sang Màn hình chờ khi quầy rảnh rỗi (Guest Idle Screen)
+        self.guest_idle_timer = QTimer(self)
+        self.guest_idle_timer.setInterval(180000)  # 3 phút (180 giây)
+        self.guest_idle_timer.timeout.connect(self._on_guest_idle_timeout)
+        self.guest_idle_timer.start()
 
     def _start_auto_update_check(self):
         """Khởi chạy kiểm tra cập nhật ngầm nếu cửa sổ đang hoạt động."""
@@ -288,14 +302,18 @@ class MainWindow(QMainWindow):
         elif self.auth_mgr.is_authenticated():
             rem = self.auth_mgr.get_remaining_seconds()
             m, s = divmod(rem, 60)
-            self.btn_auth_status.setText(f"🔓 Quản Trị ({m:02d}:{s:02d}) | Khóa")
+            self.btn_auth_status.setText(f" Mở ({m:02d}:{s:02d})")
+            if hasattr(self.btn_auth_status, "set_morph_state"):
+                self.btn_auth_status.set_morph_state(True)
             self.btn_auth_status.setStyleSheet(
                 "QPushButton { background-color: #052618; color: #10B981; border: 1.5px solid #10B981; "
                 "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
                 "QPushButton:hover { background-color: #073824; }"
             )
         else:
-            self.btn_auth_status.setText("🔒 Khóa Quản Trị")
+            self.btn_auth_status.setText(" Khóa Quản Trị")
+            if hasattr(self.btn_auth_status, "set_morph_state"):
+                self.btn_auth_status.set_morph_state(False)
             self.btn_auth_status.setStyleSheet(
                 "QPushButton { background-color: #1A1308; color: #D4AF37; border: 1.5px solid #D4AF37; "
                 "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
@@ -357,6 +375,16 @@ class MainWindow(QMainWindow):
 
         self._prev_tab_index = new_index
 
+        # Quản lý luồng Live View tường minh theo tab:
+        # Tab 0 (Chụp ảnh): KioskPage kích hoạt luồng live view
+        # Tab 2 (Máy ảnh): CameraPage kích hoạt timer xem trước
+        # Các tab khác: Tạm dừng toàn bộ live view để tối ưu hiệu năng
+        if hasattr(self, 'kiosk_page'):
+            if new_index == 0:
+                self.kiosk_page.start_live_view()
+            else:
+                self.kiosk_page.stop_live_view()
+
     def switch_to_tab(self, target_index: int):
         """Chuyển tab theo yêu cầu từ các trang con (kiểm tra quyền quản trị)."""
         if target_index in self.PROTECTED_TABS:
@@ -386,13 +414,89 @@ class MainWindow(QMainWindow):
         shortcut_f11 = QShortcut(QKeySequence("F11"), self)
         shortcut_f11.activated.connect(self.toggle_fullscreen)
 
+        # F10 để xem nhanh màn hình chờ khách (Guest Idle Attract Screen)
+        shortcut_f10 = QShortcut(QKeySequence("F10"), self)
+        shortcut_f10.activated.connect(self._toggle_idle_screen_shortcut)
+
         # Esc để yêu cầu thoát Kiosk
         shortcut_esc = QShortcut(QKeySequence("Esc"), self)
         shortcut_esc.activated.connect(self._handle_escape_kiosk)
 
     def _handle_escape_kiosk(self):
+        if hasattr(self, "window_stack") and self.window_stack.currentIndex() == 1:
+            self.hide_idle_screen()
+            return
         if self.isFullScreen():
             self.toggle_fullscreen()
+
+    def _toggle_idle_screen_shortcut(self):
+        if hasattr(self, "window_stack"):
+            if self.window_stack.currentIndex() == 1:
+                self.hide_idle_screen()
+            else:
+                self.show_idle_screen()
+
+    def _on_frame_selected_from_gallery(self, frame_id: str):
+        """Khi khách chạm chọn mẫu khung từ Thư Viện, chuyển ngay sang màn hình chụp ảnh."""
+        if hasattr(self.kiosk_page, "_on_frame_card_selected"):
+            self.kiosk_page._on_frame_card_selected(frame_id)
+        self.tabs.setCurrentIndex(0)
+        self.reset_idle_timer()
+
+    def show_review_page(self, photos=None, template_id=None, session_id=None):
+        """Chuyển sang trang hoàn thiện ảnh nội bộ (không mở cửa sổ riêng biệt)."""
+        self.tabs.setCurrentIndex(0)
+        if photos and hasattr(self.kiosk_page, "review_widget"):
+            active_event = self.event_mgr.get_active_event_name()
+            self.kiosk_page.review_widget.load_session(
+                photos=photos,
+                frame_mgr=self.frame_mgr,
+                initial_frame_id=template_id or getattr(self.kiosk_page, "selected_frame_id", None),
+                event_name=active_event,
+                session_id=session_id or getattr(self.kiosk_page, "current_session_id", "Session_unknown"),
+                print_mgr=self.print_mgr
+            )
+        if hasattr(self.kiosk_page, "kiosk_stack"):
+            self.kiosk_page.kiosk_stack.setCurrentIndex(1)
+
+    def _on_guest_idle_timeout(self):
+        """Tự động chuyển sang Màn hình chờ dành cho khách khi quầy rảnh rỗi."""
+        if self.tabs.currentIndex() == 0:
+            kiosk_st = getattr(self.kiosk_page, "current_state", "IDLE")
+            if kiosk_st in ("IDLE", "SELECT_FRAME"):
+                if hasattr(self, "window_stack") and self.window_stack.currentIndex() == 0:
+                    self.show_idle_screen()
+
+    def show_idle_screen(self):
+        """Kích hoạt Màn hình chờ phong cách phóng sự cưới 1998 Studio (Panel 3)."""
+        if hasattr(self, "window_stack") and hasattr(self, "idle_screen"):
+            self.window_stack.setCurrentIndex(1)
+            self.idle_screen.start_animations()
+
+    def hide_idle_screen(self):
+        """Tắt màn hình chờ và trở về giao diện Photobooth."""
+        if hasattr(self, "window_stack") and hasattr(self, "idle_screen"):
+            self.idle_screen.stop_animations()
+            self.window_stack.setCurrentIndex(0)
+            self.reset_idle_timer()
+
+    def _on_idle_screen_touched(self):
+        """Khách chạm vào nút 'CHẠM ĐỂ BẮT ĐẦU'."""
+        self.hide_idle_screen()
+        self.tabs.setCurrentIndex(0)
+
+    def _on_idle_admin_requested(self):
+        """Bấm nút bánh răng quản trị góc trên bên phải màn hình chờ."""
+        if self.auth_mgr.is_pin_enabled and not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Mở Khóa Quản Trị Từ Màn Hình Chờ"):
+                return
+        self.hide_idle_screen()
+        self.switch_to_tab(5)
+
+    def reset_idle_timer(self):
+        """Đặt lại bộ đếm thời gian rảnh rỗi."""
+        if hasattr(self, "guest_idle_timer") and self.guest_idle_timer.isActive():
+            self.guest_idle_timer.start()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -405,24 +509,28 @@ class MainWindow(QMainWindow):
         if width < 1000:
             self.lbl_title.setText("<b>1998 TEAM</b>")
             self.brand_widget.setMaximumWidth(160)
-            self.tabs.setTabText(0, "📸 Chụp")
-            self.tabs.setTabText(1, "🖼️ Khung")
-            self.tabs.setTabText(2, "📷 Máy")
-            self.tabs.setTabText(3, "🖨️ In")
-            self.tabs.setTabText(4, "📁 Sự Kiện")
-            self.tabs.setTabText(5, "⚙️ Cài Đặt")
+            self.tabs.setTabText(0, "Chụp")
+            self.tabs.setTabText(1, "Khung")
+            self.tabs.setTabText(2, "Máy")
+            self.tabs.setTabText(3, "In")
+            self.tabs.setTabText(4, "Sự Kiện")
+            self.tabs.setTabText(5, "Cài Đặt")
         else:
             self.lbl_title.setText("<b>1998 TEAM</b> — Photobooth")
             self.brand_widget.setMaximumWidth(260)
-            self.tabs.setTabText(0, "📸 Chụp Ảnh")
-            self.tabs.setTabText(1, "🖼️ Khung Ảnh")
-            self.tabs.setTabText(2, "📷 Máy Ảnh")
-            self.tabs.setTabText(3, "🖨️ Máy In")
-            self.tabs.setTabText(4, "📁 Sự Kiện & Thư Viện")
-            self.tabs.setTabText(5, "⚙️ Cài Đặt")
+            self.tabs.setTabText(0, "Chụp Ảnh")
+            self.tabs.setTabText(1, "Khung Ảnh")
+            self.tabs.setTabText(2, "Máy Ảnh")
+            self.tabs.setTabText(3, "Máy In")
+            self.tabs.setTabText(4, "Sự Kiện & Thư Viện")
+            self.tabs.setTabText(5, "Cài Đặt")
 
     def cleanup(self):
         """Dừng dứt điểm toàn bộ các luồng nền và timer khi ứng dụng kết thúc."""
+        if hasattr(self, "guest_idle_timer") and self.guest_idle_timer.isActive():
+            self.guest_idle_timer.stop()
+        if hasattr(self, "idle_screen"):
+            self.idle_screen.stop_animations()
         if hasattr(self, "auth_timer") and self.auth_timer.isActive():
             self.auth_timer.stop()
         if hasattr(self, "kiosk_page"):

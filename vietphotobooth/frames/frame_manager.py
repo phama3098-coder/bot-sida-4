@@ -21,7 +21,10 @@ logger = get_logger()
 DEFAULT_FRAMES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Frames"))
 DEFAULT_USER_FRAMES_DIR = os.path.join(get_user_data_dir(), "Frames")
 
-CATEGORIES = ["Wedding", "Birthday", "Corporate", "Custom"]
+CATEGORIES = [
+    "Wedding", "Birthday", "Corporate", "Custom",
+    "Sinh nhật", "Đám cưới", "Sự kiện", "Dễ thương", "Vintage", "Minimal", "Khác"
+]
 
 class FrameManager:
     """Quản lý danh viện khung in ảnh, nhập khung từ file PNG bên ngoài và sao lưu."""
@@ -163,6 +166,127 @@ class FrameManager:
             )
             tmpl.save_to_json(corp_json)
 
+        # 5. Khởi tạo 16 mẫu khung in ảnh chuẩn 1998 TEAM Photobooth
+        templates_specs = [
+            ("basic_1", "Basic-1", "Minimal", "2x6", [600, 1800], "#FFFFFF", 3, [
+                TextLayer("t1", "1998 TEAM", 300, 1370, 38, "#1E293B", alignment="center", is_bold=True),
+                TextLayer("t2", "PHOTOBOOTH", 300, 1430, 24, "#94A3B8", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 20, "#CBD5E1", alignment="center")
+            ]),
+            ("thu", "Thư", "Vintage", "2x6", [600, 1800], "#FBF8F1", 4, [
+                TextLayer("t1", "Thư Gửi Thanh Xuân", 300, 1480, 34, "#5C4033", alignment="center", is_bold=True),
+                TextLayer("t2", "1998 Studio • Phóng Sự Cưới", 300, 1540, 22, "#8C7355", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#A89F91", alignment="center")
+            ]),
+            ("basic_2", "Basic-2", "Minimal", "2x6", [600, 1800], "#111827", 4, [
+                TextLayer("t1", "CLASSIC NOIR", 300, 1480, 34, "#F9FAFB", alignment="center", is_bold=True),
+                TextLayer("t2", "1998 STUDIO EDITION", 300, 1540, 20, "#9CA3AF", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#6B7280", alignment="center")
+            ]),
+            ("magazine", "Magazine", "Sự kiện", "2x6", [600, 1800], "#FFFDF7", 3, [
+                TextLayer("t1", "VOGUE", 300, 1360, 46, "#18181B", alignment="center", is_bold=True),
+                TextLayer("t2", "SPECIAL EDITION • NO. 1998", 300, 1430, 22, "#71717A", alignment="center"),
+                TextLayer("t3", "PHOTO ARCHIVE {date}", 300, 1680, 18, "#A1A1AA", alignment="center")
+            ]),
+            ("dau_tay", "Dâu Tây", "Dễ thương", "2x6", [600, 1800], "#E8F5E9", 4, [
+                TextLayer("t1", "CUTE STRAWBERRY 🍓", 300, 1480, 32, "#E11D48", alignment="center", is_bold=True),
+                TextLayer("t2", "Sweet Summer Day", 300, 1540, 22, "#2E7D32", alignment="center"),
+                TextLayer("t3", "1998 Photobooth • {date}", 300, 1680, 18, "#81C784", alignment="center")
+            ]),
+            ("digital_cartoon", "Digital Cartoon", "Dễ thương", "2x6", [600, 1800], "#E0F2FE", 4, [
+                TextLayer("t1", "DIGITAL DREAMS ✦", 300, 1480, 32, "#0284C7", alignment="center", is_bold=True),
+                TextLayer("t2", "Sweet Cartoon Vibes", 300, 1540, 22, "#0369A1", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#7DD3FC", alignment="center")
+            ]),
+            ("matcha", "Matcha", "Dễ thương", "2x6", [600, 1800], "#ECFDF5", 3, [
+                TextLayer("t1", "Matcha Moments", 300, 1370, 36, "#047857", alignment="center", is_bold=True),
+                TextLayer("t2", "Sweet Green Life", 300, 1430, 22, "#059669", alignment="center"),
+                TextLayer("t3", "1998 Studio • {date}", 300, 1680, 18, "#6EE7B7", alignment="center")
+            ]),
+            ("cutie_pinkie", "Cutie Pinkie", "Sinh nhật", "2x6", [600, 1800], "#FDF2F8", 4, [
+                TextLayer("t1", "HAPPY BIRTHDAY CUTIE", 300, 1480, 30, "#DB2777", alignment="center", is_bold=True),
+                TextLayer("t2", "Forever Young & Sweet", 300, 1540, 22, "#BE185D", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#F472B6", alignment="center")
+            ]),
+            ("bear_pink", "BearPink", "Dễ thương", "2x6", [600, 1800], "#FFF1F2", 3, [
+                TextLayer("t1", "Teddy & Honey", 300, 1370, 36, "#E11D48", alignment="center", is_bold=True),
+                TextLayer("t2", "Love in the Air", 300, 1430, 22, "#BE123C", alignment="center"),
+                TextLayer("t3", "1998 Photobooth", 300, 1680, 18, "#FDA4AF", alignment="center")
+            ]),
+            ("locket", "Locket", "Vintage", "2x6", [600, 1800], "#FAF5EF", 3, [
+                TextLayer("t1", "Golden Locket", 300, 1370, 38, "#92400E", alignment="center", is_bold=True),
+                TextLayer("t2", "Keep Your Memories Safe", 300, 1430, 22, "#B45309", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#D97706", alignment="center")
+            ]),
+            ("y2k", "Y2K", "Sinh nhật", "2x6", [600, 1800], "#F5F3FF", 4, [
+                TextLayer("t1", "✦ Y2K VIBES ✦", 300, 1480, 34, "#7C3AED", alignment="center", is_bold=True),
+                TextLayer("t2", "Millennium Star Party", 300, 1540, 22, "#6D28D9", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#A78BFA", alignment="center")
+            ]),
+            ("theatre_ticket", "Theatre Ticket", "Vintage", "2x6", [600, 1800], "#FFFBEB", 3, [
+                TextLayer("t1", "CINEMA TICKET", 300, 1360, 38, "#78350F", alignment="center", is_bold=True),
+                TextLayer("t2", "ADMIT ONE • ROW A SEAT 19", 300, 1420, 22, "#92400E", alignment="center"),
+                TextLayer("t3", "Premiere Night • {date}", 300, 1680, 18, "#B45309", alignment="center")
+            ]),
+            ("wedding_1", "Wedding-1", "Đám cưới", "2x6", [600, 1800], "#FFFDF9", 3, [
+                TextLayer("t1", "Happy Wedding", 300, 1360, 42, "#D4AF37", alignment="center", is_bold=True),
+                TextLayer("t2", "Trọn Vẹn Yêu Thương", 300, 1430, 24, "#854D0E", alignment="center"),
+                TextLayer("t3", "1998 Studio Phóng Sự Cưới • {date}", 300, 1680, 18, "#A16207", alignment="center")
+            ]),
+            ("vintage_film", "Vintage Film", "Vintage", "2x6", [600, 1800], "#18181B", 4, [
+                TextLayer("t1", "35MM NEGATIVE", 300, 1480, 32, "#E4E4E7", alignment="center", is_bold=True),
+                TextLayer("t2", "KODAK PORTRA 400", 300, 1540, 20, "#A1A1AA", alignment="center"),
+                TextLayer("t3", "FRAME 1998 • {date}", 300, 1680, 18, "#71717A", alignment="center")
+            ]),
+            ("colorful", "Colorful", "Sự kiện", "2x6", [600, 1800], "#FEF9C3", 4, [
+                TextLayer("t1", "FESTIVAL OF COLORS", 300, 1480, 30, "#CA8A04", alignment="center", is_bold=True),
+                TextLayer("t2", "Joyful Celebration", 300, 1540, 22, "#A16207", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#EAB308", alignment="center")
+            ]),
+            ("hello_kitty", "Hello Kitty", "Dễ thương", "2x6", [600, 1800], "#FCE7F3", 4, [
+                TextLayer("t1", "Sweet Ribbon & Bows", 300, 1480, 30, "#DB2777", alignment="center", is_bold=True),
+                TextLayer("t2", "Lovely Pink Memories", 300, 1540, 22, "#BE185D", alignment="center"),
+                TextLayer("t3", "{date}", 300, 1680, 18, "#F472B6", alignment="center")
+            ]),
+            ("star", "Star", "Sự kiện", "2x6", [600, 1800], "#0B132B", 3, [
+                TextLayer("t1", "GOLDEN STARS", 300, 1360, 40, "#D4AF37", alignment="center", is_bold=True),
+                TextLayer("t2", "A Night to Remember", 300, 1430, 22, "#E2E8F0", alignment="center"),
+                TextLayer("t3", "1998 TEAM Photobooth • {date}", 300, 1680, 18, "#94A3B8", alignment="center")
+            ]),
+        ]
+
+        for fid, fname, fcat, ftype, fcanvas, fbg, num_slots, flayers in templates_specs:
+            cat_dir = os.path.join(self.base_dir, fcat)
+            os.makedirs(cat_dir, exist_ok=True)
+            fjson = os.path.join(cat_dir, f"{fid}.json")
+            if not os.path.exists(fjson):
+                if num_slots == 3:
+                    slots = [
+                        PhotoSlot(id=1, x=45, y=60, w=510, h=380, corner_radius=12, photo_index=0),
+                        PhotoSlot(id=2, x=45, y=470, w=510, h=380, corner_radius=12, photo_index=1),
+                        PhotoSlot(id=3, x=45, y=880, w=510, h=380, corner_radius=12, photo_index=2),
+                    ]
+                else:
+                    slots = [
+                        PhotoSlot(id=1, x=50, y=50, w=500, h=320, corner_radius=14, photo_index=0),
+                        PhotoSlot(id=2, x=50, y=395, w=500, h=320, corner_radius=14, photo_index=1),
+                        PhotoSlot(id=3, x=50, y=740, w=500, h=320, corner_radius=14, photo_index=2),
+                        PhotoSlot(id=4, x=50, y=1085, w=500, h=320, corner_radius=14, photo_index=3),
+                    ]
+
+                tmpl = FrameTemplate(
+                    id=fid,
+                    name=fname,
+                    category=fcat,
+                    type=ftype,
+                    canvas_size=fcanvas,
+                    bg_color=fbg,
+                    slots=slots,
+                    text_layers=flayers,
+                    safe_zone_px=35
+                )
+                tmpl.save_to_json(fjson)
+
     def _generate_sample_overlay(self, out_path: str, w: int, h: int, cutout_rects: List[Tuple[int, int, int, int]], border_color: Tuple[int, int, int, int]):
         """Tạo một file PNG mẫu có độ trong suốt và viền hoa văn trang trí để kiểm thử."""
         from PIL import ImageDraw
@@ -208,11 +332,42 @@ class FrameManager:
 
         logger.info(f"Đã nạp tổng cộng {len(self._templates)} mẫu khung in ảnh.")
 
-    def list_frames(self, category: Optional[str] = None) -> List[FrameTemplate]:
-        """Lấy danh sách các khung theo danh mục (hoặc tất cả)."""
-        if not category or category.lower() == "tất cả":
-            return list(self._templates.values())
-        return [t for t in self._templates.values() if t.category.lower() == category.lower()]
+    def list_frames(
+        self,
+        category: Optional[str] = None,
+        ratio: Optional[str] = None,
+        search_query: Optional[str] = None
+    ) -> List[FrameTemplate]:
+        """Lọc danh sách các khung theo danh mục, tỷ lệ (2x6 / 4x6) và từ khóa tìm kiếm."""
+        result = list(self._templates.values())
+
+        if category and category.lower() not in ("tất cả", "all", ""):
+            cat_norm = category.lower().strip()
+            synonyms = {
+                "đám cưới": ["wedding", "đám cưới"],
+                "sinh nhật": ["birthday", "sinh nhật"],
+                "sự kiện": ["corporate", "sự kiện", "event"],
+                "khác": ["custom", "khác", "other"],
+                "wedding": ["wedding", "đám cưới"],
+                "birthday": ["birthday", "sinh nhật"],
+                "corporate": ["corporate", "sự kiện", "event"],
+                "custom": ["custom", "khác", "other"],
+            }
+            allowed = synonyms.get(cat_norm, [cat_norm])
+            result = [t for t in result if any(a in t.category.lower() for a in allowed)]
+
+        if ratio and ratio.lower() not in ("tất cả", "all", ""):
+            r_norm = ratio.lower().strip()
+            if r_norm == "2x6":
+                result = [t for t in result if "2x6" in t.type.lower()]
+            elif r_norm == "4x6":
+                result = [t for t in result if "4x6" in t.type.lower()]
+
+        if search_query and search_query.strip():
+            q = search_query.lower().strip()
+            result = [t for t in result if q in t.name.lower() or q in t.id.lower() or q in t.category.lower()]
+
+        return result
 
     def get_frame(self, frame_id: str) -> Optional[FrameTemplate]:
         """Lấy một khung theo ID."""
