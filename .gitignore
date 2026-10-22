@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# PyInstaller
+# PyInstaller & Build artifacts
 build/
 dist/
 dist_installer/
@@ -12,15 +12,59 @@ upstream_photobooth/
 *.manifest
 *.spec.bak
 
-# Testing
+# Testing & Coverage
 .pytest_cache/
+.coverage
+htmlcov/
 
-# User Data / Logs
+# Logs & User App Data
 *.log
 install.log
 installed_test/
 test_app_dir/
 
+# Customer Media & Session Photos (Zero Privacy Leak)
+Events/
+Photos/
+Captures/
+final_outputs/
+Exports/
+*.saved.jpg
+*_saved.jpg
+*_final.jpg
+vietphotobooth_test_shot_*.jpg
+test_shot_*.jpg
+*.tmp
+
+# Secrets, Environment & Credentials (Zero Secret Leak)
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+token.json
+credentials.json
+client_secret*.json
+
+# Local Databases & Local Config overrides
+*.db
+*.sqlite
+*.sqlite3
+config.local.json
+
+# IDE & OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
 # Node / Upstream dependencies
 upstream_photobooth/node_modules/
 upstream_photobooth/vendor/
+node_modules/
