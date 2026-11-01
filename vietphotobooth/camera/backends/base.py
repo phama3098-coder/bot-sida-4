@@ -4,7 +4,7 @@ Abstract base class defining the required contract for all camera backends.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from PIL import Image
 
 from vietphotobooth.camera.models import (
@@ -89,6 +89,14 @@ class CameraBackendBase(ABC):
 
     def set_parameters(self, params: Dict[str, Any]) -> bool:
         """Thiết lập thông số máy ảnh (nếu hỗ trợ)."""
+        return False
+
+    def autofocus(self, callback: Optional[Any] = None) -> Tuple[bool, str]:
+        """Kích hoạt lấy nét tự động một lần (nếu backend hỗ trợ)."""
+        return False, "Backend không hỗ trợ điều khiển lấy nét tự động."
+
+    def cancel_autofocus(self) -> bool:
+        """Hủy thao tác lấy nét tự động nếu đang diễn ra."""
         return False
 
     def check_health(self) -> bool:

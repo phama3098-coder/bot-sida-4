@@ -39,35 +39,443 @@ def check_network_connectivity(host: str = "8.8.8.8", port: int = 53, timeout: f
     except Exception:
         return False
 
-def verify_digital_signature(file_path: str) -> Dict[str, Any]:
+def verify_digital_signature(file_path: str, require_signed: bool = False) -> Dict[str, Any]:
     """
     Xác minh chữ ký số Windows Authenticode của tệp thực thi.
     Kiểm tra trạng thái chữ ký số qua PowerShell Authenticode Provider trên Windows.
+
+    Tham số:
+        file_path: Đường dẫn tệp cần xác minh.
+        require_signed: Nếu True, tệp bắt buộc phải có chữ ký số hợp lệ (Valid);
+                       nếu tệp chưa được ký (NotSigned), valid sẽ là False.
+
+    Trả về dict có cấu trúc rõ ràng:
+        {
+            "signed": bool,       # True nếu có chữ ký (Valid, NotTrusted, HashMismatch, v.v.)
+            "valid": bool,        # True nếu chữ ký hoàn toàn hợp lệ (Valid)
+            "status": str,        # "Valid", "NotSigned", "HashMismatch", "NotTrusted", "UnknownError", "FileNotFound", "Error"
+            "signer": str,        # Chủ thể chứng thư ký (Subject) nếu có
+            "error": Optional[str]# Thông điệp chi tiết về lỗi nếu có
+        }
     """
     if not sys.platform.startswith("win"):
-        return {"signed": False, "valid": False, "status": "Not Windows", "signer": ""}
+        return {
+            "signed": False,
+            "valid": False,
+            "status": "Not Windows",
+            "signer": "",
+            "error": "Xác minh chữ ký số chỉ hỗ trợ trên Windows"
+        }
+
+    if not file_path or not os.path.exists(file_path):
+        return {
+            "signed": False,
+            "valid": False,
+            "status": "FileNotFound",
+            "signer": "",
+            "error": f"Tệp không tồn tại: {file_path}"
+        }
+
+    # Truyền đường dẫn an toàn qua biến môi trường để chống chèn lệnh và lỗi khoảng trắng/ký tự đặc biệt
+    env = os.environ.copy()
+    env["PHOTOBOOTH_SIG_TARGET"] = os.path.abspath(file_path)
+
+    ps_script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "$target = $env:PHOTOBOOTH_SIG_TARGET; "
+        "if (-not $target -or -not (Test-Path -LiteralPath $target)) { "
+        "  [PSCustomObject]@{ status = 'FileNotFound'; valid = $false; signed = $false; signer = ''; error = 'File not found' } | ConvertTo-Json -Compress; "
+        "  exit "
+        "}; "
+        "try { "
+        "  $sig = Get-AuthenticodeSignature -LiteralPath $target -ErrorAction SilentlyContinue; "
+        "  if ($null -eq $sig) { "
+        "    [PSCustomObject]@{ status = 'Error'; valid = $false; signed = $false; signer = ''; error = 'Signature object is null' } | ConvertTo-Json -Compress; "
+        "    exit "
+        "  }; "
+        "  $statusStr = if ($null -ne $sig.Status) { $sig.Status.ToString() } else { 'NotSigned' }; "
+        "  $isValid = ($statusStr -eq 'Valid'); "
+        "  $isSigned = ($statusStr -in @('Valid', 'NotTrusted', 'HashMismatch')); "
+        "  $signer = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { '' }; "
+        "  $errMsg = if ($sig.StatusMessage) { $sig.StatusMessage } else { '' }; "
+        "  [PSCustomObject]@{ status = $statusStr; valid = $isValid; signed = $isSigned; signer = $signer; error = $errMsg } | ConvertTo-Json -Compress "
+        "} catch { "
+        "  [PSCustomObject]@{ status = 'Error'; valid = $false; signed = $false; signer = ''; error = $_.Exception.Message } | ConvertTo-Json -Compress "
+        "}"
+    )
 
     try:
-        cmd = [
-            "powershell.exe",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            f"(Get-AuthenticodeSignature -LiteralPath '{file_path}').Status.ToString()"
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        status = res.stdout.strip()
-        is_valid = (status == "Valid")
-        is_signed = status in ("Valid", "NotTrusted", "HashMismatch")
+        res = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        out = res.stdout.strip()
+        if out:
+            data = json.loads(out)
+            status = str(data.get("status", "Unknown"))
+            signed = bool(data.get("signed", False))
+            valid = bool(data.get("valid", False))
+            signer = str(data.get("signer", ""))
+            raw_err = str(data.get("error", "")).strip()
+            error = raw_err if raw_err else None
+
+            if require_signed and not (signed and valid):
+                valid = False
+
+            return {
+                "signed": signed,
+                "valid": valid,
+                "status": status,
+                "signer": signer,
+                "error": error
+            }
+        else:
+            err_msg = res.stderr.strip() or "PowerShell không trả về dữ liệu"
+            return {
+                "signed": False,
+                "valid": False,
+                "status": "Error",
+                "signer": "",
+                "error": err_msg
+            }
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Quá thời gian khi xác minh chữ ký số: {file_path}")
         return {
-            "signed": is_signed,
-            "valid": is_valid,
-            "status": status,
-            "signer": ""
+            "signed": False,
+            "valid": False,
+            "status": "Error",
+            "signer": "",
+            "error": "Quá thời gian khi kiểm tra chữ ký số (Timeout)"
         }
     except Exception as e:
         logger.warning(f"Không thể kiểm tra chữ ký số: {e}")
-        return {"signed": False, "valid": False, "status": f"Error: {e}", "signer": ""}
+        return {
+            "signed": False,
+            "valid": False,
+            "status": "Error",
+            "signer": "",
+            "error": str(e)
+        }
+
+
+def validate_pe_executable(file_path: str, min_size_bytes: int = 512 * 1024) -> Tuple[bool, str]:
+    """
+    Xác minh định dạng tệp thực thi Windows (PE - Portable Executable).
+    Kiểm tra magic bytes 'MZ' tại offset 0 và chữ ký 'PE\\0\\0' tại offset e_lfanew.
+    """
+    if not os.path.exists(file_path):
+        return False, f"Tệp không tồn tại: {file_path}"
+
+    size = os.path.getsize(file_path)
+    if size < min_size_bytes:
+        return False, f"Dung lượng tệp ({size} bytes) quá nhỏ, không phải bộ cài đặt hợp lệ."
+
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(1024)
+            if len(header) < 64:
+                return False, "Kích thước header tệp quá ngắn."
+            if header[:2] != b"MZ":
+                return False, "Tệp không chứa chữ ký DOS Header hợp lệ ('MZ')."
+
+            import struct
+            pe_offset = struct.unpack_from("<I", header, 0x3C)[0]
+            if pe_offset < 0x40 or pe_offset > size - 4:
+                return False, f"Địa chỉ PE Header không hợp lệ (offset 0x{pe_offset:X})."
+
+            f.seek(pe_offset)
+            pe_sig = f.read(4)
+            if pe_sig != b"PE\x00\x00":
+                return False, "Tệp không chứa chữ ký PE Header hợp lệ ('PE\\0\\0')."
+        return True, "Tệp thực thi Windows PE hợp lệ."
+    except Exception as ex:
+        return False, f"Lỗi phân tích PE Header: {ex}"
+
+
+def validate_installer_package(
+    installer_path: str,
+    expected_sha256: str = "",
+    expected_size: int = 0
+) -> Tuple[bool, str]:
+    """
+    Kiểm tra toàn diện tính toàn vẹn và độ an toàn của gói cài đặt trước khi thực thi:
+    1. Kiểm tra tồn tại và dung lượng tệp.
+    2. Xác thực cấu trúc nhị phân Portable Executable (PE).
+    3. Xác minh mã băm SHA-256 từ metadata tin cậy.
+    4. Kiểm tra trạng thái chữ ký số Authenticode.
+    """
+    if not os.path.exists(installer_path):
+        return False, f"Tệp gói cài đặt không tồn tại: {installer_path}"
+
+    actual_size = os.path.getsize(installer_path)
+    if actual_size == 0:
+        return False, "Tệp gói cài đặt rỗng (0 bytes)."
+
+    if expected_size > 0 and actual_size != expected_size:
+        return False, f"Dung lượng tệp ({actual_size} bytes) không khớp với dung lượng công bố ({expected_size} bytes)."
+
+    # Kiểm tra định dạng PE (nếu tệp đủ lớn)
+    if actual_size >= 512 * 1024:
+        is_pe, pe_err = validate_pe_executable(installer_path)
+        if not is_pe:
+            return False, pe_err
+
+    # Xác minh mã băm SHA-256
+    if expected_sha256:
+        clean_expected = expected_sha256.lower().strip()
+        hasher = hashlib.sha256()
+        with open(installer_path, "rb") as f:
+            while chunk := f.read(65536):
+                hasher.update(chunk)
+        actual_sha256 = hasher.hexdigest().lower()
+        if actual_sha256 != clean_expected:
+            return False, f"Mã SHA-256 thực tế ({actual_sha256[:12]}...) không khớp chữ ký ({clean_expected[:12]}...)."
+
+    # Kiểm tra chữ ký số Authenticode nếu có
+    sig_info = verify_digital_signature(installer_path)
+    if sig_info.get("status") == "HashMismatch":
+        return False, "Chữ ký số Authenticode của tệp bị hỏng hoặc bị can thiệp (HashMismatch)."
+
+    return True, "Gói cài đặt hợp lệ và an toàn."
+
+
+def generate_updater_runner_script(
+    script_path: str,
+    parent_pid: int,
+    installer_path: str,
+    app_exe_path: str,
+    log_path: str,
+    old_version: str,
+    new_version: str,
+    new_build: int,
+    backup_dir: str = "",
+    install_dir: str = "",
+    user_data_dir: str = "",
+    extra_inno_args: str = "",
+    relaunch: bool = True
+) -> str:
+    """
+    Sinh script PowerShell độc lập điều phối quy trình tự động cập nhật một lần bấm.
+    Hoạt động ngoài tiến trình chính, chờ ứng dụng thoát sạch, chạy bộ cài Inno Setup
+    ở chế độ im lặng, kiểm tra mã thoát và tự khởi chạy lại ứng dụng mới.
+    """
+    os.makedirs(os.path.dirname(script_path), exist_ok=True)
+    inno_log_path = os.path.join(os.path.dirname(log_path), "inno_setup_install.log")
+
+    def ps_esc(s: str) -> str:
+        return str(s).replace("`", "``").replace('"', '`"').replace("$", "`$")
+
+    script_content = f"""# 1998 TEAM Photobooth — Standalone Updater Runner
+param(
+    [int]$ParentPid = {parent_pid},
+    [string]$InstallerPath = "{ps_esc(installer_path)}",
+    [string]$AppExePath = "{ps_esc(app_exe_path)}",
+    [string]$LogPath = "{ps_esc(log_path)}",
+    [string]$OldVersion = "{ps_esc(old_version)}",
+    [string]$NewVersion = "{ps_esc(new_version)}",
+    [int]$NewBuild = {new_build},
+    [string]$BackupDir = "{ps_esc(backup_dir)}",
+    [string]$InstallDir = "{ps_esc(install_dir)}",
+    [string]$UserDataDir = "{ps_esc(user_data_dir)}",
+    [string]$ExtraInnoArgs = "{ps_esc(extra_inno_args)}",
+    [bool]$Relaunch = ${str(relaunch).lower()}
+)
+
+$ErrorActionPreference = "Continue"
+
+function Write-UpdateLog([string]$msg) {{
+    $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "[$ts] $msg"
+    try {{
+        $dir = Split-Path $LogPath -Parent
+        if ($dir -and -not (Test-Path $dir)) {{
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }}
+        Add-Content -Path $LogPath -Value $line -Encoding UTF8
+    }} catch {{}}
+}}
+
+function Invoke-AppLaunch([string]$targetPath, [string[]]$argsList) {{
+    if (-not $targetPath -or -not (Test-Path $targetPath)) {{
+        Write-UpdateLog "Cảnh báo: Không tìm thấy file thực thi $targetPath"
+        return
+    }}
+    $ext = [System.IO.Path]::GetExtension($targetPath).ToLower()
+    try {{
+        if ($ext -eq ".cmd" -or $ext -eq ".bat") {{
+            # Khởi chạy script .cmd / .bat qua cmd.exe với lệnh call và đối số danh sách chuẩn, ẩn cửa sổ
+            $cmdArgs = @("/c", "call", "`"$targetPath`"") + $argsList
+            $p = Start-Process -FilePath "$env:ComSpec" -ArgumentList $cmdArgs -WindowStyle Hidden -PassThru
+        }} else {{
+            # Khởi chạy ứng dụng nhị phân Windows (.exe) với danh sách đối số
+            $p = Start-Process -FilePath $targetPath -ArgumentList $argsList -PassThru
+        }}
+        if ($p) {{
+            Write-UpdateLog "Đã gửi lệnh khởi chạy ứng dụng (PID $($p.Id)): $targetPath $($argsList -join ' ')"
+        }} else {{
+            Write-UpdateLog "Đã gửi lệnh khởi chạy ứng dụng: $targetPath $($argsList -join ' ')"
+        }}
+    }} catch {{
+        Write-UpdateLog "Lỗi khi khởi chạy ứng dụng $($targetPath) - $_"
+    }}
+}}
+
+Write-UpdateLog "=========================================================="
+Write-UpdateLog "1998 TEAM PHOTOBOOTH — AUTO-UPDATER RUNNER KÍCH HOẠT"
+Write-UpdateLog "Nâng cấp từ: v$OldVersion -> v$NewVersion (Build $NewBuild)"
+Write-UpdateLog "Bộ cài đặt: $InstallerPath"
+Write-UpdateLog "Đường dẫn ứng dụng: $AppExePath"
+
+# 1. Chờ ứng dụng chính thoát hoàn toàn để giải phóng file locks
+if ($ParentPid -gt 0) {{
+    Write-UpdateLog "Đang chờ ứng dụng chính PID $ParentPid thoát sạch..."
+    $timeoutSec = 20
+    $waited = 0
+    while ($waited -lt $timeoutSec) {{
+        $p = Get-Process -Id $ParentPid -ErrorAction SilentlyContinue
+        if (-not $p) {{
+            Write-UpdateLog "Tiến trình chính PID $ParentPid đã thoát sạch."
+            break
+        }}
+        Start-Sleep -Milliseconds 500
+        $waited += 0.5
+    }}
+
+    $p = Get-Process -Id $ParentPid -ErrorAction SilentlyContinue
+    if ($p) {{
+        $pName = $p.ProcessName
+        $pPath = try {{ $p.Path }} catch {{ "" }}
+        $isOurApp = ($pName -match "^1998" -or $pName -match "python" -or ($pPath -and $InstallDir -and $pPath.StartsWith($InstallDir, [System.StringComparison]::OrdinalIgnoreCase)))
+        if ($isOurApp) {{
+            Write-UpdateLog "Cảnh báo: Ứng dụng chính ($pName) chưa thoát sau $timeoutSec giây. Đang yêu cầu dừng an toàn..."
+            Stop-Process -Id $ParentPid -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
+        }} else {{
+            Write-UpdateLog "Cảnh báo: PID $ParentPid hiện không thuộc về 1998 TEAM Photobooth ($pName). Bỏ qua không dừng tiến trình này."
+        }}
+    }}
+}}
+
+# Dừng mọi tiến trình thuộc Photobooth trong thư mục cài đặt để giải phóng file locks, tuyệt đối không động chạm ứng dụng khác
+if ($InstallDir -and (Test-Path $InstallDir)) {{
+    try {{
+        $normInstallDir = $InstallDir.TrimEnd('\') + '\'
+        $lockingProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {{
+            $_.ExecutablePath -and (
+                $_.ExecutablePath.StartsWith($normInstallDir, [System.StringComparison]::OrdinalIgnoreCase) -or
+                $_.ExecutablePath -ieq $InstallDir
+            ) -and $_.ProcessId -ne $PID -and $_.ProcessId -gt 4
+        }}
+        foreach ($lp in $lockingProcs) {{
+            Write-UpdateLog "Dừng tiến trình Photobooth còn lưu giữ file trong thư mục cài đặt: $($lp.Name) (PID $($lp.ProcessId))"
+            Stop-Process -Id $lp.ProcessId -Force -ErrorAction SilentlyContinue
+        }}
+    }} catch {{
+        Write-UpdateLog "Cảnh báo khi kiểm tra tiến trình trong thư mục cài đặt: $_"
+    }}
+}}
+
+# Chờ thêm 1 giây để hệ điều hành giải phóng hoàn toàn file handles
+Start-Sleep -Seconds 1
+
+# 2. Xây dựng tham số gọi Inno Setup
+$innoLog = "{ps_esc(inno_log_path)}"
+$innoArgs = "/SILENT /SP- /SUPPRESSMSGBOXES /FORCECLOSEAPPLICATIONS /CLOSEAPPLICATIONS /NORESTART /LOG=`"$innoLog`""
+if ($InstallDir -and (Test-Path $InstallDir)) {{
+    $innoArgs += " /DIR=`"$InstallDir`""
+}}
+if ($ExtraInnoArgs) {{
+    $innoArgs += " $ExtraInnoArgs"
+}}
+
+Write-UpdateLog "Chạy bộ cài đặt Inno Setup với tham số: $innoArgs"
+
+$proc = Start-Process -FilePath $InstallerPath -ArgumentList $innoArgs -Wait -PassThru -NoNewWindow
+$exitCode = $proc.ExitCode
+Write-UpdateLog "Bộ cài đặt Inno Setup đã kết thúc với mã thoát: $exitCode"
+
+# Nếu cài đặt thất bại và có log Inno Setup, ghi trích xuất log vào updater.log
+if ($exitCode -ne 0 -and (Test-Path $innoLog)) {{
+    try {{
+        $tailLines = Get-Content -Path $innoLog -Tail 15 -ErrorAction SilentlyContinue
+        if ($tailLines) {{
+            Write-UpdateLog "--- [Inno Setup Log Tail] ---"
+            foreach ($tLine in $tailLines) {{
+                Write-UpdateLog "  $tLine"
+            }}
+            Write-UpdateLog "-----------------------------"
+        }}
+    }} catch {{}}
+}}
+
+# 3. Đánh giá mã thoát và khởi chạy lại ứng dụng
+if ($exitCode -eq 0) {{
+    Write-UpdateLog "Cài đặt nâng cấp v$NewVersion hoàn tất thành công 100%!"
+
+    # Xác định đường dẫn thực thi chính xác sau khi cập nhật
+    $targetExe = $AppExePath
+    if (-not ($targetExe -and (Test-Path $targetExe))) {{
+        if ($InstallDir -and (Test-Path (Join-Path $InstallDir "1998TeamPhotobooth.exe"))) {{
+            $targetExe = Join-Path $InstallDir "1998TeamPhotobooth.exe"
+        }} elseif ($env:LOCALAPPDATA -and (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\1998TeamPhotobooth\1998TeamPhotobooth.exe"))) {{
+            $targetExe = Join-Path $env:LOCALAPPDATA "Programs\1998TeamPhotobooth\1998TeamPhotobooth.exe"
+        }}
+    }}
+
+    if (-not $Relaunch) {{
+        Write-UpdateLog "Tự động khởi chạy lại ứng dụng bị vô hiệu hóa (Relaunch = false)."
+    }} elseif ($targetExe -and (Test-Path $targetExe)) {{
+        Write-UpdateLog "Khởi chạy lại ứng dụng chính đã cập nhật: $targetExe"
+        $launchArgs = @("--updated-from", "$OldVersion", "--updated-to", "$NewVersion", "--updated-build", "$NewBuild")
+        Invoke-AppLaunch -targetPath $targetExe -argsList $launchArgs
+    }} else {{
+        Write-UpdateLog "Cảnh báo: Không tìm thấy file thực thi sau khi cài đặt: $AppExePath"
+    }}
+}} else {{
+    Write-UpdateLog "LỖI: Quá trình cài đặt thất bại với mã lỗi $exitCode."
+
+    # Khôi phục dữ liệu từ bản sao lưu nếu có
+    if ($BackupDir -and (Test-Path $BackupDir)) {{
+        $targetRestoreDir = if ($UserDataDir -and (Test-Path $UserDataDir)) {{ $UserDataDir }} else {{ Split-Path (Split-Path $BackupDir -Parent) -Parent }}
+        if ($targetRestoreDir -and (Test-Path $targetRestoreDir)) {{
+            Write-UpdateLog "Đang khôi phục cấu hình từ bản sao lưu: $BackupDir vào: $targetRestoreDir"
+            Get-ChildItem -Path $BackupDir | ForEach-Object {{
+                Copy-Item -Path $_.FullName -Destination $targetRestoreDir -Force -Recurse -ErrorAction SilentlyContinue
+            }}
+            Write-UpdateLog "Đã hoàn tất khôi phục cấu hình an toàn."
+        }}
+    }}
+
+    $targetExe = $AppExePath
+    if (-not ($targetExe -and (Test-Path $targetExe))) {{
+        if ($InstallDir -and (Test-Path (Join-Path $InstallDir "1998TeamPhotobooth.exe"))) {{
+            $targetExe = Join-Path $InstallDir "1998TeamPhotobooth.exe"
+        }} elseif ($env:LOCALAPPDATA -and (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\1998TeamPhotobooth\1998TeamPhotobooth.exe"))) {{
+            $targetExe = Join-Path $env:LOCALAPPDATA "Programs\1998TeamPhotobooth\1998TeamPhotobooth.exe"
+        }}
+    }}
+
+    if (-not $Relaunch) {{
+        Write-UpdateLog "Tự động khởi chạy lại ứng dụng bị vô hiệu hóa khi thất bại (Relaunch = false)."
+    }} elseif ($targetExe -and (Test-Path $targetExe)) {{
+        Write-UpdateLog "Khởi chạy lại ứng dụng phiên bản hiện tại kèm thông báo lỗi..."
+        $failArgs = @("--update-failed", "$exitCode")
+        Invoke-AppLaunch -targetPath $targetExe -argsList $failArgs
+    }} else {{
+        Write-UpdateLog "CẢNH BÁO: Không tìm thấy file thực thi $AppExePath sau khi cài đặt thất bại."
+        Write-UpdateLog "HƯỚNG DẪN PHỤC HỒI: Vui lòng khởi động lại bộ cài đặt thủ công: $InstallerPath"
+    }}
+}}
+
+Write-UpdateLog "Tiến trình Updater Runner kết thúc."
+"""
+    with open(script_path, "w", encoding="utf-8-sig") as f:
+        f.write(script_content)
+
+    return script_path
 
 
 DEFAULT_GITHUB_REPO = "phama3098-coder/bot-sida-4"
@@ -484,7 +892,17 @@ class UpdateDownloadWorker(QThread):
                 self.download_finished.emit(False, "", err)
                 return
 
-            # 5. Kiểm tra chữ ký số nếu có
+            # 5. Xác thực cấu trúc tệp thực thi Windows (PE) nếu dung lượng >= 512KB
+            if actual_size >= 512 * 1024:
+                is_pe, pe_err = validate_pe_executable(temp_file)
+                if not is_pe:
+                    self._cleanup_temp(temp_file)
+                    err = f"Tệp tải về không phải gói cài đặt Windows PE hợp lệ: {pe_err}"
+                    logger.error(err)
+                    self.download_finished.emit(False, "", err)
+                    return
+
+            # 6. Kiểm tra chữ ký số nếu có
             sig_info = verify_digital_signature(temp_file)
             if sig_info.get("status") == "HashMismatch":
                 self._cleanup_temp(temp_file)
@@ -495,7 +913,7 @@ class UpdateDownloadWorker(QThread):
             elif sig_info.get("valid"):
                 logger.info(f"Đã xác minh chữ ký số Authenticode hợp lệ cho: {dest_file}")
 
-            # 6. Đổi tên tệp tạm hoàn chỉnh sang tệp đích
+            # 7. Đổi tên tệp tạm hoàn chỉnh sang tệp đích
             if os.path.exists(dest_file):
                 try:
                     os.remove(dest_file)
@@ -613,32 +1031,110 @@ class UpdateManager(QObject):
         self._download_worker.download_finished.connect(self.download_completed.emit)
         self._download_worker.start()
 
-    def apply_update_and_restart(self, installer_path: str, user_data_dir: Optional[str] = None) -> bool:
+    def apply_update_and_restart(
+        self,
+        installer_path: str,
+        user_data_dir: Optional[str] = None,
+        target_version: str = "",
+        target_build: int = 0
+    ) -> bool:
         """
-        Sao lưu cấu hình hiện tại, chạy bộ cài đặt Windows, và đóng ứng dụng an toàn.
+        Thực hiện quy trình cập nhật tự động một lần bấm:
+        1. Kiểm tra sự tồn tại của tệp cài đặt.
+        2. Tự động sao lưu cấu hình người dùng (config.json, sync_registry.json...).
+        3. Sinh và khởi chạy Updater Runner độc lập (run_update.ps1) chạy ngầm.
+        4. Thoát sạch ứng dụng chính để nhường quyền ghi đè tệp cho bộ cài Inno Setup.
         """
-        if not os.path.exists(installer_path):
-            logger.error(f"Tệp bộ cài đặt không tồn tại: {installer_path}")
+        if not os.path.exists(installer_path) or os.path.getsize(installer_path) == 0:
+            logger.error(f"Tệp bộ cài đặt không tồn tại hoặc rỗng: {installer_path}")
             return False
 
         try:
-            # 1. Tạo bản sao lưu an toàn toàn bộ cấu hình trước khi nâng cấp
+            # 1. Xác định thư mục dữ liệu người dùng và tạo bản sao lưu an toàn
             backup_dir = user_data_dir
             if not backup_dir and hasattr(self.config_mgr, "config_path") and self.config_mgr.config_path:
                 backup_dir = os.path.dirname(self.config_mgr.config_path)
+            if not backup_dir:
+                backup_dir = get_user_data_dir()
 
-            create_pre_update_backup(user_data_dir=backup_dir)
+            backup_folder = create_pre_update_backup(user_data_dir=backup_dir)
 
-            # 2. Khởi chạy bộ cài đặt Inno Setup
-            subprocess.Popen([installer_path], shell=True)
-            logger.info(f"Đã khởi chạy bộ cài đặt: {installer_path}")
+            # 2. Xác định đường dẫn tệp thực thi chính và thư mục cài đặt
+            if getattr(sys, "frozen", False):
+                app_exe = sys.executable
+                install_dir = os.path.dirname(app_exe)
+            else:
+                local_app_data = os.environ.get("LOCALAPPDATA", "")
+                candidate_exe = os.path.join(local_app_data, "Programs", "1998TeamPhotobooth", "1998TeamPhotobooth.exe")
+                if os.path.exists(candidate_exe):
+                    app_exe = candidate_exe
+                    install_dir = os.path.dirname(candidate_exe)
+                else:
+                    app_exe = sys.executable
+                    install_dir = os.path.dirname(sys.executable)
 
-            # 3. Yêu cầu ứng dụng thoát
+            # 3. Chuẩn bị đường dẫn log và script runner độc lập
+            logs_dir = os.path.join(backup_dir, "Logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            log_path = os.path.join(logs_dir, "updater.log")
+
+            updates_dir = os.path.join(backup_dir, "Updates")
+            os.makedirs(updates_dir, exist_ok=True)
+            runner_script_path = os.path.join(updates_dir, "run_update.ps1")
+
+            new_ver = target_version or (self._latest_manifest.version if self._latest_manifest else __version__)
+            new_bld = target_build or (self._latest_manifest.build if self._latest_manifest else __build__)
+
+            generate_updater_runner_script(
+                script_path=runner_script_path,
+                parent_pid=os.getpid(),
+                installer_path=os.path.abspath(installer_path),
+                app_exe_path=os.path.abspath(app_exe),
+                log_path=os.path.abspath(log_path),
+                old_version=__version__,
+                new_version=new_ver,
+                new_build=new_bld,
+                backup_dir=os.path.abspath(backup_folder),
+                install_dir=os.path.abspath(install_dir),
+                user_data_dir=os.path.abspath(backup_dir)
+            )
+
+            # 4. Khởi chạy tiến trình độc lập (CREATE_NO_WINDOW + CREATE_NEW_PROCESS_GROUP)
+            ps_cmd = [
+                "powershell.exe",
+                "-WindowStyle", "Hidden",
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", runner_script_path
+            ]
+
+            creation_flags = 0
+            if sys.platform == "win32":
+                # CREATE_NO_WINDOW (0x08000000) | CREATE_NEW_PROCESS_GROUP (0x00000200)
+                # Tuyệt đối không dùng DETACHED_PROCESS (0x00000008) vì powershell.exe console subsystem
+                # sẽ bị lỗi khởi tạo console và thoát ngay lập tức mà không chạy script.
+                creation_flags = 0x08000000 | 0x00000200
+
+            subprocess.Popen(
+                ps_cmd,
+                creationflags=creation_flags,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True
+            )
+            logger.info(f"Đã kích hoạt Updater Runner độc lập: {runner_script_path}")
+
+            # 5. Đóng sạch tất cả các cửa sổ để kích hoạt cleanup (giải phóng camera, threads, locks)
             from PySide6.QtWidgets import QApplication
             app = QApplication.instance()
             if app:
+                try:
+                    app.closeAllWindows()
+                except Exception as close_err:
+                    logger.warning(f"Lỗi khi đóng các cửa sổ: {close_err}")
                 app.quit()
             return True
         except Exception as e:
-            logger.error(f"Không thể khởi chạy bộ cài đặt {installer_path}: {e}")
+            logger.error(f"Không thể khởi chạy quy trình cập nhật tự động: {e}")
             return False

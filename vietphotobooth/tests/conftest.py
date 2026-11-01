@@ -17,11 +17,11 @@ def qapp():
     if app is None:
         app = QApplication(sys.argv)
     yield app
-    app.closeAllWindows()
-    app.processEvents()
-    import gc
-    gc.collect()
-    del app
+    try:
+        app.closeAllWindows()
+        app.processEvents()
+    except Exception:
+        pass
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +35,29 @@ def cleanup_qt():
         app.processEvents()
     import gc
     gc.collect()
+
+
+_session_exitstatus = 0
+
+
+def pytest_sessionfinish(session, exitstatus):
+    global _session_exitstatus
+    _session_exitstatus = exitstatus
+
+
+def pytest_unconfigure(config):
+    """
+    Đảm bảo tiến trình pytest kết thúc sạch sẽ, tránh Windows C runtime DLL detach crash (0xC0000409)
+    do các luồng ngầm Windows Media Foundation / WASAPI của PySide6.QtMultimedia khi Python tắt.
+    """
+    import sys
+    import os
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    os._exit(_session_exitstatus)
 
 
 

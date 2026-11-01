@@ -143,8 +143,48 @@ class SettingsPage(QWidget):
 
         layout.addWidget(grp_kiosk)
 
-        # 3. MÁY CHỦ CHIA SẺ ẢNH MẠNG LAN (LAN QR SHARING)
-        grp_lan = QGroupBox("3. Máy Chủ Chia Sẻ Ảnh Mạng Nội Bộ (LAN QR Code)")
+        # 3. ÂM THANH PHÒNG CHỤP STUDIO (STUDIO AUDIO SYSTEM)
+        grp_audio = QGroupBox("3. Âm Thanh Phòng Chụp Studio (Studio Audio)")
+        l_audio = QVBoxLayout(grp_audio)
+
+        self.chk_audio_enabled = QCheckBox("Bật hiệu ứng âm thanh phòng chụp (Studio Sound Effects)")
+        self.chk_audio_enabled.setChecked(True)
+        l_audio.addWidget(self.chk_audio_enabled)
+
+        r_aud_ctrl = QHBoxLayout()
+        r_aud_ctrl.addWidget(QLabel("Âm lượng âm thanh phòng chụp:"))
+        self.spin_audio_volume = QSpinBox()
+        self.spin_audio_volume.setRange(0, 100)
+        self.spin_audio_volume.setValue(80)
+        self.spin_audio_volume.setSuffix(" %")
+        r_aud_ctrl.addWidget(self.spin_audio_volume)
+
+        btn_test_sound = QPushButton("🔊 Thử Âm Thanh")
+        btn_test_sound.setObjectName("btn_secondary")
+        btn_test_sound.clicked.connect(self._test_audio_playback)
+        r_aud_ctrl.addWidget(btn_test_sound)
+        r_aud_ctrl.addStretch()
+        l_audio.addLayout(r_aud_ctrl)
+
+        r_aud_sub = QHBoxLayout()
+        self.chk_audio_voice = QCheckBox("Giọng nói hướng dẫn (\"Ba, hai, một. Cười lên nào!\")")
+        self.chk_audio_voice.setChecked(True)
+        r_aud_sub.addWidget(self.chk_audio_voice)
+
+        self.chk_audio_tick = QCheckBox("Tiếng bíp đếm nhịp (Countdown Tick)")
+        self.chk_audio_tick.setChecked(True)
+        r_aud_sub.addWidget(self.chk_audio_tick)
+
+        self.chk_audio_shutter = QCheckBox("Âm thanh màn trập (Mechanical Shutter)")
+        self.chk_audio_shutter.setChecked(True)
+        r_aud_sub.addWidget(self.chk_audio_shutter)
+        r_aud_sub.addStretch()
+        l_audio.addLayout(r_aud_sub)
+
+        layout.addWidget(grp_audio)
+
+        # 4. MÁY CHỦ CHIA SẺ ẢNH MẠNG LAN (LAN QR SHARING)
+        grp_lan = QGroupBox("4. Máy Chủ Chia Sẻ Ảnh Mạng Nội Bộ (LAN QR Code)")
         l_lan = QVBoxLayout(grp_lan)
 
         ip = self.token_mgr.lan_ip
@@ -155,8 +195,8 @@ class SettingsPage(QWidget):
 
         layout.addWidget(grp_lan)
 
-        # 4. QUẢN LÝ BỘ LỌC MÀU (FILTER STUDIO)
-        grp_filter = QGroupBox("4. Quản Lý Bộ Lọc Màu (Filter Studio)")
+        # 5. QUẢN LÝ BỘ LỌC MÀU (FILTER STUDIO)
+        grp_filter = QGroupBox("5. Quản Lý Bộ Lọc Màu (Filter Studio)")
         l_filter = QVBoxLayout(grp_filter)
         l_filter.addWidget(QLabel("Tạo mới, chỉnh sửa thông số 14 bộ điều khiển màu, nhập file .cube 3D LUT và sao lưu bộ lọc."))
         btn_open_filters = QPushButton("🎨 Mở Trình Biên Tập Bộ Lọc Màu (Filter Studio)")
@@ -165,8 +205,8 @@ class SettingsPage(QWidget):
         l_filter.addWidget(btn_open_filters)
         layout.addWidget(grp_filter)
 
-        # 5. LƯU TRỮ & ĐỒNG BỘ ĐÁM MÂY (GOOGLE DRIVE CLOUD SYNC)
-        grp_gdrive = QGroupBox("5. Lưu Trữ & Đồng Bộ Đám Mây (Google Drive Cloud Sync)")
+        # 6. LƯU TRỮ & ĐỒNG BỘ ĐÁM MÂY (GOOGLE DRIVE CLOUD SYNC)
+        grp_gdrive = QGroupBox("6. Lưu Trữ & Đồng Bộ Đám Mây (Google Drive Cloud Sync)")
         l_gd = QVBoxLayout(grp_gdrive)
 
         # Trạng thái kết nối Google Drive
@@ -242,8 +282,8 @@ class SettingsPage(QWidget):
 
         layout.addWidget(grp_gdrive)
 
-        # 6. THÔNG TIN ỨNG DỤNG, BẢN QUYỀN & CẬP NHẬT PHIÊN BẢN
-        grp_sys = QGroupBox("6. Thông Tin Ứng Dụng & Cập Nhật Phiên Bản")
+        # 7. THÔNG TIN ỨNG DỤNG, BẢN QUYỀN & CẬP NHẬT PHIÊN BẢN
+        grp_sys = QGroupBox("7. Thông Tin Ứng Dụng & Cập Nhật Phiên Bản")
         l_sys = QVBoxLayout(grp_sys)
         l_sys.setSpacing(12)
 
@@ -339,6 +379,14 @@ class SettingsPage(QWidget):
         gr = self.config_mgr.get("kiosk.enable_guest_review", True)
         self.chk_guest_review.setChecked(gr)
 
+        # Audio settings
+        self.chk_audio_enabled.setChecked(self.config_mgr.get("audio.enabled", True))
+        aud_vol = int(float(self.config_mgr.get("audio.volume", 0.8)) * 100)
+        self.spin_audio_volume.setValue(aud_vol)
+        self.chk_audio_voice.setChecked(self.config_mgr.get("audio.voice_enabled", True))
+        self.chk_audio_tick.setChecked(self.config_mgr.get("audio.tick_enabled", True))
+        self.chk_audio_shutter.setChecked(self.config_mgr.get("audio.shutter_enabled", True))
+
         # Google Drive settings
         cid = self.config_mgr.get("cloud.gdrive_client_id", "")
         self.txt_client_id.setText(cid)
@@ -371,6 +419,13 @@ class SettingsPage(QWidget):
         self.config_mgr.set("kiosk.shots_per_session", self.spin_shots.value())
         self.config_mgr.set("kiosk.enable_guest_review", self.chk_guest_review.isChecked())
 
+        # Save Audio settings
+        self.config_mgr.set("audio.enabled", self.chk_audio_enabled.isChecked())
+        self.config_mgr.set("audio.volume", self.spin_audio_volume.value() / 100.0)
+        self.config_mgr.set("audio.voice_enabled", self.chk_audio_voice.isChecked())
+        self.config_mgr.set("audio.tick_enabled", self.chk_audio_tick.isChecked())
+        self.config_mgr.set("audio.shutter_enabled", self.chk_audio_shutter.isChecked())
+
         # Save Google Drive settings
         self.config_mgr.set("cloud.gdrive_client_id", self.txt_client_id.text().strip())
         self.config_mgr.set("cloud.gdrive_client_secret", self.txt_client_secret.text().strip())
@@ -390,6 +445,27 @@ class SettingsPage(QWidget):
         self._update_gdrive_ui_status()
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QMessageBox.information(self, "Thành Công", "Đã lưu thành công các thiết lập hệ thống và đám mây!")
+
+    def _test_audio_playback(self):
+        """Phát thử âm thanh theo cài đặt hiện tại để kiểm tra loa và âm lượng."""
+        try:
+            from vietphotobooth.audio import SoundController
+            if not hasattr(self, "_test_sound_ctrl") or not self._test_sound_ctrl:
+                self._test_sound_ctrl = SoundController(config_mgr=self.config_mgr, parent=self)
+            self._test_sound_ctrl.volume = self.spin_audio_volume.value() / 100.0
+            self._test_sound_ctrl.enabled = self.chk_audio_enabled.isChecked()
+            self._test_sound_ctrl.voice_enabled = self.chk_audio_voice.isChecked()
+            self._test_sound_ctrl.tick_enabled = self.chk_audio_tick.isChecked()
+            self._test_sound_ctrl.shutter_enabled = self.chk_audio_shutter.isChecked()
+
+            if self.chk_audio_voice.isChecked():
+                self._test_sound_ctrl.play_voice_prompt()
+            elif self.chk_audio_shutter.isChecked():
+                self._test_sound_ctrl.play_shutter()
+            else:
+                self._test_sound_ctrl.play_tick()
+        except Exception as e:
+            logger.debug(f"[Settings] Lỗi phát thử âm thanh: {e}")
 
     def _manual_check_update(self):
         """Xử lý khi người dùng chủ động bấm 'Kiểm Tra Cập Nhật'."""
@@ -612,3 +688,20 @@ class SettingsPage(QWidget):
             return
         dlg = FilterEditorDialog(self.filter_engine, parent=self)
         dlg.exec()
+
+    def cleanup(self) -> None:
+        """Giải phóng tài nguyên âm thanh và kết nối của SettingsPage."""
+        if hasattr(self, "_test_sound_ctrl") and self._test_sound_ctrl:
+            try:
+                self._test_sound_ctrl.cleanup()
+                self._test_sound_ctrl = None
+            except Exception:
+                pass
+
+    def close(self) -> bool:
+        self.cleanup()
+        return super().close()
+
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)

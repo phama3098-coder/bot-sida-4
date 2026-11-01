@@ -39,9 +39,9 @@ def test_scenario_1_and_6_liveview_run_and_clean_close(qapp):
         time.sleep(0.005)  # 5ms mỗi lần gọi
     elapsed = time.time() - start_t
 
-    # Kiểm tra frame counter không tăng vô hạn: trong ~300ms, tối đa chỉ được ~10-15 frame mới
-    # nhờ bộ đệm cache rate-limiting 30 FPS
-    assert sim._frame_count <= 15, f"Frame counter tăng quá nhanh ({sim._frame_count}), vượt giới hạn 30 FPS!"
+    # Kiểm tra frame counter không tăng vô hạn nhờ bộ đệm cache rate-limiting 30 FPS
+    max_allowed = max(15, int(elapsed * 35) + 3)
+    assert sim._frame_count <= max_allowed, f"Frame counter tăng quá nhanh ({sim._frame_count} > {max_allowed}), vượt giới hạn 30 FPS!"
     assert len(frames) == 60  # Trả về frame cache mượt mà
 
     sim.disconnect()

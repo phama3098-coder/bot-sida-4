@@ -8,7 +8,7 @@ import time
 import io
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from vietphotobooth.camera.backends.base import CameraBackendBase
 from vietphotobooth.camera.models import (
@@ -140,6 +140,7 @@ class SimulatorBackend(CameraBackendBase):
             width=w,
             height=h,
             fps=self._target_fps,
+            sequence_id=self._frame_count,
             timestamp=now,
             is_valid=True
         )
@@ -157,12 +158,28 @@ class SimulatorBackend(CameraBackendBase):
         rgb = self._generate_simulator_frame(2400, 1600)
         return Image.fromarray(rgb)
 
+    def autofocus(
+        self,
+        callback: Optional[Any] = None,
+        target_point: Optional[Tuple[float, float]] = None,
+        frame_size: Optional[Tuple[float, float]] = None,
+        **kwargs
+    ) -> Tuple[bool, str]:
+        """Giả lập lấy nét tự động trên Simulator (Rõ ràng đây là mô phỏng)."""
+        self._last_af_target_point = target_point
+        self._last_af_frame_size = frame_size
+        msg = "Mô phỏng lấy nét thành công (Chế độ Simulator)"
+        if callback:
+            callback(True, msg)
+        return True, msg
+
     def get_capabilities(self) -> CameraCapabilities:
         return CameraCapabilities(
             can_capture=True,
             can_liveview=True,
             can_download=True,
             can_adjust_parameters=True,
+            can_autofocus=True,
             supported_resolutions=[(2400, 1600), (1920, 1080), (1280, 720)],
             supported_fps=[30.0],
             format_name="Simulator RGB"

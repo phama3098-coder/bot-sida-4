@@ -1,0 +1,210 @@
+/**
+ * 1998 TEAM PHOTOBOOTH — HYBRID DESIGN SYSTEM THEMES (ROUND 2 REFINED)
+ * Định hình trực quan: Operator là Concept A (Studio) | Guest/Kiosk là Concept B (Event)
+ * Tích hợp hệ thống trạng thái phần cứng Concept C (Đa kênh: Icon + Nhãn + Màu sắc)
+ */
+
+/* ==========================================================================
+   DEFAULT HYBRID BASE: OPERATOR COCKPIT (Concept A — Premium Studio)
+   ========================================================================== */
+body.theme-hybrid.mode-operator,
+body.theme-concept_a {
+  --bg-app: #0B0F19;
+  --bg-sidebar: #070A10;
+  --bg-card: #151D2A;
+  --bg-card-subtle: #1C2638;
+  --bg-stage: #05070B;
+  --bg-modal: #111723;
+
+  --border-color: rgba(212, 175, 55, 0.24);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-focus: #D4AF37;
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-accent: #F59E0B;
+
+  --brand-primary: #D4AF37;
+  --brand-primary-hover: #E5BE48;
+  --brand-primary-text: #0B0F19;
+  --brand-secondary: #334155;
+  --brand-glow: 0 0 25px rgba(212, 175, 55, 0.28);
+
+  --radius-btn: 12px;
+  --radius-card: 16px;
+  --radius-dock: 20px;
+
+  --font-family-display: "Playfair Display", "BeVietnam Pro", serif;
+  --font-family-body: "BeVietnam Pro", -apple-system, sans-serif;
+
+  --header-badge-bg: rgba(212, 175, 55, 0.12);
+  --header-badge-border: rgba(212, 175, 55, 0.35);
+  --header-badge-text: #FDE68A;
+}
+
+/* ==========================================================================
+   HYBRID: GUEST / KIOSK MODE (Concept B — Modern Event Photobooth)
+   ========================================================================== */
+body.theme-hybrid.mode-kiosk,
+body.theme-concept_b {
+  --bg-app: #F8FAFC;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #FFF5F7;
+  --bg-stage: #F1F5F9;
+  --bg-modal: #FFFFFF;
+
+  --border-color: #F1F5F9;
+  --border-subtle: #E2E8F0;
+  --border-focus: #E11D48;
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --text-accent: #E11D48;
+
+  --brand-primary: #E11D48;
+  --brand-primary-hover: #BE123C;
+  --brand-primary-text: #FFFFFF;
+  --brand-secondary: #FCE7F3;
+  --brand-glow: 0 10px 25px -5px rgba(225, 29, 72, 0.25);
+
+  --radius-btn: 9999px; /* Pill buttons */
+  --radius-card: 24px;   /* Bubbly rounded cards */
+  --radius-dock: 9999px;
+
+  --font-family-display: "Quicksand", "BeVietnam Pro", sans-serif;
+  --font-family-body: "BeVietnam Pro", sans-serif;
+
+  --header-badge-bg: #FFF1F2;
+  --header-badge-border: #FECDD3;
+  --header-badge-text: #BE123C;
+}
+
+/* Preset Kiosk Event Theme 1: Lãng Mạn / Tiệc Cưới */
+body.kiosk-theme-wedding.mode-kiosk {
+  --bg-app: #FDFBF7;
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #F7F3EB;
+  --brand-primary: #C59B27;
+  --border-focus: #C59B27;
+  --brand-glow: 0 10px 25px -5px rgba(197, 155, 39, 0.25);
+}
+
+/* Preset Kiosk Event Theme 2: Lễ Hội / Giới Trẻ */
+body.kiosk-theme-festival.mode-kiosk {
+  --bg-app: #FFF5F8;
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #FDF2F8;
+  --brand-primary: #E11D48;
+  --border-focus: #E11D48;
+  --brand-glow: 0 10px 25px -5px rgba(225, 29, 72, 0.3);
+}
+
+/* Preset Kiosk Event Theme 3: Doanh Nghiệp / Gala Tối */
+body.kiosk-theme-corporate.mode-kiosk {
+  --bg-app: #0F172A;
+  --bg-card: #1E293B;
+  --bg-card-subtle: #334155;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --brand-primary: #38BDF8;
+  --border-focus: #38BDF8;
+  --brand-glow: 0 0 25px rgba(56, 189, 248, 0.3);
+}
+
+/* ==========================================================================
+   CONCEPT C INDEPENDENT (Phục vụ việc đối sánh nếu cần)
+   ========================================================================== */
+body.theme-concept_c {
+  --bg-app: #121316;
+  --bg-sidebar: #0D0E10;
+  --bg-card: #181A20;
+  --bg-card-subtle: #21242C;
+  --bg-stage: #08090A;
+  --bg-modal: #181A20;
+
+  --border-color: #2A2E39;
+  --border-subtle: #1E2129;
+  --border-focus: #3B82F6;
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-accent: #3B82F6;
+
+  --brand-primary: #3B82F6;
+  --brand-primary-hover: #2563EB;
+  --brand-primary-text: #FFFFFF;
+  --brand-secondary: #1E293B;
+  --brand-glow: 0 0 20px rgba(59, 130, 246, 0.35);
+
+  --radius-btn: 8px;
+  --radius-card: 10px;
+  --radius-dock: 12px;
+
+  --font-family-display: "BeVietnam Pro", -apple-system, sans-serif;
+  --font-family-body: "BeVietnam Pro", -apple-system, sans-serif;
+}
+
+/* ==========================================================================
+   CONCEPT C STATUS TELEMETRY SYSTEM (Đa kênh: Icon + Text + Viền + Màu)
+   Không bao giờ dựa vào màu sắc đơn thuần làm tín hiệu duy nhất
+   ========================================================================== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.status-badge .status-icon {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+/* 1. CONNECTED / SẴN SÀNG */
+.status-badge.connected,
+.status-pill-connected {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10B981;
+}
+
+/* 2. BUSY / ĐANG XỬ LÝ / ĐANG LÀM MÁT */
+.status-badge.busy,
+.status-pill-busy {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #38BDF8;
+}
+
+/* 3. WARNING / CẢNH BÁO (GIẤY SẮP HẾT, NHIỆT CAO) */
+.status-badge.warning,
+.status-pill-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #F59E0B;
+}
+
+/* 4. ERROR / LỖI NGIÊM TRỌNG (KẸT GIẤY, MẤT KẾT NỐI) */
+.status-badge.error,
+.status-pill-error {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #EF4444;
+}
+
+/* 5. DISCONNECTED / MẤT TÍN HIỆU HOÀN TOÀN */
+.status-badge.disconnected,
+.status-pill-disconnected {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #94A3B8;
+}

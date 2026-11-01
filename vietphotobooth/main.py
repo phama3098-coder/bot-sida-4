@@ -42,6 +42,10 @@ def main():
     parser.add_argument("--kiosk", action="store_true", help="Khởi động trực tiếp ở chế độ toàn màn hình Kiosk")
     parser.add_argument("--no-server", action="store_true", help="Không khởi động máy chủ chia sẻ LAN")
     parser.add_argument("--port", type=int, default=None, help="Cổng máy chủ chia sẻ LAN (mặc định: 8080)")
+    parser.add_argument("--updated-from", type=str, default=None, help="Thông báo nâng cấp từ phiên bản cũ")
+    parser.add_argument("--updated-to", type=str, default=None, help="Phiên bản mới vừa nâng cấp lên")
+    parser.add_argument("--updated-build", type=int, default=0, help="Số build vừa nâng cấp lên")
+    parser.add_argument("--update-failed", type=str, default=None, help="Mã lỗi cập nhật thất bại")
     args = parser.parse_args()
 
     # Đăng ký AppUserModelID cho Windows Taskbar hiển thị đúng icon
@@ -80,7 +84,16 @@ def main():
         from PySide6.QtGui import QIcon
         qt_app.setWindowIcon(QIcon(icon_path))
 
-    window = MainWindow(start_in_kiosk=args.kiosk)
+    update_info = None
+    if args.updated_to or args.update_failed:
+        update_info = {
+            "updated_from": args.updated_from,
+            "updated_to": args.updated_to,
+            "updated_build": args.updated_build,
+            "update_failed": args.update_failed,
+        }
+
+    window = MainWindow(start_in_kiosk=args.kiosk, update_info=update_info)
     window.show()
 
     logger.info("Giao diện Desktop 1998 TEAM — Photobooth đã sẵn sàng.")

@@ -64,29 +64,42 @@ def test_camera_stream_worker_lifecycle():
 # 2. DIGICAM OFFLINE STREAM REPORTS ZERO / REALISTIC FPS (NO FAKE 30 FPS)
 # -----------------------------------------------------------------------------
 def test_digicam_offline_reports_no_fake_fps():
-    with patch("os.path.exists", return_value=True):
+    from unittest.mock import MagicMock
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b"Nikon D780"
+    mock_resp.status = 200
+
+    def urlopen_side_effect(req, timeout=None):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "liveview.jpg" in url:
+            raise Exception("Offline")
+        return mock_resp
+
+    with patch("os.path.exists", return_value=True), \
+         patch("vietphotobooth.camera.backends.digicam_control.is_digicam_process_running", return_value=True), \
+         patch("vietphotobooth.camera.backends.digicam_control.is_port_listening", return_value=True), \
+         patch("vietphotobooth.camera.backends.digicam_control.urllib.request.urlopen", side_effect=urlopen_side_effect):
         backend = DigiCamControlBackend()
-        with patch("vietphotobooth.camera.backends.digicam_control.urllib.request.urlopen", side_effect=Exception("Offline")):
-            backend.connect()
-            frame = backend.read_frame()
-            assert frame is None
-            assert backend.get_status() == ConnectionState.CONNECTED_NO_FRAME
+        backend.connect()
+        frame = backend.read_frame()
+        assert frame is None
+        assert backend.get_status() == ConnectionState.CONNECTED_NO_FRAME
 
-            mgr = CameraConnectionManager(default_backend="simulator")
-            mgr.stop_stream()
-            mgr._backend = backend
-            mgr._current_backend_type = "digicam"
-            mgr._read_fps_tracker.reset()
+        mgr = CameraConnectionManager(default_backend="simulator")
+        mgr.stop_stream()
+        mgr._backend = backend
+        mgr._current_backend_type = "digicam"
+        mgr._read_fps_tracker.reset()
 
-            info = mgr.get_info()
-            # Must NOT display fake 30 FPS
-            assert info["fps"] == 0.0
-            assert info["read_fps"] == 0.0
-            assert info["is_live_view_active"] is False
-            assert "Tethered" in info["status"]
-            assert info["capture_resolution"] == (6000, 4000)
-            assert info["actual_resolution"] == (0, 0)
-            mgr.disconnect()
+        info = mgr.get_info()
+        # Must NOT display fake 30 FPS
+        assert info["fps"] == 0.0
+        assert info["read_fps"] == 0.0
+        assert info["is_live_view_active"] is False
+        assert "Tethered" in info["status"]
+        assert info["capture_resolution"] == (6000, 4000)
+        assert info["actual_resolution"] == (0, 0)
+        mgr.disconnect()
 
 
 # -----------------------------------------------------------------------------

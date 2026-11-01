@@ -140,10 +140,18 @@ def main():
     sha256_file = dist_installer_dir / f"{expected_exe_name}.sha256"
     sha256_file.write_text(f"{sha256_hash} *{expected_exe_name}\n", encoding="utf-8")
 
+    # Tạo thêm bản sao với tên thân thiện: 1998-TEAM-Photobooth-Setup-v{__version__}.exe
+    alt_exe_name = f"1998-TEAM-Photobooth-Setup-v{__version__}.exe"
+    alt_installer_path = dist_installer_dir / alt_exe_name
+    shutil.copy2(target_installer_path, alt_installer_path)
+    alt_sha256_file = dist_installer_dir / f"{alt_exe_name}.sha256"
+    alt_sha256_file.write_text(f"{sha256_hash} *{alt_exe_name}\n", encoding="utf-8")
+
     print("=" * 72)
     print("  XUẤT BẢN THÀNH CÔNG BỘ CÀI ĐẶT 1998 TEAM — PHOTOBOOTH")
     print("=" * 72)
     print(f"• Tên file:     {expected_exe_name}")
+    print(f"• Bản phụ:      {alt_exe_name}")
     print(f"• Đường dẫn:    {target_installer_path}")
     print(f"• Kích thước:   {file_size_bytes:,} bytes (~{file_size_mb:.2f} MB)")
     print(f"• SHA-256 Hash: {sha256_hash}")

@@ -6,11 +6,11 @@
 #endif
 
 #ifndef MyAppVersion
-#define MyAppVersion "1.4.3"
+#define MyAppVersion "1.6.6"
 #endif
 
 #ifndef MyAppBuild
-#define MyAppBuild "143"
+#define MyAppBuild "166"
 #endif
 
 #ifndef MyAppPublisher
@@ -26,7 +26,7 @@
 #endif
 
 #ifndef MyOutputFilename
-#define MyOutputFilename "1998-TEAM-Setup-v1.4.3-Build143"
+#define MyOutputFilename "1998-TEAM-Setup-v1.6.6-Build166"
 #endif
 
 [Setup]
@@ -60,6 +60,9 @@ MinVersion=10.0.10240
 ; Privileges
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline dialog
+CloseApplications=yes
+CloseApplicationsFilter=*.exe,*.dll,*.pyd
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

@@ -67,6 +67,7 @@ class CameraCapabilities:
     can_liveview: bool = True
     can_download: bool = True
     can_adjust_parameters: bool = False
+    can_autofocus: bool = False
     supported_resolutions: List[Tuple[int, int]] = field(default_factory=list)
     supported_fps: List[float] = field(default_factory=list)
     format_name: str = "RGB"
@@ -81,6 +82,7 @@ class CameraCapabilities:
             "can_liveview": self.can_liveview,
             "can_download": self.can_download,
             "can_adjust_parameters": self.can_adjust_parameters,
+            "can_autofocus": self.can_autofocus,
             "supported_resolutions": self.supported_resolutions,
             "supported_fps": self.supported_fps,
             "max_fps": self.max_fps,
@@ -127,13 +129,18 @@ class FrameData:
     width: int = 0
     height: int = 0
     fps: float = 0.0
+    sequence_id: int = 0
     timestamp: float = field(default_factory=time.time)
     is_valid: bool = False
 
     @property
     def has_rgb(self) -> bool:
-        return self.rgb is not None and self.rgb.size > 0
+        return self.rgb is not None and hasattr(self.rgb, "ndim") and self.rgb.ndim >= 2 and self.rgb.size > 0
 
     @property
     def has_jpeg(self) -> bool:
         return self.jpeg is not None and len(self.jpeg) > 0
+
+    @property
+    def aspect_ratio(self) -> float:
+        return (float(self.width) / float(self.height)) if self.height > 0 else 1.0

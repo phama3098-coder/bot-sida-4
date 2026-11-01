@@ -21,12 +21,21 @@ class DeviceDiscoveryService:
     def discover_all_devices() -> Dict[str, List[CameraDeviceInfo]]:
         """Dò quét toàn diện tất cả các backend camera."""
         results: Dict[str, List[CameraDeviceInfo]] = {
+            "nikon_maid": [],
             "directshow": [],
             "digicam": [],
             "simulator": []
         }
 
-        # 1. DirectShow Webcam
+        # 1. Nikon MAID Native USB (DSLR Nikon D780)
+        try:
+            from vietphotobooth.camera.backends.nikon_maid import NikonD780Backend
+            nikon = NikonD780Backend()
+            results["nikon_maid"] = nikon.discover_devices()
+        except Exception as e:
+            logger.debug(f"Nikon MAID discovery: {e}")
+
+        # 2. DirectShow Webcam
         try:
             dshow = DirectShowWebcamBackend()
             results["directshow"] = dshow.discover_devices()

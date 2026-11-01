@@ -168,6 +168,12 @@ class UpdateNotificationDialog(QDialog):
         self.txt_notes.setPlainText(formatted_notes)
         layout.addWidget(self.txt_notes)
 
+        # Chú thích quy trình tự động 1 lần bấm
+        lbl_auto_note = QLabel("⚡ <i>Quy trình tự động 1 lần bấm: Tải về, xác thực SHA-256, tự động cài đặt và khởi động lại. Dữ liệu ảnh và cấu hình được bảo toàn 100%.</i>")
+        lbl_auto_note.setStyleSheet("color: #38BDF8; font-size: 11px;")
+        lbl_auto_note.setWordWrap(True)
+        layout.addWidget(lbl_auto_note)
+
         # Các nút thao tác: Cập nhật ngay, Xem chi tiết, Để sau
         btn_bar = QHBoxLayout()
         btn_bar.setSpacing(10)
@@ -179,8 +185,9 @@ class UpdateNotificationDialog(QDialog):
 
         btn_bar.addStretch()
 
-        self.btn_update = QPushButton("🚀 Cập Nhật Ngay")
+        self.btn_update = QPushButton("🚀 Cập Nhật")
         self.btn_update.setObjectName("btn_primary")
+        self.btn_update.setToolTip("Khởi chạy quy trình cập nhật và khởi động lại ứng dụng")
         self.btn_update.clicked.connect(self._on_update_clicked)
         btn_bar.addWidget(self.btn_update)
 
@@ -248,6 +255,12 @@ class UpdateProgressDialog(QDialog):
         self.btn_retry.clicked.connect(self._retry_download)
         btn_bar.addWidget(self.btn_retry)
 
+        self.btn_install_now = QPushButton("🚀 Cài Đặt Ngay")
+        self.btn_install_now.setObjectName("btn_primary")
+        self.btn_install_now.setVisible(False)
+        self.btn_install_now.clicked.connect(self._do_install)
+        btn_bar.addWidget(self.btn_install_now)
+
         self.btn_action = QPushButton("Hủy Tải")
         self.btn_action.setObjectName("btn_secondary")
         self.btn_action.clicked.connect(self._on_action_clicked)
@@ -279,22 +292,65 @@ class UpdateProgressDialog(QDialog):
             self.progress_bar.setValue(100)
             self.lbl_status.setText("✅ Đã tải và xác thực SHA-256 an toàn!")
             self.lbl_status.setStyleSheet("color: #10B981; font-weight: bold; font-size: 14px;")
-            self.lbl_details.setText("Gói cài đặt sẵn sàng. Dữ liệu ảnh và cấu hình sẽ được giữ nguyên.")
             self.btn_retry.setVisible(False)
-            self.btn_action.setText("🚀 Cài Đặt Ngay")
-            self.btn_action.setObjectName("btn_primary")
-            self.btn_action.setStyle(self.btn_action.style())  # Refresh stylesheet
+            self.btn_install_now.setVisible(True)
+            self.btn_action.setText("Hủy (Dừng Cài Đặt)")
+            self.btn_action.setObjectName("btn_secondary")
+            self.btn_action.setStyle(self.btn_action.style())
+
+            # Bắt đầu đếm ngược tự động nâng cấp (One-Click flow: không bắt người dùng bấm thêm nút)
+            from PySide6.QtCore import QTimer
+            self._countdown = 2
+            self.lbl_details.setText(f"Tự động tiến hành cài đặt và khởi động lại trong {self._countdown} giây...")
+
+            if not hasattr(self, "_auto_timer") or self._auto_timer is None:
+                self._auto_timer = QTimer(self)
+                self._auto_timer.timeout.connect(self._on_auto_tick)
+            self._auto_timer.start(1000)
         else:
             self.progress_bar.setRange(0, 100)
             self.lbl_status.setText("❌ Tải bản cập nhật thất bại")
             self.lbl_status.setStyleSheet("color: #EF4444; font-weight: bold; font-size: 14px;")
             self.lbl_details.setText(err_msg or "Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.")
             self.btn_retry.setVisible(True)
+            self.btn_install_now.setVisible(False)
             self.btn_action.setText("Đóng")
+
+    def _on_auto_tick(self):
+        self._countdown -= 1
+        if self._countdown > 0:
+            self.lbl_details.setText(f"Tự động tiến hành cài đặt và khởi động lại trong {self._countdown} giây...")
+        else:
+            if hasattr(self, "_auto_timer") and self._auto_timer and self._auto_timer.isActive():
+                self._auto_timer.stop()
+            self._do_install()
+
+    def _do_install(self):
+        """Kích hoạt bộ cài đặt và đóng ứng dụng tự động."""
+        if hasattr(self, "_auto_timer") and self._auto_timer and self._auto_timer.isActive():
+            self._auto_timer.stop()
+        if not self.installer_path:
+            return
+
+        self.lbl_status.setText("🔄 Đang chuyển tiếp sang trình cài đặt...")
+        self.lbl_details.setText("Đang sao lưu dữ liệu và khởi động bộ cài đặt tự động...")
+        self.btn_install_now.setEnabled(False)
+        self.btn_action.setEnabled(False)
+
+        # Áp dụng cập nhật
+        self.update_mgr.apply_update_and_restart(
+            self.installer_path,
+            target_version=self.manifest.version,
+            target_build=self.manifest.build
+        )
+        self.accept()
 
     def _retry_download(self):
         """Khởi động lại tiến trình tải xuống."""
+        if hasattr(self, "_auto_timer") and self._auto_timer and self._auto_timer.isActive():
+            self._auto_timer.stop()
         self.btn_retry.setVisible(False)
+        self.btn_install_now.setVisible(False)
         self.lbl_status.setText(f"Đang thử lại tải phiên bản v{self.manifest.version}...")
         self.lbl_status.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
         self.lbl_details.setText("Đang kết nối lại đến máy chủ...")
@@ -304,26 +360,102 @@ class UpdateProgressDialog(QDialog):
         self.update_mgr.start_download(self.manifest)
 
     def reject(self):
+        if hasattr(self, "_auto_timer") and self._auto_timer and self._auto_timer.isActive():
+            self._auto_timer.stop()
         if not self.installer_path and self.update_mgr:
             self.update_mgr.cancel_download()
         super().reject()
 
     def closeEvent(self, event):
+        if hasattr(self, "_auto_timer") and self._auto_timer and self._auto_timer.isActive():
+            self._auto_timer.stop()
         if not self.installer_path and self.update_mgr:
             self.update_mgr.cancel_download()
         super().closeEvent(event)
 
     def _on_action_clicked(self):
+        if hasattr(self, "_auto_timer") and self._auto_timer and self._auto_timer.isActive():
+            self._auto_timer.stop()
+
         if self.installer_path:
-            ret = QMessageBox.question(
-                self,
-                "Xác Nhận Cài Đặt",
-                "Ứng dụng sẽ tự động sao lưu cấu hình, khởi động bộ cài đặt và đóng phiên làm việc hiện tại.\n\nBạn có muốn tiếp tục không?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if ret == QMessageBox.Yes:
-                self.update_mgr.apply_update_and_restart(self.installer_path)
+            # Người dùng bấm dừng cài đặt trong lúc đếm ngược
+            self.lbl_status.setText("⏸️ Đã dừng tự động cài đặt")
+            self.lbl_status.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
+            self.lbl_details.setText("Gói cài đặt đã được tải và bảo quản an toàn trong thư mục Downloads.")
+            self.btn_action.setText("Đóng")
+            self.btn_install_now.setVisible(True)
+            self.btn_install_now.setEnabled(True)
         else:
             if self.update_mgr:
                 self.update_mgr.cancel_download()
             self.reject()
+
+
+class UpdateResultDialog(QDialog):
+    """Hộp thoại thông báo kết quả sau khi hoàn tất cập nhật và khởi động lại."""
+    def __init__(self, is_success: bool, new_version: str = "", new_build: int = 0, old_version: str = "", error_code: str = "", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Trạng Thái Cập Nhật — 1998 TEAM Photobooth")
+        self.setFixedSize(500, 320)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setStyleSheet(DIALOG_STYLE)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 20)
+        layout.setSpacing(14)
+
+        if is_success:
+            lbl_title = QLabel("🎉 <b>Cập Nhật Thành Công!</b>")
+            lbl_title.setStyleSheet("color: #10B981; font-size: 18px; font-weight: bold;")
+            layout.addWidget(lbl_title)
+
+            ver_info = f"1998 TEAM — Photobooth đã được nâng cấp lên <b>v{new_version} (Build {new_build})</b>."
+            if old_version:
+                ver_info += f"<br>(Nâng cấp từ phiên bản v{old_version})"
+            lbl_msg = QLabel(ver_info)
+            lbl_msg.setStyleSheet("color: #F8FAFC; font-size: 13px;")
+            layout.addWidget(lbl_msg)
+
+            box = QFrame()
+            box.setStyleSheet("background-color: #0E1626; border: 1px solid #1E2D4A; border-radius: 8px; padding: 12px;")
+            box_layout = QVBoxLayout(box)
+            box_layout.setSpacing(6)
+            b1 = QLabel("✓ Toàn bộ ảnh chụp, sự kiện và cấu hình được bảo toàn 100%.")
+            b1.setStyleSheet("color: #94A3B8; font-size: 12px;")
+            b2 = QLabel("✓ Cấu trúc dữ liệu và kết nối máy ảnh Nikon hoạt động bình thường.")
+            b2.setStyleSheet("color: #94A3B8; font-size: 12px;")
+            b3 = QLabel("✓ Đã sẵn sàng phục vụ các phiên chụp sự kiện chuyên nghiệp.")
+            b3.setStyleSheet("color: #94A3B8; font-size: 12px;")
+            box_layout.addWidget(b1)
+            box_layout.addWidget(b2)
+            box_layout.addWidget(b3)
+            layout.addWidget(box)
+        else:
+            lbl_title = QLabel("⚠️ <b>Cập Nhật Chưa Hoàn Tất</b>")
+            lbl_title.setStyleSheet("color: #EF4444; font-size: 18px; font-weight: bold;")
+            layout.addWidget(lbl_title)
+
+            lbl_msg = QLabel(f"Trình cài đặt kết thúc với mã thoát: <b>{error_code or 'Không xác định'}</b>.<br>Hệ thống đã tự động bảo vệ dữ liệu và mở lại phiên bản hiện tại.")
+            lbl_msg.setStyleSheet("color: #F8FAFC; font-size: 13px;")
+            layout.addWidget(lbl_msg)
+
+            box = QFrame()
+            box.setStyleSheet("background-color: #0E1626; border: 1px solid #1E2D4A; border-radius: 8px; padding: 12px;")
+            box_layout = QVBoxLayout(box)
+            b1 = QLabel("• Dữ liệu ảnh và cấu hình hoàn toàn nguyên vẹn.")
+            b1.setStyleSheet("color: #94A3B8; font-size: 12px;")
+            b2 = QLabel("• Chi tiết nhật ký cài đặt được lưu tại thư mục <code>Logs/updater.log</code>.")
+            b2.setStyleSheet("color: #94A3B8; font-size: 12px;")
+            box_layout.addWidget(b1)
+            box_layout.addWidget(b2)
+            layout.addWidget(box)
+
+        layout.addStretch()
+
+        btn_bar = QHBoxLayout()
+        btn_bar.addStretch()
+        btn_ok = QPushButton("✓ Đã Hiểu (Bắt Đầu)")
+        btn_ok.setObjectName("btn_primary")
+        btn_ok.clicked.connect(self.accept)
+        btn_bar.addWidget(btn_ok)
+        layout.addLayout(btn_bar)

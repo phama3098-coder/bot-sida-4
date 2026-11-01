@@ -397,7 +397,9 @@ def create_app() -> FastAPI:
     @app.get("/api/logs")
     async def get_logs(tail: int = 50):
         base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-        log_file = os.path.join(base_dir, "VietPhotoBooth", "Logs", "vietphotobooth.log")
+        log_file = os.path.join(base_dir, "1998TeamPhotobooth", "Logs", "1998team_photobooth.log")
+        if not os.path.exists(log_file):
+            log_file = os.path.join(base_dir, "VietPhotoBooth", "Logs", "vietphotobooth.log")
         lines = []
         if os.path.exists(log_file):
             try:

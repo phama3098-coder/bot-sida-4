@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-10-23 00:03:24",
+  "resolution": "1024x680",
+  "face_detection_off": {
+    "fps": 36.83,
+    "frame_count": 111,
+    "duration_sec": 3.01
+  },
+  "face_detection_on": {
+    "fps": 36.75,
+    "frame_count": 111,
+    "duration_sec": 3.02,
+    "ai_inferences": 37,
+    "ai_fps": 12.25,
+    "avg_inference_latency_ms": 6.36
+  },
+  "fps_drop_percent": 0.24,
+  "status": "PASSED"
+}

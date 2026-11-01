@@ -14,7 +14,8 @@ from typing import Optional, Dict, Any, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QProgressBar, QSpinBox, QDoubleSpinBox, QFrame, QScrollArea,
-    QMessageBox, QSizePolicy, QTableWidget, QTableWidgetItem, QHeaderView
+    QMessageBox, QSizePolicy, QTableWidget, QTableWidgetItem, QHeaderView,
+    QCheckBox
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QFont
@@ -370,6 +371,33 @@ class PrintingPage(QWidget):
         r_ctrl.addLayout(v_rst, 1)
 
         v_controls.addLayout(r_ctrl)
+
+        # Hàng tùy chọn nâng cao: Safety Margin, Auto Orientation, Thermal Pacing
+        r_preset_opts = QHBoxLayout()
+        r_preset_opts.setSpacing(16)
+
+        self.chk_safety_margin = QCheckBox("Lề an toàn chống tràn mép (Safety Margin 98%)")
+        self.chk_safety_margin.setToolTip("Tự động thu nhỏ ảnh 98% để chống bị cắt viền do mép cuộn của máy in nhiệt DNP/Citizen")
+        r_preset_opts.addWidget(self.chk_safety_margin)
+
+        self.chk_auto_orientation = QCheckBox("Tự động xoay ảnh khớp hướng giấy (Auto Orientation)")
+        self.chk_auto_orientation.setToolTip("Tự động nhận diện hướng giấy DC của máy in và xoay 90 độ nếu tỷ lệ khung hình ngược nhau")
+        r_preset_opts.addWidget(self.chk_auto_orientation)
+
+        r_pacing = QHBoxLayout()
+        r_pacing.addWidget(QLabel("Giãn cách in nhiệt:"))
+        self.spin_thermal_pacing = QDoubleSpinBox()
+        self.spin_thermal_pacing.setRange(-1.0, 10.0)
+        self.spin_thermal_pacing.setSingleStep(0.5)
+        self.spin_thermal_pacing.setValue(-1.0)
+        self.spin_thermal_pacing.setSpecialValueText("Theo Preset")
+        self.spin_thermal_pacing.setSuffix(" s")
+        self.spin_thermal_pacing.setToolTip("-1.0s: Sử dụng cấu hình tối ưu của từng máy in (DNP RX1: 1.5s, QW410: 1.0s, Generic: 0s)")
+        r_pacing.addWidget(self.spin_thermal_pacing)
+        r_preset_opts.addLayout(r_pacing)
+        r_preset_opts.addStretch()
+
+        v_controls.addLayout(r_preset_opts)
         h_align_body.addLayout(v_controls, 1)
 
         l_align.addLayout(h_align_body)
@@ -549,6 +577,11 @@ class PrintingPage(QWidget):
         self.spin_y.setValue(self.print_mgr.offset_y)
         self.spin_zoom.setValue(self.print_mgr.zoom)
 
+        # Printing hardening & presets
+        self.chk_safety_margin.setChecked(self.print_mgr.safety_margin_enabled)
+        self.chk_auto_orientation.setChecked(self.print_mgr.auto_orientation_enabled)
+        self.spin_thermal_pacing.setValue(self.print_mgr.thermal_pacing_sec)
+
         # Bộ đếm giấy
         self.prog_paper.setMaximum(max(100, self.print_mgr.paper_max))
         self.prog_paper.setValue(self.print_mgr.paper_count)
@@ -571,6 +604,9 @@ class PrintingPage(QWidget):
         self.spin_x.setValue(0)
         self.spin_y.setValue(0)
         self.spin_zoom.setValue(1.0)
+        self.chk_safety_margin.setChecked(True)
+        self.chk_auto_orientation.setChecked(True)
+        self.spin_thermal_pacing.setValue(-1.0)
         self._on_margin_changed()
 
     def _update_paper_ui(self):
@@ -643,6 +679,9 @@ class PrintingPage(QWidget):
         self.print_mgr.offset_y = self.spin_y.value()
         self.print_mgr.zoom = self.spin_zoom.value()
         self.print_mgr.paper_warning_threshold = self.spin_warning.value()
+        self.print_mgr.safety_margin_enabled = self.chk_safety_margin.isChecked()
+        self.print_mgr.auto_orientation_enabled = self.chk_auto_orientation.isChecked()
+        self.print_mgr.thermal_pacing_sec = self.spin_thermal_pacing.value()
 
         if self.print_mgr.strip_printer_name:
             self.print_mgr.selected_printer = self.print_mgr.strip_printer_name

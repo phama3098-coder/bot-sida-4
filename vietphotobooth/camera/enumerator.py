@@ -8,12 +8,14 @@ Does NOT rely solely on arbitrary device indices (0, 1, 2).
 import sys
 import os
 import time
+import threading
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 import cv2
 import numpy as np
 
 logger = logging.getLogger("VietPhotoBooth.camera.enumerator")
+_probe_lock = threading.Lock()
 
 def enumerate_directshow_devices() -> List[Dict[str, Any]]:
     """
@@ -214,75 +216,76 @@ def probe_video_source(
         "status": "Chưa kiểm tra"
     }
 
-    cap = None
-    try:
-        cap = cv2.VideoCapture(device_index, backend)
-        if not cap.isOpened():
-            result["error_message"] = f"Không thể mở nguồn video #{device_index} bằng backend {result['backend_name']}."
-            result["status"] = "Không mở được"
-            return result
+    with _probe_lock:
+        cap = None
+        try:
+            cap = cv2.VideoCapture(device_index, backend)
+            if not cap.isOpened():
+                result["error_message"] = f"Không thể mở nguồn video #{device_index} bằng backend {result['backend_name']}."
+                result["status"] = "Không mở được"
+                return result
 
-        result["openable"] = True
-        reported_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
-        result["reported_fps"] = reported_fps
+            result["openable"] = True
+            reported_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+            result["reported_fps"] = reported_fps
 
-        # 1. Khởi động / warmup: đọc frame đầu tiên để camera đồng bộ AGC/phơi sáng
-        last_frame = None
-        ret_init, frame_init = cap.read()
-        if ret_init and frame_init is not None and frame_init.size > 0:
-            last_frame = frame_init
+            # 1. Khởi động / warmup: đọc frame đầu tiên để camera đồng bộ AGC/phơi sáng
+            last_frame = None
+            ret_init, frame_init = cap.read()
+            if ret_init and frame_init is not None and frame_init.size > 0:
+                last_frame = frame_init
 
-        # 2. Đo FPS thực tế trên các khung hình tiếp theo
-        frames_measured = 0
-        t_start = time.time()
-        num_probe = max(2, timeout_frames - 1)
+            # 2. Đo FPS thực tế trên các khung hình tiếp theo
+            frames_measured = 0
+            t_start = time.time()
+            num_probe = max(2, timeout_frames - 1)
 
-        for _ in range(num_probe):
-            ret, frame = cap.read()
-            if ret and frame is not None and frame.size > 0:
-                frames_measured += 1
-                last_frame = frame
+            for _ in range(num_probe):
+                ret, frame = cap.read()
+                if ret and frame is not None and frame.size > 0:
+                    frames_measured += 1
+                    last_frame = frame
 
-        t_elapsed = time.time() - t_start
+            t_elapsed = time.time() - t_start
 
-        if last_frame is not None and (frames_measured > 0 or ret_init):
-            result["frame_readable"] = True
-            h, w = last_frame.shape[:2]
-            result["actual_width"] = int(w)
-            result["actual_height"] = int(h)
+            if last_frame is not None and (frames_measured > 0 or ret_init):
+                result["frame_readable"] = True
+                h, w = last_frame.shape[:2]
+                result["actual_width"] = int(w)
+                result["actual_height"] = int(h)
 
-            if frames_measured > 0 and t_elapsed > 0.005:
-                calc_fps = round(frames_measured / t_elapsed, 1)
-                result["measured_fps"] = calc_fps
-            elif reported_fps > 0:
-                result["measured_fps"] = reported_fps
+                if frames_measured > 0 and t_elapsed > 0.005:
+                    calc_fps = round(frames_measured / t_elapsed, 1)
+                    result["measured_fps"] = calc_fps
+                elif reported_fps > 0:
+                    result["measured_fps"] = reported_fps
+                else:
+                    result["measured_fps"] = 30.0
+
+                # Tính độ sáng trung bình (0 .. 255)
+                mean_b = float(np.mean(last_frame))
+                result["mean_brightness"] = round(mean_b, 2)
+
+                # Nếu độ sáng trung bình < 1.5, cảnh báo màn hình đen hoàn toàn
+                if mean_b < 1.5:
+                    result["is_black_screen"] = True
+                    result["status"] = "Khung hình đen hoàn toàn (Kiểm tra nắp ống kính hoặc kết nối máy ảnh)"
+                else:
+                    result["status"] = "Hoạt động hoàn hảo"
             else:
-                result["measured_fps"] = 30.0
+                result["frame_readable"] = False
+                result["error_message"] = f"Nguồn đã mở nhưng không đọc được frame dữ liệu nào từ thiết bị #{device_index}."
+                result["status"] = "Không đọc được frame"
 
-            # Tính độ sáng trung bình (0 .. 255)
-            mean_b = float(np.mean(last_frame))
-            result["mean_brightness"] = round(mean_b, 2)
-
-            # Nếu độ sáng trung bình < 1.5, cảnh báo màn hình đen hoàn toàn
-            if mean_b < 1.5:
-                result["is_black_screen"] = True
-                result["status"] = "Khung hình đen hoàn toàn (Kiểm tra nắp ống kính hoặc kết nối máy ảnh)"
-            else:
-                result["status"] = "Hoạt động hoàn hảo"
-        else:
-            result["frame_readable"] = False
-            result["error_message"] = f"Nguồn đã mở nhưng không đọc được frame dữ liệu nào từ thiết bị #{device_index}."
-            result["status"] = "Không đọc được frame"
-
-    except Exception as e:
-        result["error_message"] = f"Lỗi ngoại lệ khi probe camera #{device_index}: {e}"
-        result["status"] = f"Lỗi: {e}"
-    finally:
-        if cap is not None:
-            try:
-                cap.release()
-            except Exception:
-                pass
+        except Exception as e:
+            result["error_message"] = f"Lỗi ngoại lệ khi probe camera #{device_index}: {e}"
+            result["status"] = f"Lỗi: {e}"
+        finally:
+            if cap is not None:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
 
     return result
 

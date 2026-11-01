@@ -1,0 +1,21 @@
+{
+  "hardware_connected": true,
+  "sdk_loaded": true,
+  "duration_seconds": 60.01,
+  "total_frames": 2244,
+  "resolution": "1024 x 680",
+  "aspect_ratio": "3:2 (1.506)",
+  "read_fps": 37.4,
+  "target_fps": 38.0,
+  "latency_avg_ms": 3.8,
+  "latency_p95_ms": 6.38,
+  "latency_p99_ms": 6.88,
+  "latency_min_ms": 1.97,
+  "latency_max_ms": 13.34,
+  "cpu_avg_percent": 1.94,
+  "cpu_max_percent": 3.61,
+  "ram_start_mb": 42.61,
+  "ram_end_mb": 64.41,
+  "ram_delta_mb": 21.8,
+  "memory_leak_detected": false
+}

@@ -18,9 +18,10 @@ Tái thiết kế chính xác theo bố cục mục tiêu:
 
 import os
 import time
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from PIL import Image
 import numpy as np
+import shiboken6
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QComboBox,
@@ -31,6 +32,7 @@ from PySide6.QtCore import Qt, QTimer, Signal, QSize, QThread
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QIntValidator
 
 from vietphotobooth.camera.manager import CameraManager
+from vietphotobooth.desktop.widgets.live_viewport import CameraLiveViewport
 from vietphotobooth.filters.filter_engine import FilterEngine, FilterPreset
 from vietphotobooth.frames.frame_manager import FrameManager
 from vietphotobooth.frames.frame_designer import FrameDesigner
@@ -42,6 +44,7 @@ from vietphotobooth.core.config import ConfigManager
 from vietphotobooth.cloud import SyncManager, SyncStatus
 from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorDialog
 from vietphotobooth.core.logger import get_logger
+from vietphotobooth.audio import SoundController
 
 logger = get_logger()
 
@@ -393,6 +396,8 @@ class KioskPage(QWidget):
         token_mgr: TokenManager,
         config_mgr: ConfigManager,
         sync_mgr: Optional[SyncManager] = None,
+        face_service=None,
+        face_eye_af_controller=None,
         parent=None
     ):
         super().__init__(parent)
@@ -420,6 +425,10 @@ class KioskPage(QWidget):
         self.current_session_id: Optional[str] = None
         self.current_token: Optional[str] = None
 
+        # Cấu hình Smart Beauty Panel sau mỗi ảnh
+        self._beauty_settings_cache: Optional[Dict[str, float]] = None
+        self._reuse_beauty_settings: bool = False
+
         # Carousel khung ảnh
         self.frame_cards: List[FrameCardWidget] = []
         self.frame_carousel_offset = 0
@@ -441,6 +450,38 @@ class KioskPage(QWidget):
         # Timer đếm ngược chụp ảnh
         self.countdown_timer = QTimer(self)
         self.countdown_timer.timeout.connect(self._on_countdown_tick)
+
+        # Sử dụng Face & Eye Detection Service và FaceEyeAFController dùng chung (Single Source of Truth)
+        # Kiosk chia sẻ cùng luồng nhận diện và lấy nét với CameraPage nhưng TUYỆT ĐỐI KHÔNG vẽ overlay
+        self._face_service = face_service or getattr(self.camera_mgr, "face_service", None)
+        if self._face_service is None:
+            from vietphotobooth.camera.face_detector import FaceDetectionService
+            self._face_service = FaceDetectionService(target_detection_fps=12.0)
+        self._face_service.register_callback(self._on_faces_detected)
+
+        self._face_eye_af_controller = face_eye_af_controller or getattr(self.camera_mgr, "face_eye_af_controller", None)
+        if self._face_eye_af_controller is None:
+            from vietphotobooth.camera.face_eye_af_controller import FaceEyeAFController
+            self._face_eye_af_controller = FaceEyeAFController(
+                af_trigger_fn=self.camera_mgr.trigger_autofocus,
+                stability_frames=3,
+                stability_px_threshold=20.0,
+                movement_px_threshold=35.0,
+                cooldown_sec=1.8,
+            )
+
+        self._latest_detected_faces: List[Any] = []
+        self._latest_frame_shape: Optional[Tuple[int, int]] = None
+        self._latest_detection_time: float = 0.0
+        self._is_af_in_flight: bool = False
+        self._capture_transaction_id: int = 0
+        self._active_capture_tx: Optional[int] = None
+        self._af_watchdog_timer = QTimer(self)
+        self._af_watchdog_timer.setSingleShot(True)
+        self._af_watchdog_timer.timeout.connect(self._on_af_timeout)
+
+        # Bộ điều khiển âm thanh phòng chụp Studio (Voice cues, countdown beeps, mechanical shutter)
+        self.sound_controller = SoundController(config_mgr=self.config_mgr, parent=self)
 
         # Biến đệm và worker nền
         self._composite_worker: Optional[CompositeWorker] = None
@@ -530,12 +571,12 @@ class KioskPage(QWidget):
 
         l_live.addLayout(self.live_top_bar)
 
-        # Màn hình Live View chính
-        self.lbl_viewport = QLabel()
-        self.lbl_viewport.setAlignment(Qt.AlignCenter)
-        self.lbl_viewport.setStyleSheet("background-color: #03050A; border-radius: 8px; border: 1px solid #162033;")
-        self.lbl_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Màn hình Live View chính (Zero-Jitter Viewport)
+        self.lbl_viewport = CameraLiveViewport(self.card_live)
+        self.lbl_viewport.set_face_detection_enabled(False)
+        self.lbl_viewport.set_face_eye_af_state(False, None, None)
         self.lbl_viewport.setMinimumHeight(240)
+        self.lbl_viewport.register_resize_callback(self._reposition_viewport_overlays)
         l_live.addWidget(self.lbl_viewport)
 
         # Panel chờ kết nối rõ ràng (chuẩn studio, KHÔNG hiển thị người giả lập)
@@ -918,6 +959,11 @@ class KioskPage(QWidget):
         self.chk_preview.setChecked(True)
         l_chk.addWidget(self.chk_preview)
 
+        self.chk_beauty = QCheckBox("Làm đẹp thông minh AI")
+        self.chk_beauty.setChecked(self.config_mgr.get("kiosk.enable_smart_beauty", True))
+        self.chk_beauty.toggled.connect(lambda val: self.config_mgr.set("kiosk.enable_smart_beauty", val))
+        l_chk.addWidget(self.chk_beauty)
+
         self.chk_autoprint = QCheckBox("Tự động in sau khi chụp")
         self.chk_autoprint.setChecked(False)
         l_chk.addWidget(self.chk_autoprint)
@@ -1259,6 +1305,17 @@ class KioskPage(QWidget):
             self.live_view_worker.pause()
         if hasattr(self, 'camera_poll_timer') and self.camera_poll_timer.isActive():
             self.camera_poll_timer.stop()
+        if hasattr(self, '_af_watchdog_timer') and self._af_watchdog_timer.isActive():
+            self._af_watchdog_timer.stop()
+        if getattr(self, '_active_capture_tx', None) is not None or getattr(self, '_is_af_in_flight', False):
+            self._active_capture_tx = None
+            self._is_af_in_flight = False
+            try:
+                self.camera_mgr.cancel_autofocus()
+            except Exception:
+                pass
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            self._face_eye_af_controller.resume_auto_trigger()
 
     def start_live_view(self):
         self._live_view_active = True
@@ -1268,10 +1325,26 @@ class KioskPage(QWidget):
                 self.live_view_worker.frame_ready.connect(self._on_live_view_frame)
                 self.live_view_worker.start()
             self.live_view_worker.resume()
+        if hasattr(self, '_face_service') and self._face_service:
+            is_detect = self.camera_mgr.is_face_detect_enabled() if hasattr(self.camera_mgr, "is_face_detect_enabled") else False
+            is_af = self.camera_mgr.is_face_eye_af_enabled() if hasattr(self.camera_mgr, "is_face_eye_af_enabled") else False
+            if is_detect or is_af:
+                self._face_service.enable()
         self._update_camera_status_ui()
 
     def stop_live_view(self):
         self._live_view_active = False
+        if hasattr(self, '_af_watchdog_timer') and self._af_watchdog_timer.isActive():
+            self._af_watchdog_timer.stop()
+        if getattr(self, '_active_capture_tx', None) is not None or getattr(self, '_is_af_in_flight', False):
+            self._active_capture_tx = None
+            self._is_af_in_flight = False
+            try:
+                self.camera_mgr.cancel_autofocus()
+            except Exception:
+                pass
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            self._face_eye_af_controller.resume_auto_trigger()
         if hasattr(self, 'live_view_worker'):
             self.live_view_worker.pause()
 
@@ -1299,8 +1372,16 @@ class KioskPage(QWidget):
                 self.lbl_no_feed_title.setText("CHƯA CÓ LUỒNG LIVE VIEW TỪ DIGICAM")
                 self.lbl_no_feed_desc.setText(
                     "digiCamControl chưa phát luồng Live View (cổng HTTP 5513).\n\n"
-                    "• ĐỂ XEM TRỰC TIẾP TỪ NIKON D780: Vào tab 'Máy Ảnh' và chọn nguồn DirectShow 'Nikon Webcam Utility'.\n"
+                    "• ĐỂ XEM TRỰC TIẾP TỪ NIKON D780: Vào tab 'Máy Ảnh' và chọn 'Nikon MAID Native USB' hoặc DirectShow 'Nikon Webcam Utility'.\n"
                     "• HOẶC: Mở cửa sổ digiCamControl và bấm nút 'Live View'."
+                )
+            elif backend == "nikon_maid":
+                self.lbl_no_feed_title.setText(f"CHƯA CÓ TÍN HIỆU LIVE VIEW TỪ {dev_name.upper()}")
+                hint = err if err else "Đang khởi tạo luồng dữ liệu Live View USB."
+                self.lbl_no_feed_desc.setText(
+                    f"{hint}\n\n"
+                    "• Đảm bảo Nikon D780 đã bật nguồn và cắm cáp USB chắc chắn.\n"
+                    "• Tắt các ứng dụng khác đang chiếm máy ảnh (NX Tether, digiCamControl)."
                 )
             else:
                 self.lbl_no_feed_title.setText(f"CHƯA CÓ TÍN HIỆU TỪ {dev_name.upper()}")
@@ -1314,6 +1395,25 @@ class KioskPage(QWidget):
             if hasattr(self, "panel_no_feed"):
                 self.panel_no_feed.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
                 self.panel_no_feed.show()
+
+    def _reposition_viewport_overlays(self):
+        """Định vị các panel và overlay trong Viewport một lần duy nhất khi resize."""
+        if not hasattr(self, "lbl_viewport"):
+            return
+        w = self.lbl_viewport.width()
+        h = self.lbl_viewport.height()
+        if w <= 10 or h <= 10:
+            return
+
+        if hasattr(self, "panel_disconnected"):
+            self.panel_disconnected.setGeometry(0, 0, w, h)
+        if hasattr(self, "panel_no_feed"):
+            self.panel_no_feed.setGeometry(0, 0, w, h)
+        if hasattr(self, "lbl_countdown"):
+            self.lbl_countdown.setGeometry((w - 220) // 2, (h - 220) // 2, 220, 220)
+        if hasattr(self, "lbl_status_badge"):
+            badge_w = min(max(360, self.lbl_status_badge.sizeHint().width() + 32), max(360, w - 40))
+            self.lbl_status_badge.setGeometry((w - badge_w) // 2, h - 75, badge_w, 48)
 
     def _on_live_view_frame(self, frame_rgb: np.ndarray):
         if not getattr(self, "_live_view_active", True) or self.current_state not in ("IDLE", "COUNTDOWN", "CAPTURING"):
@@ -1330,44 +1430,63 @@ class KioskPage(QWidget):
             if hasattr(self, "panel_disconnected"):
                 self.panel_disconnected.hide()
 
-            h, w, ch = frame_rgb.shape
-            qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888)
-            if qimg.isNull():
+            if frame_rgb is None or frame_rgb.size == 0:
                 return
 
-            pixmap = QPixmap.fromImage(qimg)
-            lbl_w = self.lbl_viewport.width()
-            lbl_h = self.lbl_viewport.height()
-            if lbl_w <= 0 or lbl_h <= 0:
-                return
+            self.lbl_viewport.set_frame_rgb(frame_rgb)
 
-            # FastTransformation: siêu mượt 30+ FPS không tiêu tốn CPU rasterization
-            scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.FastTransformation)
-            self.lbl_viewport.setPixmap(scaled)
-
-            # Căn giữa nhãn đếm ngược & trạng thái
-            if self.lbl_countdown.isVisible():
-                self.lbl_countdown.setGeometry((lbl_w - 220) // 2, (lbl_h - 220) // 2, 220, 220)
-            if self.lbl_status_badge.isVisible():
-                badge_w = min(max(360, self.lbl_status_badge.sizeHint().width() + 32), max(360, lbl_w - 40))
-                self.lbl_status_badge.setGeometry((lbl_w - badge_w) // 2, lbl_h - 75, badge_w, 48)
+            # Gửi khung hình cho Face & Eye Detection Service chạy ngầm
+            if hasattr(self, "_face_service") and self._face_service.is_enabled:
+                self._face_service.submit_frame(frame_rgb, sequence_id=0, timestamp=time.time())
         finally:
             self._is_rendering_frame = False
 
-    def _reconnect_camera(self):
-        """Thử dò quét và kết nối lại máy ảnh thực tế, ưu tiên Nikon Webcam Utility nếu có."""
-        self.lbl_cam_status_text.setText("Đang kết nối lại...")
-        from vietphotobooth.camera.enumerator import enumerate_directshow_devices
-        devs = enumerate_directshow_devices()
-        nikon_dev = next((d for d in devs if "nikon" in d["name"].lower()), None)
+    def _on_faces_detected(self, faces, frame_shape=None, seq_id=0, ts=0.0):
+        """
+        Lưu trữ kết quả nhận diện khuôn mặt và mắt mới nhất để phục vụ lấy nét trước khi chụp,
+        và chuyển tiếp vào FaceEyeAFController dùng chung.
+        TUYỆT ĐỐI KHÔNG cập nhật vẽ lên Viewport để đảm bảo giao diện khách chụp 100% sạch đẹp.
+        """
+        self._latest_detected_faces = faces or []
+        if frame_shape and frame_shape[0] > 0 and frame_shape[1] > 0:
+            self._latest_frame_shape = frame_shape
+        elif not getattr(self, "_latest_frame_shape", None) and hasattr(self, "lbl_viewport"):
+            cur_pix = getattr(self.lbl_viewport, "_current_pixmap", None)
+            if cur_pix and cur_pix.width() > 0:
+                self._latest_frame_shape = (cur_pix.width(), cur_pix.height())
+        self._latest_detection_time = time.time()
 
+        if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller and self._face_eye_af_controller.is_enabled:
+            dim = self._latest_frame_shape
+            self._face_eye_af_controller.process_faces(faces, frame_shape=dim, sequence_id=seq_id, timestamp=ts)
+
+    def _reconnect_camera(self):
+        """Thử dò quét và kết nối lại máy ảnh thực tế, ưu tiên Nikon D780 Native USB, rồi Nikon Webcam Utility nếu có."""
+        self.lbl_cam_status_text.setText("Đang kết nối lại...")
         connected = False
-        if nikon_dev:
-            connected = self.camera_mgr.switch_backend("directshow", nikon_dev["index"], nikon_dev["name"])
-        if not connected and devs:
-            connected = self.camera_mgr.switch_backend("directshow", devs[0]["index"], devs[0]["name"])
+
+        # 1. Ưu tiên kết nối trực tiếp Nikon D780 Native USB MAID SDK
+        try:
+            connected = self.camera_mgr.switch_backend("nikon_maid")
+        except Exception as e:
+            logger.debug(f"Kết nối Nikon MAID không thành công: {e}")
+            connected = False
+
+        # 2. Dự phòng: Quét DirectShow (Nikon Webcam Utility hoặc Webcam phần cứng)
+        if not connected:
+            from vietphotobooth.camera.enumerator import enumerate_directshow_devices
+            devs = enumerate_directshow_devices()
+            nikon_dev = next((d for d in devs if "nikon" in d["name"].lower()), None)
+            if nikon_dev:
+                connected = self.camera_mgr.switch_backend("directshow", nikon_dev["index"], nikon_dev["name"])
+            elif devs:
+                connected = self.camera_mgr.switch_backend("directshow", devs[0]["index"], devs[0]["name"])
+
+        # 3. Dự phòng: digiCamControl
         if not connected:
             connected = self.camera_mgr.switch_backend("digicam")
+
+        # 4. Cuối cùng: Chuyển về simulator an toàn
         if not connected:
             self.camera_mgr.switch_backend("simulator")
 
@@ -1397,8 +1516,8 @@ class KioskPage(QWidget):
             self.lbl_live_res.setText("LIVE VIEW (Chờ kết nối)")
             self.lbl_cam_note.setText("Hãy kết nối máy ảnh và chọn thiết bị trong mục Máy ảnh để bắt đầu chụp.")
             self.panel_disconnected.show()
-            self.lbl_viewport.setPixmap(QPixmap())
-            self.panel_disconnected.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
+            self.lbl_viewport.clear()
+            self._reposition_viewport_overlays()
         elif backend == "simulator":
             self.lbl_cam_dot.setText("🟡")
             self.lbl_cam_status_text.setText("Mô phỏng (Simulator)")
@@ -1419,7 +1538,7 @@ class KioskPage(QWidget):
             self.lbl_live_badge.setStyleSheet(
                 "background-color: #16A34A; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #22C55E;"
             )
-            res_text = f"LIVE VIEW {w} × {h}" if (w > 0 and h > 0) else ("LIVE VIEW 1920 × 1080" if backend != "digicam" else "LIVE VIEW 6000 × 4000")
+            res_text = f"LIVE VIEW {w} × {h}" if (w > 0 and h > 0) else ("LIVE VIEW 1024 × 680" if backend == "nikon_maid" else ("LIVE VIEW 1920 × 1080" if backend != "digicam" else "LIVE VIEW 6000 × 4000"))
             self.lbl_live_res.setText(res_text)
             self.lbl_cam_note.setText("Máy ảnh đã sẵn sàng hoạt động. Nhấn 'Bắt đầu chụp' để ghi lại khoảnh khắc.")
             if self.panel_disconnected.isVisible():
@@ -1437,7 +1556,7 @@ class KioskPage(QWidget):
     # TIẾN TRÌNH CHỤP ẢNH TỰ ĐỘNG
     # -------------------------------------------------------------
     def start_capture_flow(self):
-        if self.current_state != "IDLE":
+        if self.current_state != "IDLE" or getattr(self, "_active_capture_tx", None) is not None:
             return
 
         if not self.camera_mgr.is_connected() and self.camera_mgr.current_backend_name != "simulator":
@@ -1448,6 +1567,8 @@ class KioskPage(QWidget):
         self.captured_originals.clear()
         self.captured_paths.clear()
         self.current_shot_index = 1
+        self._beauty_settings_cache = None
+        self._reuse_beauty_settings = False
 
         self.btn_start.setEnabled(False)
         self.btn_shots_minus.setEnabled(False)
@@ -1461,6 +1582,7 @@ class KioskPage(QWidget):
     def _start_single_shot_countdown(self):
         self.countdown_remaining = self.countdown_duration
         self.lbl_countdown.setText(str(self.countdown_remaining))
+        self._reposition_viewport_overlays()
         self.lbl_countdown.show()
 
         self.lbl_status_badge.setStyleSheet(
@@ -1469,7 +1591,17 @@ class KioskPage(QWidget):
             "padding: 8px 24px; border-radius: 18px;"
         )
         self.lbl_status_badge.setText(f"Chuẩn bị! Ảnh {self.current_shot_index} / {self.total_shots_needed}")
+        self._reposition_viewport_overlays()
         self.lbl_status_badge.show()
+
+        # Hiệu ứng âm thanh đếm ngược studio
+        if hasattr(self, "sound_controller") and self.sound_controller:
+            if self.countdown_remaining == 3:
+                # Nếu đếm ngược 3 giây: ưu tiên giọng nói tiếng Việt studio "Ba, hai, một. Cười lên nào!"
+                if not self.sound_controller.play_voice_prompt():
+                    self.sound_controller.play_tick()
+            elif self.countdown_remaining > 3:
+                self.sound_controller.play_tick()
 
         self.countdown_timer.start(1000)
 
@@ -1477,6 +1609,15 @@ class KioskPage(QWidget):
         self.countdown_remaining -= 1
         if self.countdown_remaining > 0:
             self.lbl_countdown.setText(str(self.countdown_remaining))
+            if hasattr(self, "sound_controller") and self.sound_controller:
+                if self.countdown_remaining == 3:
+                    if not self.sound_controller.play_voice_prompt():
+                        self.sound_controller.play_tick()
+                elif self.countdown_remaining > 3:
+                    self.sound_controller.play_tick()
+                else:
+                    if not self.sound_controller.voice_enabled:
+                        self.sound_controller.play_tick()
         elif self.countdown_remaining == 0:
             self.lbl_countdown.setText("📸")
         else:
@@ -1484,10 +1625,108 @@ class KioskPage(QWidget):
             self.lbl_countdown.hide()
             self._trigger_shot()
 
+    def _prompt_smart_beauty(self, target_path: str, captured_img: Image.Image) -> Tuple[Image.Image, str]:
+        """Hiển thị SmartBeautyDialog sau khi chụp và trả về (final_img, final_path)."""
+        enable_smart_beauty = self.config_mgr.get("kiosk.enable_smart_beauty", True)
+        if not enable_smart_beauty:
+            return captured_img, target_path
+
+        # Nếu đang chạy pytest và không chủ động yêu cầu test dialog tương tác
+        if os.environ.get("PYTEST_CURRENT_TEST") and not getattr(self, "_force_show_beauty_in_tests", False):
+            return captured_img, target_path
+
+        try:
+            from vietphotobooth.desktop.widgets.smart_beauty_panel import SmartBeautyDialog
+            initial_s = self._beauty_settings_cache if self._reuse_beauty_settings else None
+            beauty_dlg = SmartBeautyDialog(
+                image_pil_or_path=target_path,
+                shot_index=self.current_shot_index,
+                total_shots=self.total_shots_needed,
+                initial_settings=initial_s,
+                reuse_for_next=self._reuse_beauty_settings,
+                auto_timeout_sec=int(self.config_mgr.get("kiosk.beauty_timeout_sec", 25)),
+                parent=self
+            )
+            dlg_res = beauty_dlg.exec()
+            if dlg_res == QDialog.Accepted:
+                processed_img, settings, reuse = beauty_dlg.get_result()
+                self._reuse_beauty_settings = reuse
+                if reuse:
+                    self._beauty_settings_cache = settings
+                else:
+                    self._beauty_settings_cache = None
+
+                # Nếu có hiệu ứng làm đẹp > 0
+                if any(v > 0 for v in settings.values()):
+                    beauty_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}_beauty.jpg")
+                    try:
+                        processed_img.save(beauty_path, "JPEG", quality=95)
+                        return processed_img, beauty_path
+                    except Exception as e:
+                        logger.error(f"Lỗi lưu file ảnh làm đẹp: {e}")
+            else:
+                logger.info("Người dùng hủy hoặc đóng Smart Beauty Panel; sử dụng ảnh gốc.")
+        except Exception as ex:
+            logger.error(f"Lỗi khi hiển thị SmartBeautyDialog: {ex}")
+
+        return captured_img, target_path
+
+    def _get_af_target_point(self) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]], str]:
+        """
+        Xác định mục tiêu lấy nét tự động trước khi chụp từ kết quả nhận diện khuôn mặt/mắt:
+        - Ưu tiên mắt mục tiêu (target_eye) từ FaceEyeAFController dùng chung.
+        - Fallback khuôn mặt (target_face / face center) từ FaceEyeAFController dùng chung.
+        - Fallback select_af_target nếu controller chưa có mục tiêu nhưng có faces gần đây.
+        - Trả về (target_point, frame_size, target_type).
+        """
+        # 1. Trích xuất mục tiêu từ FaceEyeAFController dùng chung
+        if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+            ctrl_eye = self._face_eye_af_controller.target_eye
+            ctrl_face = self._face_eye_af_controller.target_face
+            ctrl_label = getattr(self._face_eye_af_controller, "_target_eye_label", "none")
+            ctrl_frame_shape = getattr(self._face_eye_af_controller, "_last_frame_shape", None) or getattr(self, "_latest_frame_shape", None)
+
+            if ctrl_eye is not None and ctrl_label in ("right", "left"):
+                return ctrl_eye, ctrl_frame_shape, "eye"
+
+            if ctrl_face is not None:
+                center_pt = (ctrl_face.x + ctrl_face.w / 2.0, ctrl_face.y + ctrl_face.h * 0.4)
+                return center_pt, ctrl_frame_shape, "face"
+
+        # 2. Fallback sang select_af_target từ danh sách faces mới nhất
+        faces = getattr(self, "_latest_detected_faces", [])
+        frame_shape = getattr(self, "_latest_frame_shape", None)
+        now = time.time()
+        if faces and (now - getattr(self, "_latest_detection_time", 0.0)) <= 2.5:
+            from vietphotobooth.camera.face_eye_af_controller import select_af_target
+            target_point, target_type, selected_face = select_af_target(
+                faces,
+                frame_shape=frame_shape
+            )
+            return target_point, frame_shape, target_type
+
+        return None, getattr(self, "_latest_frame_shape", None), "none"
+
     def _trigger_shot(self):
+        """
+        Kích hoạt quy trình chụp một bức ảnh:
+        1. Kiểm tra chống chạy trùng lặp transaction (Mutual Exclusion).
+        2. Hiển thị hiệu ứng chớp sáng flash studio.
+        3. Khởi tạo capture transaction riêng biệt với token tx_id duy nhất.
+        4. Thực hiện lấy nét tự động trước khi chụp (Face/Eye AF pre-capture) qua backend máy ảnh.
+        5. Chờ AF hoàn tất hoặc timeout/fallback rồi mới kích hoạt chụp ảnh thực tế.
+        """
+        # Chống nhấn nút chụp liên tục hoặc gọi đồng thời khi một transaction đang chạy
+        if getattr(self, "_active_capture_tx", None) is not None or getattr(self, "_is_af_in_flight", False):
+            logger.warning("[Kiosk AF] Bỏ qua _trigger_shot vì đang có transaction chụp ảnh đang xử lý.")
+            return
+
         self.current_state = "CAPTURING"
-        self.lbl_viewport.setStyleSheet("background-color: #FFFFFF;")
-        QTimer.singleShot(120, lambda: self.lbl_viewport.setStyleSheet("background-color: #03050A; border-radius: 8px; border: 1px solid #162033;"))
+        self.lbl_viewport.trigger_flash(120)
+
+        self._capture_transaction_id = getattr(self, "_capture_transaction_id", 0) + 1
+        tx_id = self._capture_transaction_id
+        self._active_capture_tx = tx_id
 
         if not self.current_session_id:
             active_event = self.event_mgr.get_active_event_name()
@@ -1499,6 +1738,107 @@ class KioskPage(QWidget):
 
         target_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}.jpg")
 
+        if getattr(self, "_enable_af_on_simulator", False):
+            enable_af = True
+        elif hasattr(self.camera_mgr, "is_face_eye_af_enabled"):
+            enable_af = self.camera_mgr.is_face_eye_af_enabled()
+        else:
+            enable_af = self.config_mgr.get("camera.face_eye_af_enabled", self.config_mgr.get("kiosk.enable_face_eye_af", True))
+
+        is_conn = self.camera_mgr.is_connected()
+        backend_name = self.camera_mgr.current_backend_name
+        has_af_cap = hasattr(self.camera_mgr._backend, "autofocus")
+
+        # Điều kiện thực hiện pre-capture AF:
+        # Máy ảnh kết nối, backend hỗ trợ AF, và không phải simulator (trừ khi có cờ cho phép trên simulator trong test)
+        can_af = enable_af and is_conn and has_af_cap and (
+            backend_name != "simulator" or getattr(self, "_enable_af_on_simulator", False)
+        )
+
+        if can_af:
+            if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+                self._face_eye_af_controller.pause_auto_trigger()
+
+            target_point, frame_size, target_type = self._get_af_target_point()
+            logger.info(
+                f"[Kiosk AF] Bắt đầu lấy nét trước khi chụp ảnh {self.current_shot_index}/{self.total_shots_needed} "
+                f"(tx_id={tx_id}): target_type={target_type}, target_point={target_point}, frame_size={frame_size}"
+            )
+            self._is_af_in_flight = True
+            self._pending_target_path = target_path
+
+            # Watchdog an toàn: Sau tối đa 2.2 giây, nếu AF chưa xong thì tự động fallback chụp ngay
+            self._af_watchdog_timer.start(2200)
+
+            def _on_af_done(success: bool, msg: str):
+                if not shiboken6.isValid(self):
+                    return
+                def _apply():
+                    if not shiboken6.isValid(self):
+                        return
+                    if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+                        self._face_eye_af_controller.resume_auto_trigger()
+                    # Yêu cầu 1, 2, 3: Đảm bảo chỉ transaction hiện tại được quyền thực hiện và bỏ qua callback trễ/trùng lặp
+                    if getattr(self, "_active_capture_tx", None) != tx_id:
+                        logger.debug(f"[Kiosk AF] Bỏ qua callback AF muộn/không hợp lệ (tx={tx_id} vs active={getattr(self, '_active_capture_tx', None)}).")
+                        return
+                    # Hủy active transaction ngay lập tức trước khi chụp để ngăn mọi callback/timeout trùng lặp
+                    self._active_capture_tx = None
+                    self._af_watchdog_timer.stop()
+                    self._is_af_in_flight = False
+                    logger.info(f"[Kiosk AF] Kết quả AF (tx_id={tx_id}): success={success}, msg='{msg}' -> Kích hoạt chụp ảnh.")
+                    self._execute_photo_capture(target_path)
+
+                QTimer.singleShot(0, self, _apply)
+
+            try:
+                self.camera_mgr.trigger_autofocus(
+                    callback=_on_af_done,
+                    target_point=target_point,
+                    frame_size=frame_size
+                )
+            except Exception as ex:
+                logger.warning(f"[Kiosk AF] Ngoại lệ khi gọi trigger_autofocus (tx_id={tx_id}): {ex} -> Fallback chụp ngay.")
+                if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+                    self._face_eye_af_controller.resume_auto_trigger()
+                if getattr(self, "_active_capture_tx", None) == tx_id:
+                    self._active_capture_tx = None
+                    self._af_watchdog_timer.stop()
+                    self._is_af_in_flight = False
+                    self._execute_photo_capture(target_path)
+        else:
+            self._active_capture_tx = None
+            self._execute_photo_capture(target_path)
+
+    def _on_af_timeout(self):
+        """Fallback an toàn khi autofocus quá thời gian chờ (2.2s). Chụp ngay mà không làm gián đoạn phiên."""
+        tx_id = getattr(self, "_active_capture_tx", None)
+        if tx_id is None:
+            return
+
+        if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+            self._face_eye_af_controller.resume_auto_trigger()
+
+        logger.warning(f"[Kiosk AF] Hết thời gian chờ autofocus (Timeout 2.2s, tx_id={tx_id}) -> Fallback chụp ngay.")
+        # Vô hiệu hóa active transaction ngay lập tức để nếu callback đến sau thì sẽ bị bỏ qua hoàn toàn
+        self._active_capture_tx = None
+        self._is_af_in_flight = False
+
+        # Hủy lệnh autofocus đang chạy ngầm trên phần cứng để giải phóng mô-tơ và cờ in-progress
+        try:
+            self.camera_mgr.cancel_autofocus()
+        except Exception as ex:
+            logger.debug(f"[Kiosk AF] Bỏ qua lỗi cancel_autofocus khi timeout: {ex}")
+
+        target_path = getattr(self, "_pending_target_path", None)
+        if not target_path and self.session_dir:
+            target_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}.jpg")
+        if target_path:
+            self._execute_photo_capture(target_path)
+
+    def _execute_photo_capture(self, target_path: str):
+        if hasattr(self, "sound_controller") and self.sound_controller:
+            self.sound_controller.play_shutter()
         success, captured_img = self.camera_mgr.capture_photo(target_path)
         valid_file = False
         if success and captured_img:
@@ -1519,9 +1859,21 @@ class KioskPage(QWidget):
                     valid_file = False
 
         if valid_file:
-            self.captured_originals.append(captured_img)
-            self.captured_paths.append(target_path)
-            logger.info(f"Đã xác thực và ghi nhận ảnh {self.current_shot_index}/{self.total_shots_needed} trên đĩa: {target_path}")
+            # 1. Bảo tồn ảnh gốc nguyên bản trên đĩa
+            orig_backup_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}_original.jpg")
+            if not os.path.exists(orig_backup_path):
+                try:
+                    import shutil
+                    shutil.copy2(target_path, orig_backup_path)
+                except Exception as e:
+                    logger.warning(f"Lỗi sao lưu ảnh gốc: {e}")
+
+            # 2. Xử lý Smart Beauty Panel sau mỗi ảnh
+            final_img, final_path = self._prompt_smart_beauty(target_path, captured_img)
+
+            self.captured_originals.append(final_img)
+            self.captured_paths.append(final_path)
+            logger.info(f"Đã xác thực và ghi nhận ảnh {self.current_shot_index}/{self.total_shots_needed} trên đĩa: {final_path}")
         else:
             logger.error("Không thể ghi nhận ảnh chụp hợp lệ từ thiết bị máy ảnh!")
             self._abort_capture_due_to_disconnect(
@@ -1541,6 +1893,15 @@ class KioskPage(QWidget):
     def _abort_capture_due_to_disconnect(self, err_msg: str):
         """Hủy tiến trình chụp ảnh an toàn khi máy ảnh mất kết nối hoặc rút cáp USB."""
         self.countdown_timer.stop()
+        if hasattr(self, "_af_watchdog_timer") and self._af_watchdog_timer.isActive():
+            self._af_watchdog_timer.stop()
+        if getattr(self, '_active_capture_tx', None) is not None or getattr(self, '_is_af_in_flight', False):
+            self._active_capture_tx = None
+            self._is_af_in_flight = False
+            try:
+                self.camera_mgr.cancel_autofocus()
+            except Exception:
+                pass
         self.current_state = "IDLE"
         self.lbl_countdown.hide()
         self.lbl_status_badge.hide()
@@ -1570,6 +1931,7 @@ class KioskPage(QWidget):
         # Ẩn nút Chụp ban đầu, hiện các nút Xem kết quả
         self.btn_start.hide()
         self.chk_preview.hide()
+        self.chk_beauty.hide()
         self.chk_autoprint.hide()
         self.btn_fullscreen.hide()
 
@@ -1609,12 +1971,7 @@ class KioskPage(QWidget):
         data = rgb.tobytes("raw", "RGB")
         qimg = QImage(data, w, h, 3 * w, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(qimg)
-
-        lbl_w = self.lbl_viewport.width()
-        lbl_h = self.lbl_viewport.height()
-        if lbl_w > 0 and lbl_h > 0:
-            scaled = pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.lbl_viewport.setPixmap(scaled)
+        self.lbl_viewport.setPixmap(pixmap)
 
     def _render_and_display_composite(self):
         if not self.captured_originals:
@@ -1632,10 +1989,7 @@ class KioskPage(QWidget):
             w, h = rgb.size
             qimg = QImage(rgb.tobytes("raw", "RGB"), w, h, 3 * w, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qimg)
-            lbl_w = self.lbl_viewport.width()
-            lbl_h = self.lbl_viewport.height()
-            if lbl_w > 0 and lbl_h > 0:
-                self.lbl_viewport.setPixmap(pixmap.scaled(lbl_w, lbl_h, Qt.KeepAspectRatio, Qt.FastTransformation))
+            self.lbl_viewport.setPixmap(pixmap)
         except Exception:
             pass
 
@@ -1903,6 +2257,7 @@ class KioskPage(QWidget):
         self.btn_start.show()
         self.btn_start.setEnabled(True)
         self.chk_preview.show()
+        self.chk_beauty.show()
         self.chk_autoprint.show()
         self.btn_fullscreen.show()
 
@@ -2009,19 +2364,72 @@ class KioskPage(QWidget):
                 if hasattr(self, "card_filters"):
                     self.card_filters.setMaximumWidth(240)
 
-        # Căn chỉnh lại panel thông báo chờ kết nối nếu đang hiển thị
-        if hasattr(self, "panel_disconnected") and hasattr(self, "lbl_viewport") and self.panel_disconnected.isVisible():
-            self.panel_disconnected.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
-        if hasattr(self, "panel_no_feed") and hasattr(self, "lbl_viewport") and self.panel_no_feed.isVisible():
-            self.panel_no_feed.setGeometry(0, 0, self.lbl_viewport.width(), self.lbl_viewport.height())
+        # Căn chỉnh lại các overlay trong Viewport
+        self._reposition_viewport_overlays()
 
         # Nếu đang ở chế độ xem kết quả ảnh, cập nhật tỷ lệ hiển thị
         if self.current_state == "REVIEW" and self.current_composite:
             self._display_final_pixmap()
 
-    def closeEvent(self, event):
-        if hasattr(self, 'camera_poll_timer'):
+    def set_fullscreen_mode(self, is_fs: bool):
+        """Cập nhật giao diện nút khi chuyển đổi chế độ toàn màn hình."""
+        if hasattr(self, "btn_fullscreen"):
+            if is_fs:
+                self.btn_fullscreen.setText("🗗 Thu Nhỏ (ESC)")
+                self.btn_fullscreen.setToolTip("Thoát chế độ toàn màn hình (ESC hoặc F11)")
+                self.btn_fullscreen.setStyleSheet(
+                    "QPushButton { background-color: #1E2D4A; border: 1.5px solid #D4AF37; border-radius: 8px; color: #D4AF37; font-size: 13px; font-weight: 700; padding: 0 14px; }"
+                    "QPushButton:hover { background-color: #253960; color: #FFFFFF; }"
+                )
+            else:
+                self.btn_fullscreen.setText("⛶ Toàn màn hình")
+                self.btn_fullscreen.setToolTip("Chế độ toàn màn hình Kiosk (F11)")
+                self.btn_fullscreen.setStyleSheet(
+                    "QPushButton { background-color: #111A2E; border: 1px solid #233454; border-radius: 8px; color: #E2E8F0; font-size: 13px; font-weight: 600; padding: 0 14px; }"
+                    "QPushButton:hover { border: 1px solid #D4AF37; background-color: #17243E; color: #F7E7CE; }"
+                )
+        if hasattr(self, "btn_live_fullscreen"):
+            self.btn_live_fullscreen.setToolTip("Thoát toàn màn hình (ESC hoặc F11)" if is_fs else "Toàn màn hình (F11)")
+
+    def cleanup(self):
+        """Dừng dứt điểm toàn bộ timers, workers và giải phóng tài nguyên của Kiosk."""
+        if hasattr(self, 'countdown_timer') and self.countdown_timer.isActive():
+            self.countdown_timer.stop()
+        if hasattr(self, 'camera_poll_timer') and self.camera_poll_timer.isActive():
             self.camera_poll_timer.stop()
+        if hasattr(self, '_af_watchdog_timer') and self._af_watchdog_timer.isActive():
+            self._af_watchdog_timer.stop()
+        if getattr(self, '_active_capture_tx', None) is not None or getattr(self, '_is_af_in_flight', False):
+            self._active_capture_tx = None
+            self._is_af_in_flight = False
+            try:
+                self.camera_mgr.cancel_autofocus()
+            except Exception:
+                pass
+        try:
+            self.stop_live_view()
+        except Exception:
+            pass
         if hasattr(self, 'live_view_worker') and self.live_view_worker.isRunning():
             self.live_view_worker.stop()
+        if hasattr(self, '_face_service') and self._face_service:
+            try:
+                self._face_service.unregister_callback(self._on_faces_detected)
+                self._face_service.stop()
+            except Exception:
+                pass
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            self._face_eye_af_controller.resume_auto_trigger()
+        if hasattr(self, 'sound_controller') and self.sound_controller:
+            try:
+                self.sound_controller.cleanup()
+            except Exception:
+                pass
+
+    def close(self) -> bool:
+        self.cleanup()
+        return super().close()
+
+    def closeEvent(self, event):
+        self.cleanup()
         super().closeEvent(event)

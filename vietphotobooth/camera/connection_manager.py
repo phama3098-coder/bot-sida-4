@@ -104,6 +104,7 @@ class CameraConnectionManager:
         self._frame_lock = threading.Lock()
         self._latest_frame: Optional[FrameData] = None
         self._last_latency_ms: float = 0.0
+        self._frame_seq_id: int = 0
 
         # Callbacks cho sự kiện giao diện
         self._on_status_changed_callbacks: List[Callable[[ConnectionState], None]] = []
@@ -112,6 +113,10 @@ class CameraConnectionManager:
 
         # Đo đạc FPS đọc luồng thực tế (Sliding Window)
         self._read_fps_tracker = FPSTracker(window_seconds=1.5)
+
+        # AI Detection & Autofocus Engine (Shared Single Source of Truth)
+        self._face_service = None
+        self._face_eye_af_controller = None
 
         # Khởi tạo backend ban đầu
         self.switch_backend(self._current_backend_type, self._current_device_id, self._current_device_name)
@@ -153,6 +158,84 @@ class CameraConnectionManager:
     def status(self) -> ConnectionState:
         with self._lock:
             return self._backend.get_status()
+
+    # -------------------------------------------------------------------------
+    # AI Detection & Autofocus Engine (Shared Single Source of Truth)
+    # -------------------------------------------------------------------------
+    @property
+    def face_service(self):
+        """Dịch vụ nhận diện khuôn mặt YuNet dùng chung (Single Source of Truth)."""
+        if self._face_service is None:
+            from vietphotobooth.camera.face_detector import FaceDetectionService
+            self._face_service = FaceDetectionService(target_detection_fps=12.0)
+            if self.is_face_detect_enabled() or self.is_face_eye_af_enabled():
+                self._face_service.enable()
+        return self._face_service
+
+    @property
+    def face_eye_af_controller(self):
+        """Bộ điều khiển Face/Eye AF phần mềm kích hoạt phần cứng dùng chung."""
+        if self._face_eye_af_controller is None:
+            from vietphotobooth.camera.face_eye_af_controller import FaceEyeAFController
+            self._face_eye_af_controller = FaceEyeAFController(
+                af_trigger_fn=self.trigger_autofocus,
+                stability_frames=3,
+                stability_px_threshold=20.0,
+                movement_px_threshold=35.0,
+                cooldown_sec=1.8,
+            )
+            if self.is_face_eye_af_enabled():
+                self._face_eye_af_controller.enable()
+        return self._face_eye_af_controller
+
+    def is_face_detect_enabled(self) -> bool:
+        """Kiểm tra trạng thái bật/tắt nhận diện khuôn mặt từ cấu hình."""
+        return bool(self.config_mgr.get("camera.face_detect_enabled", self.is_face_eye_af_enabled()))
+
+    def set_face_detect_enabled(self, enabled: bool) -> bool:
+        """Cập nhật trạng thái nhận diện khuôn mặt và đồng bộ sang FaceDetectionService."""
+        self.config_mgr.set("camera.face_detect_enabled", bool(enabled))
+        self.config_mgr.save()
+        if enabled:
+            ok = self.face_service.enable()
+            if not ok:
+                self.config_mgr.set("camera.face_detect_enabled", False)
+                self.config_mgr.save()
+                return False
+            return True
+        else:
+            if not self.is_face_eye_af_enabled():
+                self.face_service.disable()
+            return True
+
+    def is_face_eye_af_enabled(self) -> bool:
+        """Kiểm tra trạng thái bật/tắt Face/Eye AF từ cấu hình."""
+        return bool(self.config_mgr.get(
+            "camera.face_eye_af_enabled",
+            self.config_mgr.get("kiosk.enable_face_eye_af", True)
+        ))
+
+    def set_face_eye_af_enabled(self, enabled: bool) -> bool:
+        """Cập nhật trạng thái Face/Eye AF và đồng bộ sang controller."""
+        val = bool(enabled)
+        self.config_mgr.set("camera.face_eye_af_enabled", val)
+        self.config_mgr.set("kiosk.enable_face_eye_af", val)
+        self.config_mgr.save()
+        if val:
+            ok = self.face_service.enable()
+            if not ok:
+                self.config_mgr.set("camera.face_eye_af_enabled", False)
+                self.config_mgr.set("kiosk.enable_face_eye_af", False)
+                self.config_mgr.save()
+                return False
+            self.face_eye_af_controller.set_af_trigger_function(self.trigger_autofocus)
+            self.face_eye_af_controller.enable()
+            return True
+        else:
+            self.face_eye_af_controller.disable()
+            if not self.is_face_detect_enabled():
+                self.face_service.disable()
+            return True
 
     def start_stream(self) -> None:
         """Khởi động luồng đọc Live View ngầm tập trung nếu chưa hoạt động."""
@@ -203,8 +286,23 @@ class CameraConnectionManager:
 
             if frame and frame.is_valid:
                 self._read_fps_tracker.tick()
+                self._frame_seq_id += 1
+                if not getattr(frame, "sequence_id", 0):
+                    frame.sequence_id = self._frame_seq_id
+                # Tự động giải mã JPEG sang RGB trên background thread nếu backend chỉ cung cấp JPEG
+                if not frame.has_rgb and frame.has_jpeg:
+                    try:
+                        import cv2
+                        bgr = cv2.imdecode(np.frombuffer(frame.jpeg, np.uint8), cv2.IMREAD_COLOR)
+                        if bgr is not None:
+                            frame.rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                            frame.width = frame.rgb.shape[1]
+                            frame.height = frame.rgb.shape[0]
+                    except Exception as ex:
+                        logger.debug(f"Streamer fallback JPEG decode error: {ex}")
+
                 # A3: Giới hạn độ phân giải preview hợp lý (<= 1280x720) cho UI viewport
-                if frame.has_rgb:
+                if frame.has_rgb and len(frame.rgb.shape) >= 2:
                     h, w = frame.rgb.shape[:2]
                     if w > 1280 or h > 720:
                         import cv2
@@ -217,6 +315,7 @@ class CameraConnectionManager:
                             width=nw,
                             height=nh,
                             fps=frame.fps,
+                            sequence_id=frame.sequence_id,
                             timestamp=frame.timestamp,
                             is_valid=True
                         )
@@ -228,9 +327,10 @@ class CameraConnectionManager:
 
                 self._notify_frame(frame)
 
-                # Duy trì tốc độ ổn định ~30 FPS (target ~33ms per frame)
+                # Duy trì tốc độ ổn định theo khả năng tối đa của backend (Nikon MAID: ~38 FPS / 26ms, backend khác: ~30 FPS / 33ms)
+                target_interval = 0.026 if self._current_backend_type == "nikon_maid" else 0.033
                 elapsed = time.perf_counter() - t_start
-                sleep_s = max(0.005, 0.033 - elapsed)
+                sleep_s = max(0.002, target_interval - elapsed)
                 time.sleep(sleep_s)
             else:
                 with self._frame_lock:
@@ -296,6 +396,10 @@ class CameraConnectionManager:
             elif b_type in ("digicam", "dslr"):
                 self._backend = DigiCamControlBackend()
                 target_id = None
+            elif b_type in ("nikon_maid", "nikon", "nikon_d780"):
+                from vietphotobooth.camera.backends.nikon_maid import NikonD780Backend
+                self._backend = NikonD780Backend()
+                target_id = self._current_device_name or self._current_device_id or "nikon_d780_usb"
             else:
                 self._current_backend_type = "simulator"
                 self._backend = SimulatorBackend()
@@ -317,6 +421,9 @@ class CameraConnectionManager:
             err = self._backend.get_error()
             if err:
                 self._notify_error(err)
+
+            if success and hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+                self._face_eye_af_controller.set_af_trigger_function(self.trigger_autofocus)
 
             return success
 
@@ -348,7 +455,7 @@ class CameraConnectionManager:
     def is_connected(self) -> bool:
         with self._lock:
             st = self._backend.get_status()
-            return st in (ConnectionState.CONNECTED, ConnectionState.LIVE_VIEW_ACTIVE)
+            return st in (ConnectionState.CONNECTED, ConnectionState.LIVE_VIEW_ACTIVE, ConnectionState.CONNECTED_NO_FRAME)
 
     def get_last_error(self) -> str:
         with self._lock:
@@ -367,6 +474,9 @@ class CameraConnectionManager:
             return DirectShowWebcamBackend().discover_devices()
         elif b_type in ("digicam", "dslr"):
             return DigiCamControlBackend().discover_devices()
+        elif b_type in ("nikon_maid", "nikon", "nikon_d780"):
+            from vietphotobooth.camera.backends.nikon_maid import NikonD780Backend
+            return NikonD780Backend().discover_devices()
         else:
             return SimulatorBackend().discover_devices()
 
@@ -382,10 +492,27 @@ class CameraConnectionManager:
     # Đọc khung hình Live View (Thread-safe, Non-blocking)
     # -------------------------------------------------------------------------
     def get_frame_data(self) -> Optional[FrameData]:
-        """Đọc đối tượng FrameData đầy đủ (Ưu tiên lấy từ background stream buffer)."""
+        """Đọc đối tượng FrameData đầy đủ (Ưu tiên lấy từ background stream buffer, không bao giờ chặn GUI thread)."""
         with self._frame_lock:
             if self._latest_frame is not None and self._latest_frame.is_valid:
                 return self._latest_frame
+
+        if not self.is_connected():
+            return None
+
+        # Khi streamer ngầm đang chạy, ưu tiên cache hoặc đợi ngắn ở lần đầu khởi động
+        if self._stream_running:
+            if self._last_frame_data is not None and self._last_frame_data.is_valid:
+                return self._last_frame_data
+            # Nếu vừa mới kết nối và thread stream chưa kịp nạp frame đầu tiên, chờ tối đa 120ms
+            t_wait = 0.0
+            while self._stream_running and t_wait < 0.12:
+                time.sleep(0.01)
+                t_wait += 0.01
+                with self._frame_lock:
+                    if self._latest_frame is not None and self._latest_frame.is_valid:
+                        return self._latest_frame
+            return self._last_frame_data
 
         with self._lock:
             if not self._backend:
@@ -404,10 +531,6 @@ class CameraConnectionManager:
 
     def get_liveview_rgb(self) -> Optional[np.ndarray]:
         """Lấy mảng RGB numpy cho viewport giao diện PySide6 (non-blocking, siêu mượt)."""
-        with self._frame_lock:
-            if self._latest_frame is not None and self._latest_frame.has_rgb:
-                return self._latest_frame.rgb
-        # Fallback cho trường hợp stream ngầm chưa kịp có frame hoặc test synchronous
         fd = self.get_frame_data()
         if fd and fd.has_rgb:
             return fd.rgb
@@ -429,9 +552,102 @@ class CameraConnectionManager:
         return self._last_jpeg
 
     # -------------------------------------------------------------------------
+    # Điều khiển lấy nét tự động (Autofocus Flow)
+    # -------------------------------------------------------------------------
+    def trigger_autofocus(
+        self,
+        callback: Optional[Callable[[bool, str], None]] = None,
+        target_point: Optional[Tuple[float, float]] = None,
+        frame_size: Optional[Tuple[float, float]] = None
+    ) -> None:
+        """Kích hoạt lấy nét tự động một lần (One-shot AF, non-blocking)."""
+        def _wrapper(success: bool, message: str):
+            if callback:
+                try:
+                    callback(success, message)
+                except Exception as ex:
+                    logger.debug(f"Error in autofocus callback: {ex}")
+
+        with self._lock:
+            if not self.is_connected():
+                if callback:
+                    callback(False, "Máy ảnh chưa được kết nối.")
+                return
+
+            if hasattr(self._backend, "autofocus"):
+                import inspect
+                sig = inspect.signature(self._backend.autofocus)
+                kwargs = {"callback": _wrapper}
+                if "target_point" in sig.parameters:
+                    kwargs["target_point"] = target_point
+                if "frame_size" in sig.parameters:
+                    kwargs["frame_size"] = frame_size
+                self._backend.autofocus(**kwargs)
+            else:
+                if callback:
+                    callback(False, "Thiết bị hiện tại không hỗ trợ điều khiển lấy nét tự động.")
+
+    def cancel_autofocus(self) -> bool:
+        """Hủy thao tác lấy nét nếu đang diễn ra."""
+        with self._lock:
+            if hasattr(self._backend, "cancel_autofocus"):
+                return self._backend.cancel_autofocus()
+            return False
+
+    def diagnose_autofocus(
+        self,
+        target_point: Optional[Tuple[float, float]] = None,
+        frame_size: Optional[Tuple[float, float]] = None
+    ) -> Dict[str, Any]:
+        """
+        Thực hiện một chu trình chẩn đoán AF chuyên sâu theo chuẩn Nikon MAID:
+        - Kiểm tra trạng thái kết nối, chế độ MF/AF, trạng thái Live View.
+        - Gửi tối đa một lệnh AF qua đường gọi MAID đã xác minh.
+        - Ghi lại thời điểm gửi, mã trả về tức thời và kết quả hoàn tất.
+        - Phân loại rõ theo các tiêu chí: MAID_REJECTED, MAID_NOT_COMPLETED, SUCCESS_IN_FOCUS, v.v.
+        - Tuyệt đối không tự chụp ảnh, không gửi lại liên tục.
+        """
+        with self._lock:
+            if not self.is_connected():
+                return {
+                    "success": False,
+                    "category": "MAID_REJECTED",
+                    "message": "Máy ảnh chưa được kết nối.",
+                    "duration_ms": 0.0,
+                    "backend": self._current_backend_type,
+                }
+
+            if hasattr(self._backend, "diagnose_af"):
+                import inspect
+                sig = inspect.signature(self._backend.diagnose_af)
+                kwargs = {"target_point": target_point}
+                if "frame_size" in sig.parameters:
+                    kwargs["frame_size"] = frame_size
+                return self._backend.diagnose_af(**kwargs)
+            elif hasattr(self._backend, "autofocus"):
+                t0 = time.perf_counter()
+                ok, msg = self._backend.autofocus()
+                dur_ms = (time.perf_counter() - t0) * 1000.0
+                return {
+                    "success": ok,
+                    "category": "SUCCESS_IN_FOCUS" if ok else "MAID_REJECTED",
+                    "message": msg,
+                    "duration_ms": dur_ms,
+                    "backend": self._current_backend_type,
+                }
+            else:
+                return {
+                    "success": False,
+                    "category": "MAID_REJECTED",
+                    "message": "Thiết bị hiện tại không hỗ trợ điều khiển lấy nét tự động.",
+                    "duration_ms": 0.0,
+                    "backend": self._current_backend_type,
+                }
+
+    # -------------------------------------------------------------------------
     # Chụp ảnh tĩnh chất lượng cao (Capture Flow)
     # -------------------------------------------------------------------------
-    def capture(self) -> Optional[Image.Image]:
+    def capture(self, autofocus_first: bool = False) -> Optional[Image.Image]:
         """Chụp một ảnh độ phân giải cao."""
         with self._lock:
             try:
@@ -439,7 +655,16 @@ class CameraConnectionManager:
                     logger.warning("Camera chưa kết nối, thử kết nối lại...")
                     self._backend.connect(self._current_device_id)
 
-                img = self._backend.capture_photo()
+                if hasattr(self._backend, "capture_photo"):
+                    import inspect
+                    sig = inspect.signature(self._backend.capture_photo)
+                    if "autofocus_first" in sig.parameters:
+                        img = self._backend.capture_photo(autofocus_first=autofocus_first)
+                    else:
+                        img = self._backend.capture_photo()
+                else:
+                    img = None
+
                 if img is None:
                     logger.error(f"Backend {self._current_backend_type} không trả về ảnh chụp.")
                 return img
@@ -447,9 +672,9 @@ class CameraConnectionManager:
                 logger.error(f"Lỗi ngoại lệ khi chụp ảnh qua backend {self._current_backend_type}: {e}")
                 return None
 
-    def capture_photo(self, save_path: Optional[str] = None) -> Tuple[bool, Optional[Image.Image]]:
+    def capture_photo(self, save_path: Optional[str] = None, autofocus_first: bool = False) -> Tuple[bool, Optional[Image.Image]]:
         """Chụp ảnh và lưu an toàn vào đĩa (kiểm tra tính toàn vẹn của tệp)."""
-        img = self.capture()
+        img = self.capture(autofocus_first=autofocus_first)
         if img:
             if save_path:
                 try:
@@ -507,12 +732,12 @@ class CameraConnectionManager:
             # Live View Active state: chỉ True khi thực sự có luồng hình ảnh hoặc simulator
             is_lv_active = (st == ConnectionState.LIVE_VIEW_ACTIVE) and (read_fps > 0 or is_sim)
 
-            if is_digicam and not is_lv_active:
+            if is_digicam and st in (ConnectionState.CONNECTED, ConnectionState.CONNECTED_NO_FRAME) and not is_lv_active:
                 status_display = "Sẵn sàng (Chế độ chụp tĩnh Tethered 6000×4000 • Live View: Tắt)"
             elif is_sim and st in (ConnectionState.CONNECTED, ConnectionState.LIVE_VIEW_ACTIVE):
                 status_display = "Mô phỏng đang chạy"
             else:
-                status_display = st.display_name
+                status_display = err.message if (err and st == ConnectionState.ERROR) else st.display_name
 
             d = {
                 "name": self.device_name,
@@ -523,9 +748,12 @@ class CameraConnectionManager:
                 "device_index": self.device_index,
                 "device_name": self.device_name,
                 "is_simulator": is_sim,
+                "is_connected": self.is_connected(),
                 "status": status_display,
                 "connection_state": st.value,
                 "last_error": err.message if err else "",
+                "error_code": err.code if err else "",
+                "error_suggestion": err.suggestion if err else "",
                 "capabilities": caps.to_dict(),
                 "parameters": params,
                 "actual_resolution": (live_w, live_h) if is_lv_active else (0, 0),
@@ -557,6 +785,16 @@ class CameraConnectionManager:
         """Đóng an toàn kết nối và dừng mọi worker."""
         self.stop_stream()
         self.disconnect()
+        if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+            try:
+                self._face_eye_af_controller.disable()
+            except Exception:
+                pass
+        if hasattr(self, "_face_service") and self._face_service:
+            try:
+                self._face_service.stop()
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------------
     # Lưu và phục hồi thiết bị ưu tiên

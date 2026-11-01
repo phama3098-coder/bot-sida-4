@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 from PIL import Image, ImageDraw, ImageFont
 from vietphotobooth.printing.spooler import WindowsPrintSpooler
 from vietphotobooth.printing.dnp_rx1hs import DNPRX1HSProfile
+from vietphotobooth.printing.presets import PrintPreset, PrintPresetRegistry
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
@@ -74,6 +75,10 @@ class PrintManager:
         self.paper_count = 120
         self.paper_max = 400
         self.paper_warning_threshold = 50
+        self.safety_margin_enabled = True
+        self.safety_margin_zoom = 0.98
+        self.auto_orientation_enabled = True
+        self.thermal_pacing_sec = -1.0  # -1.0: dùng giá trị mặc định của Preset
 
         if self.config_mgr:
             self.load_settings()
@@ -97,6 +102,10 @@ class PrintManager:
         self.paper_count = int(self.config_mgr.get("printer.paper_count", 120))
         self.paper_max = int(self.config_mgr.get("printer.paper_max", 400))
         self.paper_warning_threshold = int(self.config_mgr.get("printer.paper_warning_threshold", 50))
+        self.safety_margin_enabled = bool(self.config_mgr.get("printer.safety_margin_enabled", True))
+        self.safety_margin_zoom = float(self.config_mgr.get("printer.safety_margin_zoom", 0.98))
+        self.auto_orientation_enabled = bool(self.config_mgr.get("printer.auto_orientation_enabled", True))
+        self.thermal_pacing_sec = float(self.config_mgr.get("printer.thermal_pacing_sec", -1.0))
         sp = self.config_mgr.get("printer_name", "")
         if sp:
             self.selected_printer = sp
@@ -114,6 +123,10 @@ class PrintManager:
         self.config_mgr.set("printer.paper_count", self.paper_count)
         self.config_mgr.set("printer.paper_max", self.paper_max)
         self.config_mgr.set("printer.paper_warning_threshold", self.paper_warning_threshold)
+        self.config_mgr.set("printer.safety_margin_enabled", self.safety_margin_enabled)
+        self.config_mgr.set("printer.safety_margin_zoom", self.safety_margin_zoom)
+        self.config_mgr.set("printer.auto_orientation_enabled", self.auto_orientation_enabled)
+        self.config_mgr.set("printer.thermal_pacing_sec", self.thermal_pacing_sec)
         if self.selected_printer:
             self.config_mgr.set("printer_name", self.selected_printer)
         self.config_mgr.save()
@@ -237,7 +250,11 @@ class PrintManager:
             logger.error(job.error_message)
             return
 
-        # 3. Gửi lệnh in vào Windows Spooler với đầy đủ căn chỉnh lề, zoom và hướng giấy
+        # 3. Tra cứu Print Preset và cấu hình nâng cao
+        preset = PrintPresetRegistry.get_preset_for_printer(job.printer_name, job.paper_size)
+        effective_pacing = self.thermal_pacing_sec if self.thermal_pacing_sec >= 0 else preset.default_thermal_pacing_sec
+
+        # 4. Gửi lệnh in vào Windows Spooler với đầy đủ căn chỉnh lề, zoom, preset và an toàn dao cắt
         res = WindowsPrintSpooler.send_image_to_printer(
             printer_name=job.printer_name,
             image_path=job.image_path,
@@ -246,7 +263,12 @@ class PrintManager:
             offset_x=self.offset_x,
             offset_y=self.offset_y,
             zoom=self.zoom,
-            orientation=self.orientation
+            orientation=self.orientation,
+            preset=preset,
+            safety_margin_enabled=self.safety_margin_enabled,
+            safety_margin_zoom=self.safety_margin_zoom,
+            auto_orientation_enabled=self.auto_orientation_enabled,
+            thermal_pacing_sec=effective_pacing
         )
 
         if res.get("success"):

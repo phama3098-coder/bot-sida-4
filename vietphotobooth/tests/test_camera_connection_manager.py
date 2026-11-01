@@ -156,21 +156,29 @@ def test_directshow_backend_no_frame_state():
 
 def test_digicam_backend_offline_stream_sets_no_frame():
     """Kiểm tra digiCamControl khi Live View stream HTTP 5513 không chạy -> CONNECTED_NO_FRAME."""
-    with patch("os.path.exists", return_value=True):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b"Nikon D780"
+    mock_resp.status = 200
+
+    with patch("os.path.exists", return_value=True), \
+         patch("vietphotobooth.camera.backends.digicam_control.is_digicam_process_running", return_value=True), \
+         patch("vietphotobooth.camera.backends.digicam_control.is_port_listening", return_value=True), \
+         patch("vietphotobooth.camera.backends.digicam_control.urllib.request.urlopen", return_value=mock_resp), \
+         patch.object(DigiCamControlBackend, "_has_liveview_stream", return_value=False):
         backend = DigiCamControlBackend()
         devs = backend.discover_devices()
         assert len(devs) == 1
 
         ok = backend.connect()
         assert ok is True
-        assert backend.get_status() == ConnectionState.CONNECTED
+        assert backend.get_status() == ConnectionState.CONNECTED_NO_FRAME
+        assert backend.is_connected() is True
 
         # Đọc frame khi stream HTTP offline
-        with patch("vietphotobooth.camera.backends.digicam_control.urllib.request.urlopen", side_effect=Exception("Connection refused")):
-            frame = backend.read_frame()
-            assert frame is None
-            assert backend.get_status() == ConnectionState.CONNECTED_NO_FRAME
-            assert backend.get_error().code == "NO_LIVEVIEW_STREAM"
+        frame = backend.read_frame()
+        assert frame is None
+        assert backend.get_status() == ConnectionState.CONNECTED_NO_FRAME
+        assert backend.get_error().code == "LIVEVIEW_UNAVAILABLE"
 
 
 # =========================================================================

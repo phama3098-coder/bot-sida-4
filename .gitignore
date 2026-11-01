@@ -68,3 +68,6 @@ Thumbs.db
 upstream_photobooth/node_modules/
 upstream_photobooth/vendor/
 node_modules/
+
+scratch/
+test_nikon_live_frame.jpg

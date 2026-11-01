@@ -13,7 +13,10 @@ Two-column modern Studio UI conforming to Screen 5:
 import os
 import time
 import tempfile
+import threading
 from typing import Optional, Dict, Any, List
+import numpy as np
+import shiboken6
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
@@ -21,7 +24,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QDialog, QTextEdit, QApplication, QCheckBox, QSizePolicy,
     QAbstractScrollArea, QBoxLayout
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QThread, Signal
+from PySide6.QtCore import Qt, QTimer, QSize, QThread, Signal, Slot, QRect
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QPainter, QPen
 
 from vietphotobooth.camera.manager import CameraManager
@@ -49,6 +52,34 @@ class DiagnosticWorker(QThread):
         except Exception as e:
             logger.warning(f"Lỗi khi chạy chẩn đoán ngầm: {e}")
             self.report_ready.emit({})
+
+
+class CameraConnectWorker(QThread):
+    """
+    Luồng chạy ngầm thực hiện kết nối và chuyển đổi camera backend.
+    Tách biệt hoàn toàn I/O phần cứng (USB/PTP handshake, SDK init) khỏi GUI thread,
+    loại bỏ triệt để hiện tượng Windows báo (Not Responding) trên trang Máy Ảnh.
+    """
+    finished_signal = Signal(bool, str, object, str)  # (success, backend, device_idx, device_name)
+
+    def __init__(self, camera_mgr, backend: str, device_idx: Any, device_name: str, parent=None):
+        super().__init__(parent)
+        self.camera_mgr = camera_mgr
+        self.backend = backend
+        self.device_idx = device_idx
+        self.device_name = device_name
+
+    def run(self):
+        try:
+            success = self.camera_mgr.switch_backend(
+                backend=self.backend,
+                device_index=self.device_idx or 0,
+                device_name=self.device_name
+            )
+            self.finished_signal.emit(bool(success), self.backend, self.device_idx, self.device_name)
+        except Exception as e:
+            logger.exception("Ngoại lệ khi chuyển đổi camera backend ngầm: %s", e)
+            self.finished_signal.emit(False, self.backend, self.device_idx, self.device_name)
 
 
 class CameraDiagnosticDialog(QDialog):
@@ -133,7 +164,145 @@ class CameraDiagnosticDialog(QDialog):
             QMessageBox.critical(self, "Lỗi Lưu File", f"Không thể lưu file báo cáo: {e}")
 
 
+from vietphotobooth.desktop.widgets.live_viewport import CameraLiveViewport
+
+
+class CameraFullscreenDialog(QDialog):
+    """
+    Hộp thoại xem trước Live View toàn màn hình chuyên nghiệp cho trang Máy Ảnh.
+    - Chế độ toàn màn hình không viền (Frameless Fullscreen).
+    - Giữ nguyên tỷ lệ 1024 × 680 (3:2) của Nikon D780 căn giữa màn hình với nền tối chuẩn studio.
+    - Thanh tiêu đề điều khiển & nút Thoát Toàn Màn Hình rõ ràng ở góc trên.
+    - Nhấn phím ESC hoặc phím F11 hoặc bấm nút Thoát để trở về bố cục ban đầu ngay lập tức.
+    - Hoàn toàn KHÔNG ngắt kết nối camera hoặc làm gián đoạn phiên làm việc.
+    """
+
+    def __init__(self, camera_mgr, grid_enabled: bool = False, face_detect_enabled: bool = False, face_service=None, face_eye_af_controller=None, parent=None):
+        super().__init__(parent)
+        self.camera_mgr = camera_mgr
+        self.grid_enabled = grid_enabled
+        self.face_detect_enabled = face_detect_enabled
+        self.face_service = face_service
+        self.face_eye_af_controller = face_eye_af_controller
+
+        self.setWindowTitle("1998 TEAM — Khung Hình Live Preview Toàn Màn Hình")
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.setStyleSheet("background-color: #03050A;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Thanh tiêu đề điều khiển nổi phía trên
+        self.top_bar = QWidget(self)
+        self.top_bar.setFixedHeight(54)
+        self.top_bar.setStyleSheet(
+            "background-color: rgba(7, 11, 22, 0.94); border-bottom: 1.5px solid #1E2D4A;"
+        )
+        h_top = QHBoxLayout(self.top_bar)
+        h_top.setContentsMargins(20, 0, 20, 0)
+        h_top.setSpacing(14)
+
+        lbl_badge = QLabel("🔴 LIVE PREVIEW TOÀN MÀN HÌNH")
+        lbl_badge.setStyleSheet(
+            "background-color: #DC2626; color: #FFFFFF; font-size: 12px; font-weight: 800; "
+            "border-radius: 6px; padding: 4px 12px; border: 1px solid #EF4444;"
+        )
+        h_top.addWidget(lbl_badge)
+
+        self.lbl_info = QLabel("Nikon D780 Native USB  |  1024 × 680  |  3:2  |  KeepAspectRatio")
+        self.lbl_info.setStyleSheet("color: #94A3B8; font-size: 13px; font-weight: 600;")
+        h_top.addWidget(self.lbl_info)
+
+        h_top.addStretch()
+
+        self.btn_exit = QPushButton("✕ Thoát Toàn Màn Hình (ESC)")
+        self.btn_exit.setFixedHeight(36)
+        self.btn_exit.setCursor(Qt.PointingHandCursor)
+        self.btn_exit.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27); "
+            "color: #070A12; font-weight: 800; font-size: 12px; border-radius: 6px; padding: 0 18px; border: 1px solid #FFF8E7; } "
+            "QPushButton:hover { background: #F0D278; }"
+        )
+        self.btn_exit.clicked.connect(self.accept)
+        h_top.addWidget(self.btn_exit)
+
+        layout.addWidget(self.top_bar)
+
+        # Viewport Live View
+        self.viewport = CameraLiveViewport(self)
+        self.viewport.set_grid_enabled(self.grid_enabled)
+        self.viewport.set_face_detection_enabled(self.face_detect_enabled)
+        if self.face_eye_af_controller and self.face_eye_af_controller.is_enabled:
+            self.viewport.set_face_eye_af_state(True, self.face_eye_af_controller.state.value, self.face_eye_af_controller.target_eye)
+            self.face_eye_af_controller.register_state_callback(self._on_af_state_changed)
+        layout.addWidget(self.viewport, 1)
+
+        if self.face_service and (self.face_detect_enabled or (self.face_eye_af_controller and self.face_eye_af_controller.is_enabled)):
+            self.face_service.register_callback(self._on_faces_detected)
+
+        # Timer cập nhật frame
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._update_frame)
+        self._timer.start(33)  # ~30 FPS
+
+    def _on_af_state_changed(self, state, msg, target_face, target_eye):
+        if not shiboken6.isValid(self):
+            return
+        def _apply():
+            if shiboken6.isValid(self) and hasattr(self, 'viewport') and shiboken6.isValid(self.viewport):
+                self.viewport.set_face_eye_af_state(True, state.value, target_eye)
+        QTimer.singleShot(0, self, _apply)
+
+    def _on_faces_detected(self, faces, frame_shape=None, seq_id=0, ts=0.0):
+        if self.face_eye_af_controller and self.face_eye_af_controller.is_enabled:
+            self.face_eye_af_controller.process_faces(faces, frame_shape=frame_shape, sequence_id=seq_id, timestamp=ts)
+        if not shiboken6.isValid(self):
+            return
+        def _apply():
+            if shiboken6.isValid(self) and hasattr(self, 'viewport') and shiboken6.isValid(self.viewport):
+                self.viewport.set_detected_faces(faces, sequence_id=seq_id)
+        QTimer.singleShot(0, self, _apply)
+
+    def _update_frame(self):
+        frame_data = self.camera_mgr.get_frame_data()
+        rgb = frame_data.rgb if (frame_data and frame_data.has_rgb) else self.camera_mgr.get_liveview_rgb()
+        if rgb is not None:
+            self.viewport.set_frame_rgb(rgb)
+            if self.face_service and (self.face_detect_enabled or (self.face_eye_af_controller and self.face_eye_af_controller.is_enabled)):
+                seq_id = frame_data.sequence_id if frame_data else 0
+                ts = frame_data.timestamp if frame_data else 0.0
+                self.face_service.submit_frame(rgb, sequence_id=seq_id, timestamp=ts)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Escape, Qt.Key_F11):
+            self.accept()
+        else:
+            super().keyPressEvent(event)
+
+    def done(self, r):
+        if self._timer.isActive():
+            self._timer.stop()
+        if self.face_service:
+            self.face_service.unregister_callback(self._on_faces_detected)
+        if self.face_eye_af_controller:
+            self.face_eye_af_controller.unregister_state_callback(self._on_af_state_changed)
+        super().done(r)
+
+    def closeEvent(self, event):
+        if self._timer.isActive():
+            self._timer.stop()
+        if self.face_service:
+            self.face_service.unregister_callback(self._on_faces_detected)
+        if self.face_eye_af_controller:
+            self.face_eye_af_controller.unregister_state_callback(self._on_af_state_changed)
+        super().closeEvent(event)
+
+
 class CameraPage(QWidget):
+    af_diagnostic_finished = Signal(dict)
+    _AF_DIAGNOSTIC_WATCHDOG_MS = 10_000
+
     """
     Trang Quản Trị, Cấu Hình & Live View Camera (Screen 5 trong thiết kế 1998 TEAM).
     Bố cục 2 cột chuẩn:
@@ -141,7 +310,14 @@ class CameraPage(QWidget):
     - Cột phải: Chọn loại camera, Chọn nguồn cụ thể, Checkbox tự động kết nối, Thông tin chi tiết phần cứng.
     """
 
-    def __init__(self, camera_mgr: CameraManager, auth_mgr=None, parent=None):
+    def __init__(
+        self,
+        camera_mgr: CameraManager,
+        auth_mgr=None,
+        face_service=None,
+        face_eye_af_controller=None,
+        parent=None
+    ):
         super().__init__(parent)
         self.camera_mgr = camera_mgr
         self.auth_mgr = auth_mgr
@@ -161,13 +337,56 @@ class CameraPage(QWidget):
         self._stats_timer.timeout.connect(self._update_stats_display)
 
         self._diag_worker: Optional[DiagnosticWorker] = None
+        self._connect_worker: Optional[CameraConnectWorker] = None
+        self._af_diagnostic_thread = None
+        self._af_diag_state_lock = threading.Lock()
+        self._af_diag_stage = "idle"
+        self.af_diagnostic_finished.connect(
+            self._show_af_diagnostic_result,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._af_diag_watchdog = QTimer(self)
+        self._af_diag_watchdog.setSingleShot(True)
+        self._af_diag_watchdog.timeout.connect(self._on_af_diagnostic_watchdog)
+
+        # Sử dụng Face & Eye Detection Service và FaceEyeAFController dùng chung (Single Source of Truth)
+        self._face_service = face_service or getattr(self.camera_mgr, "face_service", None)
+        if self._face_service is None:
+            from vietphotobooth.camera.face_detector import FaceDetectionService
+            self._face_service = FaceDetectionService(target_detection_fps=12.0)
+        self._face_service.register_callback(self._on_faces_detected)
+
+        self._face_eye_af_controller = face_eye_af_controller or getattr(self.camera_mgr, "face_eye_af_controller", None)
+        if self._face_eye_af_controller is None:
+            from vietphotobooth.camera.face_eye_af_controller import FaceEyeAFController
+            self._face_eye_af_controller = FaceEyeAFController(
+                af_trigger_fn=self.camera_mgr.trigger_autofocus,
+                stability_frames=3,
+                stability_px_threshold=20.0,
+                movement_px_threshold=35.0,
+                cooldown_sec=1.8,
+            )
+        self._face_eye_af_controller.register_state_callback(self._on_face_eye_af_state_changed)
+
+        if hasattr(self.camera_mgr, "is_face_detect_enabled"):
+            self._face_detect_enabled = self.camera_mgr.is_face_detect_enabled()
+        else:
+            self._face_detect_enabled = False
+
+        if hasattr(self.camera_mgr, "is_face_eye_af_enabled"):
+            self._face_eye_af_enabled = self.camera_mgr.is_face_eye_af_enabled()
+        else:
+            self._face_eye_af_enabled = False
 
         self._init_ui()
         self._populate_devices()
         self._refresh_camera_info()
 
-        # Dò quét chẩn đoán ban đầu qua background worker
-        QTimer.singleShot(300, self._run_diagnostics)
+        # Dò quét chẩn đoán ban đầu qua background worker (có thể hủy an toàn)
+        self._initial_diag_timer = QTimer(self)
+        self._initial_diag_timer.setSingleShot(True)
+        self._initial_diag_timer.timeout.connect(self._run_diagnostics)
+        self._initial_diag_timer.start(300)
 
     def minimumSizeHint(self) -> QSize:
         return QSize(720, 480)
@@ -192,6 +411,8 @@ class CameraPage(QWidget):
         self._stats_timer.stop()
 
     def close(self) -> bool:
+        if hasattr(self, '_initial_diag_timer') and self._initial_diag_timer.isActive():
+            self._initial_diag_timer.stop()
         if hasattr(self, '_timer') and self._timer.isActive():
             self._timer.stop()
         if hasattr(self, '_stats_timer') and self._stats_timer.isActive():
@@ -199,9 +420,24 @@ class CameraPage(QWidget):
         if hasattr(self, '_diag_worker') and self._diag_worker and self._diag_worker.isRunning():
             self._diag_worker.quit()
             self._diag_worker.wait(500)
+        if hasattr(self, '_connect_worker') and self._connect_worker and self._connect_worker.isRunning():
+            self._connect_worker.quit()
+            self._connect_worker.wait(500)
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            try:
+                self._face_eye_af_controller.unregister_state_callback(self._on_face_eye_af_state_changed)
+            except Exception:
+                pass
+        if hasattr(self, '_face_service') and self._face_service:
+            try:
+                self._face_service.unregister_callback(self._on_faces_detected)
+            except Exception:
+                pass
         return super().close()
 
     def closeEvent(self, event):
+        if hasattr(self, '_initial_diag_timer') and self._initial_diag_timer.isActive():
+            self._initial_diag_timer.stop()
         if hasattr(self, '_timer') and self._timer.isActive():
             self._timer.stop()
         if hasattr(self, '_stats_timer') and self._stats_timer.isActive():
@@ -209,6 +445,19 @@ class CameraPage(QWidget):
         if hasattr(self, '_diag_worker') and self._diag_worker and self._diag_worker.isRunning():
             self._diag_worker.quit()
             self._diag_worker.wait(500)
+        if hasattr(self, '_connect_worker') and self._connect_worker and self._connect_worker.isRunning():
+            self._connect_worker.quit()
+            self._connect_worker.wait(500)
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            try:
+                self._face_eye_af_controller.unregister_state_callback(self._on_face_eye_af_state_changed)
+            except Exception:
+                pass
+        if hasattr(self, '_face_service') and self._face_service:
+            try:
+                self._face_service.unregister_callback(self._on_faces_detected)
+            except Exception:
+                pass
         super().closeEvent(event)
 
     def _init_ui(self):
@@ -260,70 +509,132 @@ class CameraPage(QWidget):
         l_prev.setContentsMargins(12, 10, 12, 12)
         l_prev.setSpacing(8)
 
-        # Header preview: Badge đỏ và nút Toàn màn hình
+        # Header preview: Badge đỏ + Badge AF + Badge AI
         h_prev_top = QHBoxLayout()
         self.lbl_live_badge = QLabel("🔴 LIVE PREVIEW")
+        self.lbl_live_badge.setFixedHeight(24)
         self.lbl_live_badge.setStyleSheet(
             "background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; "
             "border-radius: 6px; padding: 4px 10px; border: 1px solid #EF4444;"
         )
         h_prev_top.addWidget(self.lbl_live_badge)
-        h_prev_top.addStretch()
 
-        self.btn_fullscreen = QPushButton("⛶")
-        self.btn_fullscreen.setFixedSize(32, 28)
-        self.btn_fullscreen.setCursor(Qt.PointingHandCursor)
-        self.btn_fullscreen.setToolTip("Toàn Màn Hình Preview")
-        self.btn_fullscreen.setStyleSheet(
-            "QPushButton { background-color: #111A2E; color: #E2E8F0; font-size: 15px; font-weight: bold; "
-            "border-radius: 6px; border: 1px solid #233454; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1B2945; }"
+        self.lbl_af_status = QLabel("🎯 AF: SẴN SÀNG")
+        self.lbl_af_status.setFixedHeight(24)
+        self.lbl_af_status.setStyleSheet(
+            "background-color: #0F172A; color: #38BDF8; font-size: 11px; font-weight: 700; "
+            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
         )
-        self.btn_fullscreen.clicked.connect(self._toggle_fullscreen_preview)
-        h_prev_top.addWidget(self.btn_fullscreen)
+        h_prev_top.addWidget(self.lbl_af_status)
+
+        self.lbl_ai_badge = QLabel("👁 AI MẮT: TẮT")
+        self.lbl_ai_badge.setFixedHeight(24)
+        self.lbl_ai_badge.setStyleSheet(
+            "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
+            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+        )
+        h_prev_top.addWidget(self.lbl_ai_badge)
+
+        self.lbl_face_eye_af_status = QLabel("🎯 EYE AF: TẮT")
+        self.lbl_face_eye_af_status.setFixedHeight(24)
+        self.lbl_face_eye_af_status.setStyleSheet(
+            "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
+            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+        )
+        h_prev_top.addWidget(self.lbl_face_eye_af_status)
+        h_prev_top.addStretch()
         l_prev.addLayout(h_prev_top)
 
-        # Khung hình video chính
-        self.lbl_viewport = QLabel()
-        self.lbl_viewport.setAlignment(Qt.AlignCenter)
-        self.lbl_viewport.setStyleSheet(
-            "background-color: #03050A; border-radius: 8px; border: 1px solid #162033;"
-        )
-        self.lbl_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Khung hình video chính (Zero-Jitter Viewport)
+        self.lbl_viewport = CameraLiveViewport(self.card_preview)
         self.lbl_viewport.setMinimumHeight(280)
         l_prev.addWidget(self.lbl_viewport, 1)
 
         # Footer preview: Thông số trực tiếp (Resolution | Aspect Ratio | Read/Render FPS)
         self.lbl_preview_stats = QLabel("1920 × 1080  |  16:9  |  30.0 FPS")
         self.lbl_preview_stats.setAlignment(Qt.AlignCenter)
+        self.lbl_preview_stats.setFixedHeight(28)
         self.lbl_preview_stats.setStyleSheet(
             "background-color: #0A111F; color: #CBD5E1; font-size: 12px; font-weight: 600; "
-            "border-radius: 6px; padding: 6px 12px; border: 1px solid #1A263E;"
+            "border-radius: 6px; padding: 4px 12px; border: 1px solid #1A263E;"
         )
         l_prev.addWidget(self.lbl_preview_stats)
         col_left.addWidget(self.card_preview, 1)
 
-        # Hàng nút điều khiển ngay dưới Preview: Đặt lại, Chụp thử, Lưới căn chỉnh
+        # Hàng nút điều khiển ngay dưới Preview: AF, Face/Eye AF, Nhận diện mắt, Chụp thử, Lưới, Toàn màn hình, Đặt lại
         h_prev_actions = QHBoxLayout()
-        h_prev_actions.setSpacing(10)
+        h_prev_actions.setSpacing(8)
 
-        self.btn_reset = QPushButton("↺ Đặt Lại")
-        self.btn_reset.setFixedHeight(38)
-        self.btn_reset.setCursor(Qt.PointingHandCursor)
-        self.btn_reset.setStyleSheet(
+        self.btn_af = QPushButton("🎯 Lấy Nét (AF)")
+        self.btn_af.setFixedHeight(38)
+        self.btn_af.setCursor(Qt.PointingHandCursor)
+        self.btn_af.setToolTip("Yêu cầu camera thực hiện lấy nét tự động một lần qua USB (One-shot AF)")
+        self.btn_af.setStyleSheet(
+            "QPushButton { background-color: #164E63; border: 1.5px solid #06B6D4; color: #FFFFFF; "
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            "QPushButton:hover { background-color: #0891B2; border: 1.5px solid #22D3EE; }"
+            "QPushButton:disabled { background-color: #1E293B; border: 1px solid #334155; color: #64748B; }"
+        )
+        self.btn_af.clicked.connect(self._trigger_camera_af)
+        h_prev_actions.addWidget(self.btn_af)
+
+        self.btn_face_eye_af = QPushButton("🎯 Face/Eye AF: Tắt")
+        self.btn_face_eye_af.setFixedHeight(38)
+        self.btn_face_eye_af.setCursor(Qt.PointingHandCursor)
+        self.btn_face_eye_af.setToolTip("Bật/tắt tự động lấy nét mắt & khuôn mặt khi chủ thể ổn định (Software-Triggered Face/Eye AF)")
+        self.btn_face_eye_af.setStyleSheet(
             "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 14px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            "QPushButton:hover { border: 1px solid #10B981; color: #10B981; background-color: #064E3B; }"
+        )
+        self.btn_face_eye_af.clicked.connect(self._toggle_face_eye_af)
+        h_prev_actions.addWidget(self.btn_face_eye_af)
+
+        self.btn_face_detect = QPushButton("👁 Nhận Diện: Tắt")
+        self.btn_face_detect.setFixedHeight(38)
+        self.btn_face_detect.setCursor(Qt.PointingHandCursor)
+        self.btn_face_detect.setToolTip("Bật/tắt nhận diện khuôn mặt và mắt bằng AI trên khung xem trước (Software Preview)")
+        self.btn_face_detect.setStyleSheet(
+            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
             "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
         )
-        self.btn_reset.clicked.connect(self._reset_camera_stream)
-        h_prev_actions.addWidget(self.btn_reset)
+        self.btn_face_detect.clicked.connect(self._toggle_face_detection)
+        h_prev_actions.addWidget(self.btn_face_detect)
+
+        # Cập nhật hiển thị trạng thái ban đầu nếu đã được bật trong cấu hình dùng chung
+        if self._face_detect_enabled:
+            self.lbl_viewport.set_face_detection_enabled(True)
+            self.btn_face_detect.setText("👁 Nhận Diện: BẬT")
+            self.btn_face_detect.setStyleSheet(
+                "QPushButton { background-color: #164E63; border: 1.5px solid #22D3EE; color: #22D3EE; "
+                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            )
+            self.lbl_ai_badge.setText("👁 AI MẮT: BẬT")
+            self.lbl_ai_badge.setStyleSheet(
+                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+            )
+
+        if self._face_eye_af_enabled:
+            self.lbl_viewport.set_face_eye_af_state(True, "SEARCHING", None)
+            self.btn_face_eye_af.setText("🎯 Face/Eye AF: BẬT")
+            self.btn_face_eye_af.setStyleSheet(
+                "QPushButton { background-color: #064E3B; border: 1.5px solid #10B981; color: #34D399; "
+                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            )
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐANG TÌM KHUÔN MẶT")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+            )
 
         self.btn_test_shot = QPushButton("📸 Chụp Thử Nghiệm")
         self.btn_test_shot.setFixedHeight(38)
         self.btn_test_shot.setCursor(Qt.PointingHandCursor)
         self.btn_test_shot.setStyleSheet(
             "QPushButton { background-color: #1E3A5F; border: 1.5px solid #38BDF8; color: #FFFFFF; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 16px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
             "QPushButton:hover { background-color: #2563EB; border: 1.5px solid #60A5FA; }"
         )
         self.btn_test_shot.clicked.connect(self._take_test_shot)
@@ -334,11 +645,34 @@ class CameraPage(QWidget):
         self.btn_grid.setCursor(Qt.PointingHandCursor)
         self.btn_grid.setStyleSheet(
             "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 14px; }"
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
             "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
         )
         self.btn_grid.clicked.connect(self._toggle_grid)
         h_prev_actions.addWidget(self.btn_grid)
+
+        self.btn_fullscreen = QPushButton("⛶ Toàn Màn Hình")
+        self.btn_fullscreen.setFixedHeight(38)
+        self.btn_fullscreen.setCursor(Qt.PointingHandCursor)
+        self.btn_fullscreen.setToolTip("Mở toàn màn hình live preview (ESC để thoát)")
+        self.btn_fullscreen.setStyleSheet(
+            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+        )
+        self.btn_fullscreen.clicked.connect(self._toggle_fullscreen_preview)
+        h_prev_actions.addWidget(self.btn_fullscreen)
+
+        self.btn_reset = QPushButton("↺ Đặt Lại")
+        self.btn_reset.setFixedHeight(38)
+        self.btn_reset.setCursor(Qt.PointingHandCursor)
+        self.btn_reset.setStyleSheet(
+            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+        )
+        self.btn_reset.clicked.connect(self._reset_camera_stream)
+        h_prev_actions.addWidget(self.btn_reset)
 
         col_left.addLayout(h_prev_actions)
         self.cols_layout.addWidget(self.col_left_widget, 62)
@@ -365,9 +699,12 @@ class CameraPage(QWidget):
         # Dropdown 1: Loại Camera (Backend)
         l_ctrl.addWidget(QLabel("<b style='color:#CBD5E1;'>Loại máy ảnh (Backend):</b>"))
         self.combo_backend = QComboBox()
+        self.combo_backend.blockSignals(True)
+        self.combo_backend.addItem("Nikon MAID Native USB (Nikon D780 trực tiếp USB)", "nikon_maid")
         self.combo_backend.addItem("DirectShow Webcam (Nikon Webcam Utility, Logitech...)", "directshow")
         self.combo_backend.addItem("digiCamControl (DSLR Nikon / Canon Tethered)", "digicam")
         self.combo_backend.addItem("Simulator (Mô Phỏng Studio Không Cần Phần Cứng)", "simulator")
+        self.combo_backend.blockSignals(False)
         self.combo_backend.setFixedHeight(36)
         self.combo_backend.currentIndexChanged.connect(self._on_backend_changed)
         l_ctrl.addWidget(self.combo_backend)
@@ -494,6 +831,19 @@ class CameraPage(QWidget):
         )
         self.btn_export_diag.clicked.connect(self._export_diagnostics)
         h_diag_acts.addWidget(self.btn_export_diag)
+
+        self.btn_test_af = QPushButton("🩺 Test AF")
+        self.btn_test_af.setFixedHeight(34)
+        self.btn_test_af.setCursor(Qt.PointingHandCursor)
+        self.btn_test_af.setStyleSheet(
+            "QPushButton { background-color: #0F172A; border: 1.5px solid #38BDF8; color: #38BDF8; "
+            "font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }"
+            "QPushButton:hover { background-color: #0369A1; border: 1.5px solid #7DD3FC; color: #FFFFFF; }"
+        )
+        self.btn_test_af.setToolTip("Chẩn đoán AF chuyên sâu: Kiểm tra kết nối, MF/AF, Live View, đo độ nét quang học (Tenengrad Laplacian) và phân loại lỗi.")
+        self.btn_test_af.clicked.connect(self._run_af_diagnostic)
+        h_diag_acts.addWidget(self.btn_test_af)
+
         l_info.addLayout(h_diag_acts)
 
         col_right.addWidget(grp_info)
@@ -617,54 +967,75 @@ class CameraPage(QWidget):
     # LIVE PREVIEW & RENDER LOGIC
     # -------------------------------------------------------------------------
     def _update_preview(self):
-        """Cập nhật khung hình xem trước lên Viewport ở tần số ~30 FPS (Non-blocking)."""
+        """Cập nhật khung hình xem trước lên Viewport ở tần số ~30 FPS (Non-blocking, Zero Layout Jitter)."""
         if not self.isVisible():
             return
 
-        rgb_frame = self.camera_mgr.get_liveview_rgb()
-        if rgb_frame is not None and rgb_frame.size > 0:
+        frame_data = self.camera_mgr.get_frame_data()
+        rgb_frame = frame_data.rgb if (frame_data and frame_data.has_rgb) else self.camera_mgr.get_liveview_rgb()
+        if rgb_frame is not None and getattr(rgb_frame, "size", 0) > 0:
+            self._consecutive_no_frame_count = 0
             self._render_fps_tracker.tick()
-            h, w = rgb_frame.shape[:2]
-            qimg = QImage(rgb_frame.data, w, h, 3 * w, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimg)
-
-            # Căn tỷ lệ khớp khung nhìn nhưng giữ nguyên tỉ lệ gốc
-            vw = self.lbl_viewport.width()
-            vh = self.lbl_viewport.height()
-            if vw > 20 and vh > 20:
-                scaled = pixmap.scaled(vw, vh, Qt.KeepAspectRatio, Qt.FastTransformation)
-
-                # Vẽ lưới căn chỉnh 3x3 nếu bật
-                if self.grid_enabled:
-                    painter = QPainter(scaled)
-                    pen = QPen(QColor(212, 175, 55, 170), 1.5, Qt.DashLine)
-                    painter.setPen(pen)
-                    sw = scaled.width()
-                    sh = scaled.height()
-                    painter.drawLine(int(sw / 3), 0, int(sw / 3), sh)
-                    painter.drawLine(int(2 * sw / 3), 0, int(2 * sw / 3), sh)
-                    painter.drawLine(0, int(sh / 3), sw, int(sh / 3))
-                    painter.drawLine(0, int(2 * sh / 3), sw, int(2 * sh / 3))
-                    painter.end()
-
-                self.lbl_viewport.setPixmap(scaled)
+            self.lbl_viewport.set_frame_rgb(rgb_frame)
+            if getattr(self, "_face_detect_enabled", False) or getattr(self, "_face_eye_af_enabled", False):
+                seq_id = frame_data.sequence_id if frame_data else 0
+                ts = frame_data.timestamp if frame_data else 0.0
+                self._face_service.submit_frame(rgb_frame, sequence_id=seq_id, timestamp=ts)
         else:
+            self._consecutive_no_frame_count = getattr(self, "_consecutive_no_frame_count", 0) + 1
+            if not self.camera_mgr.is_connected() or not self.camera_mgr.get_info().get("is_live_view_active", False) or self._consecutive_no_frame_count >= 5:
+                self.lbl_viewport.clear_overlays()
             # Không có tín hiệu hoặc Live View tắt
             backend = self.camera_mgr.current_backend_name
-            if backend == "digicam":
-                self.lbl_viewport.setText(
-                    "MÁY ẢNH DSLR NIKON / CANON (TETHERED)\n\n"
-                    "• Chế độ chụp ảnh tĩnh độ phân giải cao 6000 × 4000 (24 MP) đang sẵn sàng.\n"
-                    "• Luồng Live View HTTP 5513 hiện đang tắt trong digiCamControl.\n"
-                    "• Để xem trực tiếp: Hãy chọn nguồn DirectShow 'Nikon Webcam Utility'."
-                )
-                self.lbl_viewport.setStyleSheet(
-                    "background-color: #03050A; border-radius: 8px; border: 1px dashed #334155; color: #D4AF37; font-size: 13px; font-weight: 600; padding: 16px;"
-                )
+            is_conn = self.camera_mgr.is_connected()
+            info = self.camera_mgr.get_info()
+            dev_name = info.get("device_name", "")
+            last_err = info.get("last_error", "")
+            err_sug = info.get("error_suggestion", "")
+
+            if backend == "nikon_maid":
+                if is_conn:
+                    self.lbl_viewport.set_message(
+                        f"MÁY ẢNH NIKON D780 NATIVE USB\n\n"
+                        f"• Thiết bị: {dev_name} (Kết nối USB Trực Tiếp MAID SDK)\n"
+                        f"• Chế độ chụp tĩnh độ phân giải cao: 6048 × 4024 (24.3 MP)\n"
+                        f"• Live View: Native USB Stream (1024×680 ~38 FPS)\n"
+                        f"• Tín hiệu đang sẵn sàng.",
+                        color_hex="#D4AF37",
+                        border_hex="#D4AF37"
+                    )
+                else:
+                    self.lbl_viewport.set_message(
+                        f"NIKON D780 NATIVE USB (CHƯA KẾT NỐI)\n\n"
+                        f"• Nguyên nhân: {last_err or 'Chưa cắm cáp USB hoặc Nikon D780 chưa bật nguồn.'}\n\n"
+                        f"{('👉 ' + err_sug) if err_sug else 'Vui lòng kiểm tra cáp USB máy ảnh Nikon D780 và bấm Kết Nối Nguồn Này.'}",
+                        color_hex="#F87171",
+                        border_hex="#EF4444"
+                    )
+            elif backend == "digicam":
+                if is_conn:
+                    self.lbl_viewport.set_message(
+                        f"MÁY ẢNH DSLR NIKON / CANON (TETHERED)\n\n"
+                        f"• Thiết bị: {dev_name} (Đã nhận diện thành công)\n"
+                        f"• Chế độ chụp ảnh tĩnh độ phân giải cao 6000 × 4000 (24 MP) đang sẵn sàng.\n"
+                        f"• Luồng Live View HTTP 5513 hiện đang tắt trong digiCamControl.\n"
+                        f"• Để xem trực tiếp: Hãy chọn nguồn DirectShow 'Nikon Webcam Utility'.",
+                        color_hex="#D4AF37",
+                        border_hex="#D4AF37"
+                    )
+                else:
+                    self.lbl_viewport.set_message(
+                        f"digiCamControl (CHƯA KẾT NỐI)\n\n"
+                        f"• Nguyên nhân: {last_err or 'Chưa phát hiện máy ảnh USB hoặc dịch vụ chưa khởi động.'}\n\n"
+                        f"{('👉 ' + err_sug) if err_sug else 'Vui lòng kiểm tra cáp USB, bật ứng dụng digiCamControl và bấm Kết Nối Nguồn Này.'}",
+                        color_hex="#F87171",
+                        border_hex="#EF4444"
+                    )
             else:
-                self.lbl_viewport.setText("CHƯA CÓ TÍN HIỆU HÌNH ẢNH\nVui lòng kiểm tra cáp USB hoặc chọn lại nguồn camera.")
-                self.lbl_viewport.setStyleSheet(
-                    "background-color: #03050A; border-radius: 8px; border: 1px dashed #334155; color: #64748B; font-size: 14px; font-weight: bold;"
+                self.lbl_viewport.set_message(
+                    "CHƯA CÓ TÍN HIỆU HÌNH ẢNH\nVui lòng kiểm tra cáp USB hoặc chọn lại nguồn camera.",
+                    color_hex="#64748B",
+                    border_hex="#334155"
                 )
 
     def _update_stats_display(self):
@@ -688,7 +1059,10 @@ class CameraPage(QWidget):
             )
             if self.camera_mgr.current_backend_name == "simulator":
                 self.lbl_live_badge.setText("🔴 MÔ PHỎNG (SIMULATOR)")
-                self.lbl_live_badge.setStyleSheet("background-color: #D97706; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
+                self.lbl_live_badge.setStyleSheet("background-color: #D97706; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #F59E0B;")
+            elif self.camera_mgr.current_backend_name == "nikon_maid":
+                self.lbl_live_badge.setText("🔴 NIKON D780 NATIVE USB LIVE")
+                self.lbl_live_badge.setStyleSheet("background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #EF4444;")
             else:
                 self.lbl_live_badge.setText("🔴 LIVE PREVIEW")
                 self.lbl_live_badge.setStyleSheet("background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #EF4444;")
@@ -697,7 +1071,13 @@ class CameraPage(QWidget):
                 f"Live View: Tắt (Chế độ chụp tĩnh Tethered 6000×4000)  |  Đọc: 0.0 FPS  |  Hiển thị: 0.0 FPS  |  Nguồn: N/A  |  DIGICAM"
             )
             self.lbl_live_badge.setText("🟡 CHẾ ĐỘ CHỤP TĨNH (TETHERED)")
-            self.lbl_live_badge.setStyleSheet("background-color: #B45309; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
+            self.lbl_live_badge.setStyleSheet("background-color: #B45309; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #D97706;")
+        elif self.camera_mgr.current_backend_name == "nikon_maid":
+            self.lbl_preview_stats.setText(
+                f"Live View: Sẵn sàng (Native USB 6048×4024)  |  Đọc: 0.0 FPS  |  Hiển thị: 0.0 FPS  |  NIKON_MAID"
+            )
+            self.lbl_live_badge.setText("🟡 NIKON D780 NATIVE USB (CHỜ)")
+            self.lbl_live_badge.setStyleSheet("background-color: #B45309; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #D97706;")
         else:
             self.lbl_preview_stats.setText(
                 f"Live View: Tắt  |  Đọc: 0.0 FPS  |  Hiển thị: 0.0 FPS  |  Nguồn: {source_fps_str}  |  {backend_code}"
@@ -705,9 +1085,477 @@ class CameraPage(QWidget):
             self.lbl_live_badge.setText("⚠️ LIVE VIEW TẮT")
             self.lbl_live_badge.setStyleSheet("background-color: #EF4444; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px;")
 
+    def _on_faces_detected(self, faces, frame_shape=None, seq_id=0, ts=0.0):
+        """Callback từ luồng nhận diện AI ngầm, chuyển tiếp sang UI thread an toàn."""
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller.is_enabled:
+            dim = frame_shape
+            if not dim:
+                cur_pix = self.lbl_viewport._current_pixmap
+                dim = (cur_pix.width(), cur_pix.height()) if cur_pix and cur_pix.width() > 0 else None
+            self._face_eye_af_controller.process_faces(faces, frame_shape=dim, sequence_id=seq_id, timestamp=ts)
+        if not shiboken6.isValid(self):
+            return
+        def _apply():
+            if shiboken6.isValid(self) and hasattr(self, 'lbl_viewport') and shiboken6.isValid(self.lbl_viewport):
+                self.lbl_viewport.set_detected_faces(faces, sequence_id=seq_id)
+        QTimer.singleShot(0, self, _apply)
+
+    def _trigger_camera_af(self):
+        """Kích hoạt lấy nét tự động một lần (One-shot AF, non-blocking)."""
+        if not self.camera_mgr.is_connected():
+            QMessageBox.warning(self, "Lấy Nét (AF)", "Camera chưa kết nối để thực hiện lấy nét.")
+            return
+
+        is_sim = (self.camera_mgr.current_backend_name == "simulator")
+        prefix = "🎯 AF [MÔ PHỎNG]" if is_sim else "🎯 AF"
+        self.lbl_af_status.setText(f"{prefix}: ĐANG LẤY NÉT...")
+        self.lbl_af_status.setStyleSheet(
+            "background-color: #78350F; color: #FBBF24; font-size: 11px; font-weight: 700; "
+            "border-radius: 6px; padding: 4px 10px; border: 1px solid #F59E0B;"
+        )
+        self.btn_af.setEnabled(False)
+
+        def _on_done(success: bool, message: str):
+            if not shiboken6.isValid(self):
+                return
+            def _apply():
+                if shiboken6.isValid(self):
+                    self._apply_af_result(success, message)
+            QTimer.singleShot(0, self, _apply)
+
+        self.camera_mgr.trigger_autofocus(callback=_on_done)
+
+    def _apply_af_result(self, success: bool, message: str):
+        if not shiboken6.isValid(self):
+            return
+        self.btn_af.setEnabled(True)
+        is_sim = (self.camera_mgr.current_backend_name == "simulator")
+
+        if success:
+            prefix = "🎯 AF [MÔ PHỎNG]" if is_sim else "🎯 AF"
+            self.lbl_af_status.setText(f"{prefix}: KHÓA NÉT ✓")
+            self.lbl_af_status.setToolTip(message)
+            self.lbl_af_status.setStyleSheet(
+                "background-color: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #059669;"
+            )
+        else:
+            short_msg = "THẤT BẠI ✗"
+            if "out of focus" in message.lower() or "mất nét" in message.lower():
+                short_msg = "MẤT NÉT ✗"
+            elif "mf" in message.lower() or "manual" in message.lower():
+                short_msg = "GẠT MF ✗"
+            self.lbl_af_status.setText(f"🎯 AF: {short_msg}")
+            self.lbl_af_status.setToolTip(message)
+            self.lbl_af_status.setStyleSheet(
+                "background-color: #7F1D1D; color: #FCA5A5; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #DC2626;"
+            )
+
+        if shiboken6.isValid(self):
+            QTimer.singleShot(3500, self, self._reset_af_badge)
+
+    def _reset_af_badge(self):
+        if not shiboken6.isValid(self):
+            return
+        self.lbl_af_status.setText("🎯 AF: SẴN SÀNG")
+        self.lbl_af_status.setStyleSheet(
+            "background-color: #0F172A; color: #38BDF8; font-size: 11px; font-weight: 700; "
+            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+        )
+
+    def _calculate_sharpness(self, rgb_image) -> float:
+        """Đo độ nét quang học (Tenengrad Laplacian variance) trên khung hình RGB."""
+        if rgb_image is None or getattr(rgb_image, "size", 0) == 0:
+            return 0.0
+        try:
+            import cv2
+            gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
+            return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        except Exception:
+            return 0.0
+
+    def _log_af_diagnostic_stage(self, stage: str, event: str, detail: str = ""):
+        """Ghi m?c Test AF b?ng ??ng h? monotonic v? thread ID."""
+        now_ns = time.monotonic_ns()
+        thread_id = threading.get_ident()
+        with self._af_diag_state_lock:
+            self._af_diag_stage = f"{stage}:{event}"
+        logger.info(
+            "[AF-DIAGNOSTIC-TRACE] monotonic_ns=%d thread_id=%d stage=%s event=%s detail=%s",
+            now_ns, thread_id, stage, event, detail
+        )
+
+    def _on_af_diagnostic_watchdog(self):
+        """C?nh b?o worker ch?y l?u; kh?ng h?y thread ho?c l?nh native."""
+        worker = self._af_diagnostic_thread
+        if worker is None:
+            return
+        if not worker.is_alive():
+            logger.warning(
+                "[AF-DIAGNOSTIC-WATCHDOG] monotonic_ns=%d thread_id=%d worker ?? k?t th?c; "
+                "?ang ch? signal k?t qu? ? UI thread.",
+                time.monotonic_ns(), threading.get_ident()
+            )
+            return
+
+        with self._af_diag_state_lock:
+            stage = self._af_diag_stage
+        if stage.startswith("diagnose_autofocus:begin"):
+            logger.warning(
+                "[AF-DIAGNOSTIC-WATCHDOG] monotonic_ns=%d thread_id=%d "
+                "camera_mgr.diagnose_autofocus ch?a tr? v? (stage=%s); l?i g?i MAID SDK "
+                "c? th? v?n ?ang ch?y ho?c ?ang ch? lock. Kh?ng c??ng b?c d?ng thread.",
+                time.monotonic_ns(), threading.get_ident(), stage
+            )
+        else:
+            logger.warning(
+                "[AF-DIAGNOSTIC-WATCHDOG] monotonic_ns=%d thread_id=%d worker v?n ch?y "
+                "(stage=%s). Kh?ng c??ng b?c d?ng thread.",
+                time.monotonic_ns(), threading.get_ident(), stage
+            )
+
+    def _run_af_diagnostic(self):
+        """Ch?y ch?n ?o?n AF n?n, lu?n g?i k?t qu? v? UI qua Qt Signal."""
+        if not self.camera_mgr.is_connected():
+            QMessageBox.warning(self, "Ch?n ?o?n AF", "Camera ch?a k?t n?i. Vui l?ng k?t n?i camera tr??c khi ch?n ?o?n.")
+            return
+        if self._af_diagnostic_thread is not None and self._af_diagnostic_thread.is_alive():
+            logger.warning("[AF-DIAGNOSTIC] T? ch?i kh?i ch?y tr?ng; worker tr??c v?n ch?y.")
+            return
+
+        self.btn_test_af.setEnabled(False)
+        self.btn_test_af.setText("?? ?ang Test AF...")
+        worker_started_ns = time.monotonic_ns()
+        import json
+
+        def _worker():
+            diag_res: Dict[str, Any] = {
+                "success": False,
+                "category": "SOFTWARE_EXCEPTION",
+                "message": "Worker k?t th?c b?t th??ng tr??c khi c? k?t qu?.",
+                "duration_ms": 0.0,
+            }
+            try:
+                self._log_af_diagnostic_stage("worker", "begin")
+
+                self._log_af_diagnostic_stage("get_frame_data_before_af", "begin")
+                fd_before = self.camera_mgr.get_frame_data()
+                sharpness_before = self._calculate_sharpness(fd_before.rgb if fd_before else None)
+                self._log_af_diagnostic_stage(
+                    "get_frame_data_before_af", "end",
+                    f"frame={'present' if fd_before else 'none'} sharpness={sharpness_before:.2f}"
+                )
+
+                self._log_af_diagnostic_stage("read_face_detection_state", "begin")
+                detector_ok = bool(
+                    hasattr(self, "_face_service")
+                    and self._face_service
+                    and self._face_service.is_available
+                )
+                target_pt = None
+                if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller:
+                    diag_ctrl = self._face_eye_af_controller.get_diagnostics()
+                    target_pt = diag_ctrl.get("target_eye")
+                self._log_af_diagnostic_stage(
+                    "read_face_detection_state", "end",
+                    f"detector_available={detector_ok} target_point={target_pt}"
+                )
+
+                self._log_af_diagnostic_stage("diagnose_autofocus", "begin")
+                diag_res = self.camera_mgr.diagnose_autofocus(target_point=target_pt)
+                self._log_af_diagnostic_stage(
+                    "diagnose_autofocus", "end",
+                    f"category={diag_res.get('category', 'UNKNOWN')} success={diag_res.get('success', False)}"
+                )
+
+                self._log_af_diagnostic_stage("wait_after_af", "begin", "sleep_ms=150")
+                time.sleep(0.15)
+                self._log_af_diagnostic_stage("wait_after_af", "end")
+
+                self._log_af_diagnostic_stage("get_frame_data_after_af", "begin")
+                fd_after = self.camera_mgr.get_frame_data()
+                sharpness_after = self._calculate_sharpness(fd_after.rgb if fd_after else None)
+                self._log_af_diagnostic_stage(
+                    "get_frame_data_after_af", "end",
+                    f"frame={'present' if fd_after else 'none'} sharpness={sharpness_after:.2f}"
+                )
+
+                diag_res["sharpness_before"] = round(sharpness_before, 2)
+                diag_res["sharpness_after"] = round(sharpness_after, 2)
+                diag_res["sharpness_delta"] = round(sharpness_after - sharpness_before, 2)
+                diag_res["detector_available"] = detector_ok
+                diag_res.setdefault("success", False)
+                diag_res.setdefault("category", "UNKNOWN")
+                diag_res.setdefault("message", "")
+                diag_res["worker_duration_ms"] = round(
+                    (time.monotonic_ns() - worker_started_ns) / 1_000_000.0, 2
+                )
+            except Exception as ex:
+                with self._af_diag_state_lock:
+                    failed_stage = self._af_diag_stage
+                diag_res = {
+                    "success": False,
+                    "category": "SOFTWARE_EXCEPTION",
+                    "message": f"{type(ex).__name__}: {ex}",
+                    "exception_type": type(ex).__name__,
+                    "failed_stage": failed_stage,
+                    "worker_duration_ms": round(
+                        (time.monotonic_ns() - worker_started_ns) / 1_000_000.0, 2
+                    ),
+                }
+                logger.exception("[AF-DIAGNOSTIC] Worker l?i t?i stage=%s", failed_stage)
+            finally:
+                try:
+                    self._log_af_diagnostic_stage(
+                        "worker", "finally",
+                        f"category={diag_res.get('category', 'UNKNOWN')}"
+                    )
+                    logger.info(
+                        "[AF-DIAGNOSTIC] K?t qu? worker: %s",
+                        json.dumps(diag_res, default=str, ensure_ascii=False)
+                    )
+                except Exception:
+                    logger.exception("[AF-DIAGNOSTIC] Kh?ng ghi ???c log ho?n t?t worker.")
+                try:
+                    # Receiver l? QObject c?a CameraPage; QueuedConnection ??a slot v? UI thread.
+                    self.af_diagnostic_finished.emit(diag_res)
+                except Exception:
+                    logger.exception("[AF-DIAGNOSTIC] Kh?ng g?i ???c k?t qu? qua Qt Signal.")
+
+        self._log_af_diagnostic_stage("worker", "scheduled")
+        self._af_diagnostic_thread = threading.Thread(
+            target=_worker,
+            name="AF-Diagnostic-Thread",
+            daemon=True
+        )
+        self._af_diagnostic_thread.start()
+        self._af_diag_watchdog.start(self._AF_DIAGNOSTIC_WATCHDOG_MS)
+
+    @Slot(dict)
+    def _show_af_diagnostic_result(self, diag_res: dict):
+        self._af_diag_watchdog.stop()
+        self._af_diagnostic_thread = None
+        with self._af_diag_state_lock:
+            self._af_diag_stage = "ui_result_received"
+        self._log_af_diagnostic_stage(
+            "ui_result_received", "begin",
+            f"category={diag_res.get('category', 'UNKNOWN')} success={diag_res.get('success', False)}"
+        )
+        self.btn_test_af.setEnabled(True)
+        self.btn_test_af.setText("🩺 Test AF")
+
+        cat = diag_res.get("category", "UNKNOWN")
+        success = diag_res.get("success", False)
+        msg = diag_res.get("message", "")
+        dur = diag_res.get("duration_ms", 0.0)
+        s_before = diag_res.get("sharpness_before", 0.0)
+        s_after = diag_res.get("sharpness_after", 0.0)
+        s_delta = diag_res.get("sharpness_delta", 0.0)
+        fm_str = diag_res.get("focus_mode_str", "Unknown")
+        bat = diag_res.get("battery_percent", "N/A")
+
+        status_text = (
+            f"=== BÁO CÁO CHẨN ĐOÁN AUTOFOCUS ===\n\n"
+            f"• Kết quả tổng quát: {'[✓] THÀNH CÔNG (In Focus)' if success else '[✗] THẤT BẠI'}\n"
+            f"• Phân loại trạng thái: {cat}\n"
+            f"• Chế độ lấy nét phần cứng: {fm_str}\n"
+            f"• Thời gian phản hồi: {dur:.1f} ms\n"
+            f"• Mức pin máy ảnh: {bat}%\n"
+            f"• Độ nét quang học (Tenengrad Laplacian):\n"
+            f"   - Trước AF: {s_before}\n"
+            f"   - Sau AF: {s_after}\n"
+            f"   - Biến thiên (Δ): {s_delta:+0.2f}\n"
+            f"• Chi tiết phản hồi từ máy ảnh: {msg}\n"
+        )
+
+        if success:
+            QMessageBox.information(self, "Chẩn Đoán AF Thành Công", status_text)
+            self._apply_af_result(True, msg)
+        else:
+            QMessageBox.warning(self, "Chẩn Đoán AF Thất Bại", status_text)
+            self._apply_af_result(False, msg)
+
+    def _toggle_face_eye_af(self):
+        """Bật/tắt chế độ tự động lấy nét vào mắt/khuôn mặt (Software-Triggered Face/Eye AF)."""
+        target = not self._face_eye_af_enabled
+
+        if hasattr(self.camera_mgr, "set_face_eye_af_enabled"):
+            ok = self.camera_mgr.set_face_eye_af_enabled(target)
+            if not ok and target:
+                self._face_eye_af_enabled = False
+                QMessageBox.warning(
+                    self,
+                    "Face/Eye AF",
+                    "Không thể kích hoạt Face/Eye AF do thiếu mô hình nhận diện khuôn mặt YuNet ONNX."
+                )
+                return
+            self._face_eye_af_enabled = self.camera_mgr.is_face_eye_af_enabled()
+        else:
+            self._face_eye_af_enabled = target
+            if target:
+                if self._face_service:
+                    ok = self._face_service.enable()
+                    if not ok:
+                        self._face_eye_af_enabled = False
+                        QMessageBox.warning(self, "Face/Eye AF", "Không thể kích hoạt Face/Eye AF.")
+                        return
+                if self._face_eye_af_controller:
+                    self._face_eye_af_controller.set_af_trigger_function(self.camera_mgr.trigger_autofocus)
+                    self._face_eye_af_controller.enable()
+            else:
+                if self._face_eye_af_controller:
+                    self._face_eye_af_controller.disable()
+                if not self._face_detect_enabled and self._face_service:
+                    self._face_service.disable()
+
+        if self._face_eye_af_enabled:
+            # Đảm bảo Live View đang chạy để có frame cho detector
+            if self.camera_mgr.is_connected() and not getattr(self.camera_mgr, "_stream_running", False):
+                self.camera_mgr.start_stream()
+
+            self.btn_face_eye_af.setText("🎯 Face/Eye AF: BẬT")
+            self.btn_face_eye_af.setStyleSheet(
+                "QPushButton { background-color: #064E3B; border: 1.5px solid #10B981; color: #34D399; "
+                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            )
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐANG TÌM KHUÔN MẶT")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+            )
+            self.lbl_viewport.set_face_eye_af_state(True, "SEARCHING", None)
+        else:
+            self.btn_face_eye_af.setText("🎯 Face/Eye AF: Tắt")
+            self.btn_face_eye_af.setStyleSheet(
+                "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+                "QPushButton:hover { border: 1px solid #10B981; color: #10B981; background-color: #064E3B; }"
+            )
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: TẮT")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+            )
+            self.lbl_viewport.set_face_eye_af_state(False, None, None)
+
+    def _on_face_eye_af_state_changed(self, state, message, target_face, target_eye):
+        """Callback từ FaceEyeAFController (luồng nền), chuyển tiếp an toàn sang UI thread."""
+        if not shiboken6.isValid(self):
+            return
+        def _apply():
+            if shiboken6.isValid(self):
+                self._apply_face_eye_af_state(state, message, target_face, target_eye)
+        QTimer.singleShot(0, self, _apply)
+
+    def _apply_face_eye_af_state(self, state, message, target_face, target_eye):
+        """Cập nhật giao diện theo trạng thái Face/Eye AF."""
+        if not shiboken6.isValid(self):
+            return
+        try:
+            if not getattr(self, "_face_eye_af_enabled", False):
+                return
+        except (RuntimeError, AttributeError):
+            return
+
+        from vietphotobooth.camera.face_eye_af_controller import FaceEyeAFState
+
+        if state == FaceEyeAFState.FOCUSED:
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐÃ LẤY NÉT ✓")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #059669;"
+            )
+        elif state == FaceEyeAFState.FOCUSING:
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐANG LẤY NÉT...")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #78350F; color: #FBBF24; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #F59E0B;"
+            )
+        elif state == FaceEyeAFState.FACE_DETECTED:
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐÃ PHÁT HIỆN MẶT")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #0E3A52; color: #38BDF8; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+            )
+        elif state == FaceEyeAFState.LOST:
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: KHÔNG TÌM THẤY MẶT")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #7C2D12; color: #FB923C; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #EA580C;"
+            )
+        elif state == FaceEyeAFState.ERROR:
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: AF THẤT BẠI ✗")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #7F1D1D; color: #FCA5A5; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #DC2626;"
+            )
+        else:  # SEARCHING
+            self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐANG TÌM KHUÔN MẶT")
+            self.lbl_face_eye_af_status.setStyleSheet(
+                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+            )
+
+        self.lbl_viewport.set_face_eye_af_state(True, state.value, target_eye)
+
+    def _toggle_face_detection(self):
+        """Bật/tắt nhận diện khuôn mặt và mắt trên luồng xem trước."""
+        target = not self._face_detect_enabled
+
+        if hasattr(self.camera_mgr, "set_face_detect_enabled"):
+            ok = self.camera_mgr.set_face_detect_enabled(target)
+            if not ok and target:
+                self._face_detect_enabled = False
+                QMessageBox.warning(
+                    self,
+                    "Nhận Diện Mắt",
+                    "Không thể kích hoạt nhận diện khuôn mặt và mắt do thiếu mô hình ONNX trong thư mục Assets/Models."
+                )
+                return
+            self._face_detect_enabled = self.camera_mgr.is_face_detect_enabled()
+        else:
+            self._face_detect_enabled = target
+            if target:
+                if self._face_service:
+                    ok = self._face_service.enable()
+                    if not ok:
+                        self._face_detect_enabled = False
+                        QMessageBox.warning(self, "Nhận Diện Mắt", "Không thể kích hoạt nhận diện.")
+                        return
+            else:
+                if self._face_service and not self._face_eye_af_enabled:
+                    self._face_service.disable()
+
+        if self._face_detect_enabled:
+            self.lbl_viewport.set_face_detection_enabled(True)
+            self.btn_face_detect.setText("👁 Nhận Diện: BẬT")
+            self.btn_face_detect.setStyleSheet(
+                "QPushButton { background-color: #164E63; border: 1.5px solid #22D3EE; color: #22D3EE; "
+                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+            )
+            self.lbl_ai_badge.setText("👁 AI MẮT: BẬT")
+            self.lbl_ai_badge.setStyleSheet(
+                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+            )
+        else:
+            self.lbl_viewport.set_face_detection_enabled(False)
+            self.btn_face_detect.setText("👁 Nhận Diện: Tắt")
+            self.btn_face_detect.setStyleSheet(
+                "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+                "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+            )
+            self.lbl_ai_badge.setText("👁 AI MẮT: TẮT")
+            self.lbl_ai_badge.setStyleSheet(
+                "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
+                "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+            )
 
     def _toggle_grid(self):
         self.grid_enabled = not self.grid_enabled
+        self.lbl_viewport.set_grid_enabled(self.grid_enabled)
         self.btn_grid.setText("▦ Lưới Căn Chỉnh: BẬT" if self.grid_enabled else "▦ Lưới Căn Chỉnh: Tắt")
         self.btn_grid.setStyleSheet(
             "QPushButton { background-color: #1A2844; border: 1.5px solid #D4AF37; color: #D4AF37; "
@@ -718,35 +1566,25 @@ class CameraPage(QWidget):
         )
 
     def _toggle_fullscreen_preview(self):
-        """Mở rộng khung xem trước hoặc báo phóng to."""
-        dlg = QDialog(self)
-        dlg.setWindowTitle("1998 TEAM — Khung Hình Live Preview Toàn Màn Hình")
-        dlg.resize(960, 640)
-        dlg.setStyleSheet("background-color: #03050A;")
-        dlg_layout = QVBoxLayout(dlg)
-        dlg_layout.setContentsMargins(0, 0, 0, 0)
-
-        lbl = QLabel()
-        lbl.setAlignment(Qt.AlignCenter)
-        dlg_layout.addWidget(lbl)
-
-        # Cập nhật timer tạm thời cho dialog
-        t = QTimer(dlg)
-        def update_fs():
-            rgb = self.camera_mgr.get_liveview_rgb()
-            if rgb is not None:
-                h, w = rgb.shape[:2]
-                qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
-                px = QPixmap.fromImage(qimg)
-                lbl.setPixmap(px.scaled(lbl.width(), lbl.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        t.timeout.connect(update_fs)
-        t.start(33)
+        """Mở rộng khung xem trước toàn màn hình không nhấp nháy/không méo tỷ lệ, có nút thoát rõ ràng."""
+        dlg = CameraFullscreenDialog(
+            self.camera_mgr,
+            grid_enabled=self.grid_enabled,
+            face_detect_enabled=self._face_detect_enabled,
+            face_service=self._face_service,
+            face_eye_af_controller=self._face_eye_af_controller,
+            parent=self,
+        )
+        dlg.showFullScreen()
         dlg.exec()
-        t.stop()
 
     def _reset_camera_stream(self):
         """Đặt lại và kết nối lại luồng video hiện tại."""
         try:
+            self.lbl_viewport.clear_overlays()
+            self.lbl_viewport.reset_face_sequence()
+            if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+                self._face_eye_af_controller.reset_sequence()
             self.camera_mgr.disconnect()
             time.sleep(0.1)
             self.camera_mgr.connect()
@@ -760,9 +1598,33 @@ class CameraPage(QWidget):
     # -------------------------------------------------------------------------
     def _on_backend_changed(self):
         backend = self.combo_backend.currentData()
-        is_dshow = (backend == "directshow")
-        self.lbl_device_title.setVisible(is_dshow)
-        self.combo_device.setVisible(is_dshow)
+        if backend == "directshow":
+            self.lbl_device_title.setText("<b style='color:#CBD5E1;'>Nguồn Video / Webcam Cụ Thể:</b>")
+            self.lbl_device_title.setVisible(True)
+            self.combo_device.setVisible(True)
+            self._populate_devices()
+        elif backend == "nikon_maid":
+            self.lbl_device_title.setText("<b style='color:#CBD5E1;'>Thiết Bị Nikon D780 (Native USB):</b>")
+            self.lbl_device_title.setVisible(True)
+            self.combo_device.setVisible(True)
+            self._populate_nikon_maid_devices()
+        else:
+            self.lbl_device_title.setVisible(False)
+            self.combo_device.setVisible(False)
+
+    def _populate_nikon_maid_devices(self):
+        """Liệt kê các thiết bị Nikon D780 Native USB vào dropdown."""
+        self.combo_device.clear()
+        try:
+            devs = self.camera_mgr.discover_devices("nikon_maid")
+            if devs:
+                for d in devs:
+                    self.combo_device.addItem(f"{d.name} [Direct USB]", d.id)
+            else:
+                self.combo_device.addItem("Chưa phát hiện Nikon D780 USB (Cắm cáp & Bật máy)", "nikon_d780_usb")
+        except Exception as e:
+            logger.warning(f"Lỗi khi liệt kê thiết bị Nikon MAID: {e}")
+            self.combo_device.addItem("Chưa phát hiện Nikon D780 USB (Cắm cáp & Bật máy)", "nikon_d780_usb")
 
     def _populate_devices(self):
         """Liệt kê các thiết bị DirectShow vào dropdown kèm tên thân thiện."""
@@ -788,8 +1650,12 @@ class CameraPage(QWidget):
                 break
 
     def _refresh_device_list(self):
-        self._populate_devices()
-        self._run_diagnostics()
+        backend = self.combo_backend.currentData()
+        if backend == "nikon_maid":
+            self._populate_nikon_maid_devices()
+        else:
+            self._populate_devices()
+        self._refresh_camera_info()
         QMessageBox.information(self, "Làm Mới", "Đã cập nhật danh sách thiết bị video thành công!")
 
     def _on_auto_connect_toggled(self, checked: bool):
@@ -852,6 +1718,32 @@ class CameraPage(QWidget):
             item_status = QTableWidgetItem(status_str)
             self.table_diag.setItem(row, 7, item_status)
 
+        # Thêm 1 dòng cho Nikon MAID Native USB (Type0026 SDK)
+        nm = report.get("nikon_maid_status", {})
+        nm_row = self.table_diag.rowCount()
+        self.table_diag.insertRow(nm_row)
+        self.table_diag.setItem(nm_row, 0, QTableWidgetItem("USB"))
+        self.table_diag.setItem(nm_row, 1, QTableWidgetItem("Nikon MAID Native USB (D780 SDK)"))
+        self.table_diag.setItem(nm_row, 2, QTableWidgetItem("MAID3 DLL"))
+
+        item_sdk = QTableWidgetItem("✅ CÓ" if nm.get("sdk_installed") else "❌ KHÔNG")
+        item_sdk.setTextAlignment(Qt.AlignCenter)
+        self.table_diag.setItem(nm_row, 3, item_sdk)
+
+        item_cam = QTableWidgetItem("✅ CÓ" if nm.get("camera_detected") else "❌ KHÔNG")
+        item_cam.setTextAlignment(Qt.AlignCenter)
+        self.table_diag.setItem(nm_row, 4, item_cam)
+
+        item_res = QTableWidgetItem("6048 × 4024 (Chụp)")
+        item_res.setTextAlignment(Qt.AlignCenter)
+        self.table_diag.setItem(nm_row, 5, item_res)
+
+        item_fps = QTableWidgetItem("38.4 FPS")
+        item_fps.setTextAlignment(Qt.AlignCenter)
+        self.table_diag.setItem(nm_row, 6, item_fps)
+
+        self.table_diag.setItem(nm_row, 7, QTableWidgetItem(nm.get("status_summary", "")))
+
         # Thêm 1 dòng cho digiCamControl
         dc = report.get("digicam_status", {})
         dc_row = self.table_diag.rowCount()
@@ -887,10 +1779,23 @@ class CameraPage(QWidget):
         w, h = info.get("actual_resolution", (0, 0))
 
         if is_connected:
-            status_text = f"Đã Kết Nối: {dev_name}"
-            if w > 0 and h > 0:
-                status_text += f" ({w}×{h})"
-            color = "#10B981"
+            if curr_backend == "nikon_maid":
+                is_lv = info.get("is_live_view_active", False)
+                status_text = f"Đã Kết Nối: {dev_name} (Native USB • Chụp 6048×4024 • Live View: {'BẬT' if is_lv else 'Sẵn Sàng'})"
+                color = "#10B981"
+            elif curr_backend == "digicam":
+                is_lv = info.get("is_live_view_active", False)
+                if is_lv:
+                    status_text = f"Đã Kết Nối: {dev_name} (Live View: BẬT)"
+                    color = "#10B981"
+                else:
+                    status_text = f"Đã Kết Nối: {dev_name} (Chụp 6000×4000 • Live View: Tắt)"
+                    color = "#D4AF37"
+            else:
+                status_text = f"Đã Kết Nối: {dev_name}"
+                if w > 0 and h > 0:
+                    status_text += f" ({w}×{h})"
+                color = "#10B981"
         else:
             status_text = f"Chưa Kết Nối ({last_error or 'Không có tín hiệu'})"
             color = "#EF4444"
@@ -903,10 +1808,15 @@ class CameraPage(QWidget):
         live_w, live_h = info.get("live_view_resolution", (0, 0))
         capture_w, capture_h = info.get("capture_resolution", (1920, 1080))
 
+        if curr_backend == "nikon_maid":
+            lv_cap_text = f"Hoạt động ({live_w}×{live_h} @ ~38 FPS)" if is_lv_active else "Sẵn sàng (Native USB Live Stream)"
+        elif curr_backend == "digicam":
+            lv_cap_text = f"Hoạt động ({live_w}×{live_h})" if is_lv_active else "Tắt (Tethered mode)"
+        else:
+            lv_cap_text = f"Hoạt động ({live_w}×{live_h})" if is_lv_active else "Không khả dụng"
+
         self.table_caps.setItem(0, 1, QTableWidgetItem(dev_name or f"{curr_backend.upper()} Active Device"))
-        self.table_caps.setItem(
-            1, 1, QTableWidgetItem(f"Hoạt động ({live_w}×{live_h})" if is_lv_active else ("Tắt (Tethered mode)" if curr_backend == "digicam" else "Không khả dụng"))
-        )
+        self.table_caps.setItem(1, 1, QTableWidgetItem(lv_cap_text))
         self.table_caps.setItem(2, 1, QTableWidgetItem(f"Hỗ trợ chụp ({capture_w}×{capture_h})" if is_connected else "Không"))
         self.table_caps.setItem(
             3, 1, QTableWidgetItem(
@@ -920,33 +1830,82 @@ class CameraPage(QWidget):
             if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Cấu Hình Máy Ảnh"):
                 return
 
+        if hasattr(self, '_connect_worker') and self._connect_worker and self._connect_worker.isRunning():
+            logger.warning("Đang có tiến trình kết nối máy ảnh chạy nền, bỏ qua yêu cầu mới.")
+            return
+
         chosen_backend = self.combo_backend.currentData()
         chosen_device_idx = self.combo_device.currentData()
         chosen_device_name = self.combo_device.currentText().split(" [")[0].strip()
 
         logger.info(f"Yêu cầu chuyển camera: Backend={chosen_backend}, Index={chosen_device_idx}, Name={chosen_device_name}")
+        self.lbl_viewport.clear_overlays()
+        self.lbl_viewport.reset_face_sequence()
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            self._face_eye_af_controller.reset_sequence()
 
-        success = self.camera_mgr.switch_backend(
-            backend=chosen_backend,
-            device_index=chosen_device_idx or 0,
-            device_name=chosen_device_name
+        self.btn_switch.setEnabled(False)
+        self.btn_switch.setText("Đang kết nối...")
+        self.lbl_status.setText(f"Trình điều khiển: {chosen_backend.upper()} • Đang kết nối thiết bị...")
+        self.lbl_status.setStyleSheet("font-size: 13px; font-weight: bold; color: #38BDF8;")
+
+        self._connect_worker = CameraConnectWorker(
+            self.camera_mgr, chosen_backend, chosen_device_idx, chosen_device_name, self
         )
+        self._connect_worker.finished_signal.connect(self._on_switch_backend_completed)
+        self._connect_worker.start()
+
+    def _on_switch_backend_completed(self, success: bool, chosen_backend: str, chosen_device_idx, chosen_device_name: str):
+        self.btn_switch.setEnabled(True)
+        self.btn_switch.setText("Kết Nối Nguồn Này")
 
         if success:
+            if hasattr(self.camera_mgr, "config_mgr") and self.camera_mgr.config_mgr and self.chk_auto_connect.isChecked():
+                self.camera_mgr.config_mgr.set("camera.backend", chosen_backend)
+                self.camera_mgr.config_mgr.set("camera.device_name", chosen_device_name)
+                self.camera_mgr.config_mgr.set("camera.device_index", chosen_device_idx)
+                self.camera_mgr.config_mgr.save()
+
+            info = self.camera_mgr.get_info()
+            dev_name = info.get("device_name", chosen_device_name)
+            is_lv = info.get("is_live_view_active", False)
+            extra_msg = ""
+            if chosen_backend == "nikon_maid":
+                extra_msg = (
+                    "\n• Giao tiếp: Native USB Direct (Nikon MAID3 SDK)"
+                    "\n• Độ phân giải chụp: 6048 × 4024 (24.3 MP)"
+                    "\n• Live View: Native USB Stream (1024×680 ~38 FPS)"
+                )
+            elif chosen_backend == "digicam":
+                if is_lv:
+                    extra_msg = "\n• Live View: Đang phát mượt mà qua HTTP 5513"
+                else:
+                    extra_msg = "\n• Chế độ chụp: Tethered 6000×4000 sẵn sàng\n• Live View: Chưa bật (Để xem trực tiếp, hãy chọn nguồn Nikon Webcam Utility)"
             QMessageBox.information(
                 self, "Kết Nối Thành Công",
-                f"Đã kích hoạt thành công:\n• Trình điều khiển: {chosen_backend.upper()}\n• Nguồn: {chosen_device_name}"
+                f"Đã kích hoạt thành công:\n• Trình điều khiển: {chosen_backend.upper()}\n• Nguồn: {dev_name}{extra_msg}"
             )
         else:
-            err = self.camera_mgr.get_last_error()
-            msg = f"Không thể kết nối với {chosen_device_name}.\n\nChi tiết lỗi: {err}\n\nHệ thống đã chuyển về chế độ Simulator an toàn."
+            info = self.camera_mgr.get_info()
+            err = info.get("last_error") or self.camera_mgr.get_last_error() or "Không thể kết nối với thiết bị."
+            err_code = info.get("error_code", "")
+            err_sug = info.get("error_suggestion", "")
+
+            msg = f"Không thể kết nối với {chosen_device_name}.\n\n• Chi tiết lỗi: {err}"
+            if err_code:
+                msg += f"\n• Mã lỗi: [{err_code}]"
+            if err_sug:
+                msg += f"\n\n👉 Hướng dẫn khắc phục:\n{err_sug}"
+            msg += "\n\n(Hệ thống giữ nguyên thiết lập đã chọn để bạn có thể thử lại sau khi xử lý)."
             QMessageBox.warning(self, "Không Thể Kết Nối", msg)
 
         self._refresh_camera_info()
-        self._run_diagnostics()
 
     def _disconnect_camera(self):
         """Ngắt kết nối an toàn với máy ảnh hiện tại."""
+        self.lbl_viewport.clear_overlays()
+        if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller:
+            self._face_eye_af_controller.reset_sequence()
         self.camera_mgr.disconnect()
         self._refresh_camera_info()
         QMessageBox.information(self, "Ngắt Kết Nối", "Đã ngắt kết nối an toàn khỏi thiết bị máy ảnh.")
@@ -956,21 +1915,44 @@ class CameraPage(QWidget):
             if not self.auth_mgr.prompt_pin_dialog(self, "Xác Thực Thử Nghiệm Máy Ảnh"):
                 return
 
-        tmp_shot = os.path.join(tempfile.gettempdir(), f"vietphotobooth_test_shot_{int(time.time())}.jpg")
-        success, img = self.camera_mgr.capture_photo(tmp_shot)
+        if not self.camera_mgr.is_connected() and self.camera_mgr.current_backend_name != "simulator":
+            info = self.camera_mgr.get_info()
+            err = info.get("last_error") or "Camera chưa kết nối hoặc chưa nhận diện."
+            QMessageBox.warning(
+                self, "Chưa Sẵn Sàng Chụp",
+                f"Không thể chụp thử nghiệm vì máy ảnh chưa được kết nối.\n\nChi tiết: {err}\n\nVui lòng nhấn 'Kết Nối Nguồn Này' trước."
+            )
+            return
+
+        tmp_shot = os.path.join(tempfile.gettempdir(), f"vietphotobooth_test_shot_{int(time.time()*1000)}.jpg")
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.btn_test_shot.setEnabled(False)
+        self.btn_test_shot.setText("📸 Đang Chụp...")
+        try:
+            success, img = self.camera_mgr.capture_photo(tmp_shot)
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.btn_test_shot.setEnabled(True)
+            self.btn_test_shot.setText("📸 Chụp Thử Nghiệm")
 
         # Xác thực tệp thật tồn tại trên đĩa
-        if success and img and os.path.exists(tmp_shot) and os.path.getsize(tmp_shot) > 0:
+        if success and img and os.path.exists(tmp_shot) and os.path.getsize(tmp_shot) > 1000:
             file_kb = os.path.getsize(tmp_shot) / 1024
             QMessageBox.information(
                 self, "Chụp Thử Nghiệm Thành Công",
                 f"Ảnh chụp thử nghiệm đã được xác thực an toàn trên đĩa!\n\n"
                 f"• Thiết bị: {self.camera_mgr.get_info().get('device_name')}\n"
-                f"• Độ phân giải: {img.width} × {img.height} pixel\n"
+                f"• Độ phân giải: {img.width} × {img.height} pixel (Ảnh gốc)\n"
                 f"• Kích thước tệp: {file_kb:.1f} KB\n"
                 f"• Lưu tại: {tmp_shot}"
             )
         else:
+            err = self.camera_mgr.get_last_error()
+            QMessageBox.critical(
+                self, "Lỗi Chụp Ảnh",
+                f"Không thể chụp ảnh từ thiết bị hiện tại.\n\nChi tiết: {err or 'Thiết bị không trả về dữ liệu ảnh hợp lệ hoặc quá thời gian chờ (Timeout).'}"
+            )
             err = self.camera_mgr.get_last_error()
             QMessageBox.critical(
                 self, "Lỗi Chụp Ảnh",

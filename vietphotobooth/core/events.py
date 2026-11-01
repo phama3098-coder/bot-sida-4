@@ -16,12 +16,58 @@ class EventManager:
     def __init__(self, storage_root: Optional[str] = None, current_event: str = "SuKien_MacDinh"):
         if not storage_root:
             base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-            storage_root = os.path.join(base_dir, "VietPhotoBooth")
+            storage_root = os.path.join(base_dir, "1998TeamPhotobooth")
         self.storage_root = os.path.abspath(storage_root)
         self.events_root = os.path.join(self.storage_root, "Events")
         os.makedirs(self.events_root, exist_ok=True)
         self.current_event = current_event
         self.ensure_event_structure(self.current_event)
+        self._migrate_legacy_events()
+
+    def _migrate_legacy_events(self) -> None:
+        """
+        Di chuyển an toàn các sự kiện và ảnh chụp từ thư mục phiên bản cũ (VietPhotoBooth/Events)
+        sang thư mục chuẩn (1998TeamPhotobooth/Events).
+        Tuân thủ quy tắc bảo toàn dữ liệu: không bao giờ xóa dữ liệu cũ trong thư mục nguồn.
+        """
+        try:
+            base_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+            legacy_events_root = os.path.join(base_dir, "VietPhotoBooth", "Events")
+            if not os.path.exists(legacy_events_root) or os.path.abspath(legacy_events_root) == os.path.abspath(self.events_root):
+                return
+
+            for item in os.listdir(legacy_events_root):
+                src_event = os.path.join(legacy_events_root, item)
+                if not os.path.isdir(src_event):
+                    continue
+                dst_event = os.path.join(self.events_root, item)
+                if not os.path.exists(dst_event):
+                    try:
+                        shutil.copytree(src_event, dst_event, dirs_exist_ok=True)
+                        logger.info(f"Đã di chuyển an toàn sự kiện cũ sang hệ thống mới: {item}")
+                    except Exception as e:
+                        logger.warning(f"Lỗi khi sao chép sự kiện cũ {item}: {e}")
+                else:
+                    # Nếu sự kiện đã tồn tại, đồng bộ các tệp ảnh chưa có
+                    for sub in ("Originals", "Final", "Thumbnails", "Templates"):
+                        src_sub = os.path.join(src_event, sub)
+                        dst_sub = os.path.join(dst_event, sub)
+                        if os.path.exists(src_sub):
+                            os.makedirs(dst_sub, exist_ok=True)
+                            for root, _, files in os.walk(src_sub):
+                                rel = os.path.relpath(root, src_sub)
+                                target_dir = os.path.join(dst_sub, rel) if rel != "." else dst_sub
+                                os.makedirs(target_dir, exist_ok=True)
+                                for f in files:
+                                    dst_file = os.path.join(target_dir, f)
+                                    src_file = os.path.join(root, f)
+                                    if not os.path.exists(dst_file):
+                                        try:
+                                            shutil.copy2(src_file, dst_file)
+                                        except Exception:
+                                            pass
+        except Exception as e:
+            logger.warning(f"Lỗi kiểm tra di chuyển dữ liệu cũ: {e}")
 
     def get_active_event_name(self) -> str:
         """Lấy tên sự kiện đang được chọn để chụp ảnh."""

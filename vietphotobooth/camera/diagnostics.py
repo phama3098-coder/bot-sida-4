@@ -26,48 +26,145 @@ logger = logging.getLogger("VietPhotoBooth.camera.diagnostics")
 
 
 def check_digicam_status() -> Dict[str, Any]:
-    """Kiểm tra trạng thái hệ thống điều khiển máy ảnh digiCamControl."""
+    """Kiểm tra trạng thái hệ thống điều khiển máy ảnh digiCamControl theo quy chuẩn các trạng thái độc lập."""
+    from vietphotobooth.camera.backends.digicam_control import (
+        is_digicam_process_running, is_port_listening, is_valid_camera_name
+    )
+    import urllib.request
+
     cli_path = r"C:\Program Files (x86)\digiCamControl\CameraControlCmd.exe"
     rest_url = "http://127.0.0.1:5513"
 
+    installed = os.path.exists(cli_path)
+    proc_running = is_digicam_process_running("CameraControl.exe")
+    port_open = is_port_listening("127.0.0.1", 5513, timeout=0.3)
+
     res = {
         "backend": "digiCamControl (DIGICAM)",
-        "cli_installed": os.path.exists(cli_path),
+        "cli_installed": installed,
         "cli_path": cli_path,
+        "process_running": proc_running,
         "rest_api_url": rest_url,
+        "rest_port_open": port_open,
         "rest_api_online": False,
         "detected_camera_name": "Không phát hiện",
+        "camera_detected": False,
         "liveview_stream_active": False,
+        "error_code": "",
         "status_summary": ""
     }
 
-    # 1. Kiểm tra REST API
+    if not installed:
+        res["error_code"] = "DIGICAM_NOT_INSTALLED"
+        res["status_summary"] = "Chưa cài đặt digiCamControl trên máy tính."
+        return res
+
+    if not proc_running:
+        res["error_code"] = "DIGICAM_NOT_RUNNING"
+        res["status_summary"] = "digiCamControl (CameraControl.exe) chưa được khởi động trên Windows."
+        return res
+
+    if not port_open:
+        res["error_code"] = "HTTP_SERVER_DISABLED"
+        res["status_summary"] = "Web Server digiCamControl (cổng 5513) chưa bật trong Settings."
+        return res
+
+    # Kiểm tra REST API endpoint camera.name
     try:
-        import requests
-        resp = requests.get(f"{rest_url}/?sl=get&param=camera.name", timeout=1.0)
-        if resp.status_code == 200 and resp.text.strip():
+        req = urllib.request.urlopen(f"{rest_url}/?sl=get&param=camera.name", timeout=1.2)
+        if req.status == 200:
             res["rest_api_online"] = True
-            res["detected_camera_name"] = resp.text.strip()
+            raw_name = req.read().decode("utf-8", errors="ignore").strip()
+            if is_valid_camera_name(raw_name):
+                res["detected_camera_name"] = raw_name
+                res["camera_detected"] = True
 
         # Kiểm tra Live View stream
-        lv_resp = requests.get(f"{rest_url}/liveview.jpg", timeout=1.0)
-        if lv_resp.status_code == 200 and len(lv_resp.content) > 1000:
-            res["liveview_stream_active"] = True
-    except Exception:
-        pass
+        if res["camera_detected"]:
+            lv_req = urllib.request.urlopen(f"{rest_url}/liveview.jpg", timeout=1.0)
+            if lv_req.status == 200:
+                data = lv_req.read()
+                if len(data) > 1000 and data.startswith(b"\xff\xd8"):
+                    res["liveview_stream_active"] = True
+    except Exception as e:
+        logger.debug(f"Diagnostics digicam HTTP check error: {e}")
 
-    # Đưa ra kết luận tóm tắt
-    if res["rest_api_online"]:
-        if res["liveview_stream_active"]:
-            res["status_summary"] = f"Hoạt động đầy đủ (Camera: {res['detected_camera_name']}, Live View: BẬT)"
-        else:
-            res["status_summary"] = f"Đã kết nối máy ảnh ({res['detected_camera_name']}), nhưng Live View chưa bật trong digiCamControl."
-    elif res["cli_installed"]:
-        res["status_summary"] = "Đã cài đặt digiCamControl CLI (Chế độ chụp ảnh tĩnh độ phân giải cao). Web Server chưa mở."
+    # Đưa ra kết luận tóm tắt chính xác
+    if not res["camera_detected"]:
+        res["error_code"] = "CAMERA_NOT_DETECTED"
+        res["status_summary"] = "digiCamControl đang chạy nhưng không phát hiện máy ảnh USB nào cắm vào máy tính."
+    elif res["liveview_stream_active"]:
+        res["status_summary"] = f"Hoạt động đầy đủ (Máy ảnh: {res['detected_camera_name']}, Live View: BẬT)"
     else:
-        res["status_summary"] = "Chưa cài đặt digiCamControl trên máy tính."
+        res["error_code"] = "LIVEVIEW_UNAVAILABLE"
+        res["status_summary"] = f"Đã kết nối {res['detected_camera_name']} sẵn sàng chụp tĩnh (Tethered 6000×4000). Luồng Live View HTTP chưa bật."
 
     return res
+
+
+def check_nikon_maid_status() -> Dict[str, Any]:
+    """Kiểm tra trạng thái hỗ trợ và kết nối của Nikon MAID Native USB SDK."""
+    try:
+        from vietphotobooth.camera.backends.nikon_maid.maid_loader import get_loader
+        loader = get_loader()
+        sdk_dir = loader.find_sdk_directory()
+        installed = sdk_dir is not None
+
+        res = {
+            "backend": "Nikon MAID Native USB",
+            "sdk_installed": installed,
+            "sdk_path": sdk_dir or "Chưa tìm thấy thư mục bin/x64",
+            "camera_detected": False,
+            "detected_camera_name": "Không phát hiện",
+            "status_summary": ""
+        }
+
+        if not installed:
+            res["status_summary"] = "Chưa tìm thấy bộ runtime Nikon MAID SDK (Type0026.md3)."
+            return res
+
+        # Nhanh chóng kiểm tra PnP USB để xem Nikon D780 có đang cắm không mà không làm gián đoạn session
+        # VID 04B0 (Nikon), PID 0446 (D780)
+        import subprocess
+        pnp_found = False
+        try:
+            out = subprocess.check_output("pnputil /enum-devices /class WPD", text=True, timeout=1.5, stderr=subprocess.DEVNULL)
+            if "04B0&PID_0446" in out or "D780" in out:
+                pnp_found = True
+        except Exception:
+            pass
+
+        if pnp_found:
+            res["camera_detected"] = True
+            res["detected_camera_name"] = "Nikon D780 (USB MTP/MAID)"
+            res["status_summary"] = "Phát hiện Nikon D780 qua USB. SDK MAID Type0026 sẵn sàng kết nối trực tiếp."
+            return res
+
+        # Fallback thử enumerate qua session nếu chưa phát hiện qua PnP
+        try:
+            from vietphotobooth.camera.backends.nikon_maid.maid_session import NikonSession
+            session = NikonSession()
+            cams = session.enumerate_cameras(timeout_sec=1.2)
+            if cams:
+                res["camera_detected"] = True
+                res["detected_camera_name"] = "Nikon D780"
+                res["status_summary"] = "Nikon D780 sẵn sàng kết nối trực tiếp qua USB (Native MAID)."
+            else:
+                res["status_summary"] = "SDK sẵn sàng nhưng chưa phát hiện Nikon D780 cắm cáp USB."
+            session.close_module()
+        except Exception as e:
+            res["status_summary"] = f"SDK sẵn sàng nhưng chưa phát hiện D780: {e}"
+
+        return res
+    except Exception as ex:
+        return {
+            "backend": "Nikon MAID Native USB",
+            "sdk_installed": False,
+            "sdk_path": "",
+            "camera_detected": False,
+            "detected_camera_name": "Không phát hiện",
+            "status_summary": f"Lỗi kiểm tra Nikon MAID: {ex}"
+        }
 
 
 def run_full_camera_diagnostics() -> Dict[str, Any]:
@@ -79,6 +176,7 @@ def run_full_camera_diagnostics() -> Dict[str, Any]:
         "opencv_version": cv2.__version__,
         "directshow_devices": [],
         "digicam_status": {},
+        "nikon_maid_status": {},
         "summary": {}
     }
 
@@ -98,6 +196,9 @@ def run_full_camera_diagnostics() -> Dict[str, Any]:
 
     # 2. Kiểm tra digiCamControl
     report["digicam_status"] = check_digicam_status()
+
+    # 3. Kiểm tra Nikon MAID Native USB
+    report["nikon_maid_status"] = check_nikon_maid_status()
 
     # 3. Tổng hợp khuyến nghị
     has_nikon_webcam = any("nikon" in d["name"].lower() for d in tested_devices)
@@ -143,10 +244,10 @@ def format_diagnostic_report_text(report: Dict[str, Any]) -> str:
     lines.append("=" * 76)
     lines.append("       1998 TEAM PHOTOBOOTH — BÁO CÁO CHẨN ĐOÁN HỆ THỐNG MÁY ẢNH")
     lines.append("=" * 76)
-    lines.append(f"• Thời gian kiểm tra:  {report['timestamp']}")
-    lines.append(f"• Hệ điều hành:        {report['platform']}")
-    lines.append(f"• Phiên bản Python:    {report['python_version']}")
-    lines.append(f"• Phiên bản OpenCV:    {report['opencv_version']}")
+    lines.append(f"• Thời gian kiểm tra:  {report.get('timestamp', 'N/A')}")
+    lines.append(f"• Hệ điều hành:        {report.get('platform', 'N/A')}")
+    lines.append(f"• Phiên bản Python:    {report.get('python_version', 'N/A')}")
+    lines.append(f"• Phiên bản OpenCV:    {report.get('opencv_version', 'N/A')}")
     lines.append("-" * 76)
 
     lines.append("\n[1] DANH SÁCH THIẾT BỊ VIDEO WEBCAM / DIRECTSHOW:")
@@ -177,7 +278,15 @@ def format_diagnostic_report_text(report: Dict[str, Any]) -> str:
             lines.append(f"    - Đánh giá:          {status}")
 
     lines.append("\n" + "-" * 76)
-    lines.append("[2] HỆ THỐNG ĐIỀU KHIỂN CHỤP ẢNH DSLR (digiCamControl):")
+    lines.append("[2] HỆ THỐNG GIAO TIẾP NATIVE USB NIKON (MAID3 TYPE0026 SDK):")
+    nm = report.get("nikon_maid_status", {})
+    lines.append(f"  • Trạng thái SDK:      {'ĐÃ SẴN SÀNG' if nm.get('sdk_installed') else 'CHƯA TÌM THẤY'}")
+    lines.append(f"  • Thư mục SDK:         {nm.get('sdk_path')}")
+    lines.append(f"  • Máy ảnh phát hiện:   {nm.get('detected_camera_name')}")
+    lines.append(f"  • Tóm tắt:             {nm.get('status_summary')}")
+
+    lines.append("\n" + "-" * 76)
+    lines.append("[3] HỆ THỐNG ĐIỀU KHIỂN CHỤP ẢNH DSLR (digiCamControl):")
     dc = report.get("digicam_status", {})
     lines.append(f"  • Trạng thái cài đặt:  {'ĐÃ CÀI ĐẶT' if dc.get('cli_installed') else 'CHƯA CÀI ĐẶT'}")
     lines.append(f"  • Đường dẫn CLI:       {dc.get('cli_path')}")
@@ -187,7 +296,7 @@ def format_diagnostic_report_text(report: Dict[str, Any]) -> str:
     lines.append(f"  • Tóm tắt:             {dc.get('status_summary')}")
 
     lines.append("\n" + "-" * 76)
-    lines.append("[3] KẾT LUẬN & HƯỚNG DẪN XỬ LÝ CHO STUDIO:")
+    lines.append("[4] KẾT LUẬN & HƯỚNG DẪN XỬ LÝ CHO STUDIO:")
     recs = report.get("summary", {}).get("recommendations", [])
     if recs:
         for r in recs:

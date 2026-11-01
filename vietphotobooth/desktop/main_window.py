@@ -6,6 +6,7 @@ and integrated management pages.
 
 import sys
 import os
+from typing import Optional, Dict, Any
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
     QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar, QStackedWidget
@@ -39,15 +40,18 @@ from vietphotobooth.desktop.icons import (
     get_brand_logo_pixmap, get_brand_logo_svg_path
 )
 from vietphotobooth.version import __version__, get_version_string
-from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
+from vietphotobooth.updates import (
+    UpdateManager, UpdateNotificationDialog, UpdateProgressDialog, UpdateResultDialog
+)
 
 logger = get_logger()
 
 class MainWindow(QMainWindow):
     """Cửa sổ chính của ứng dụng Desktop 1998 TEAM — Photobooth."""
 
-    def __init__(self, start_in_kiosk: bool = False):
+    def __init__(self, start_in_kiosk: bool = False, update_info: Optional[Dict[str, Any]] = None):
         super().__init__()
+        self.update_info = update_info
         self.setWindowTitle("1998 TEAM — Photobooth")
         self.setMinimumSize(1024, 680)
 
@@ -62,7 +66,8 @@ class MainWindow(QMainWindow):
         self._switching_tabs: bool = False
         self._prev_tab_index: int = 0
         self.PROTECTED_TABS = {2, 3, 4, 5}  # 2: Máy ảnh, 3: Máy in, 4: Sự kiện, 5: Cài đặt (Khung ảnh 1 hoàn toàn tự do)
-        self.event_mgr = EventManager()
+        storage_dir = self.config_mgr.get("storage_dir") or os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "1998TeamPhotobooth")
+        self.event_mgr = EventManager(storage_root=storage_dir, current_event=self.config_mgr.get("current_event", "SuKien_MacDinh"))
         self.camera_mgr = CameraManager()
         self.filter_engine = FilterEngine()
         self.frame_mgr = FrameManager()
@@ -222,7 +227,10 @@ class MainWindow(QMainWindow):
         # Tự động kiểm tra bản cập nhật mới khi mở ứng dụng (chạy ngầm không giật lag)
         self.update_mgr.check_completed.connect(self._on_auto_update_checked)
         if self.update_mgr.is_auto_check_enabled:
-            QTimer.singleShot(2500, self._start_auto_update_check)
+            # Ngăn chặn vòng lặp kiểm tra nếu vừa cập nhật hoặc vừa khôi phục sau sự cố
+            has_update_event = bool(self.update_info and (self.update_info.get("updated_to") or self.update_info.get("update_failed")))
+            if not has_update_event:
+                QTimer.singleShot(2500, self._start_auto_update_check)
 
         # Stack chính: Index 0 là Giao diện Tabs vận hành, Index 1 là Màn hình chờ dành cho khách
         self.window_stack = QStackedWidget()
@@ -240,6 +248,36 @@ class MainWindow(QMainWindow):
         self.guest_idle_timer.setInterval(180000)  # 3 phút (180 giây)
         self.guest_idle_timer.timeout.connect(self._on_guest_idle_timeout)
         self.guest_idle_timer.start()
+
+        # Khởi động luồng Live View cho tab mặc định ban đầu (Chụp Ảnh)
+        if hasattr(self, "kiosk_page"):
+            self.kiosk_page.start_live_view()
+
+        # Kiểm tra thông báo kết quả cập nhật (nếu vừa nâng cấp hoặc khôi phục)
+        if self.update_info:
+            if self.update_info.get("updated_to"):
+                QTimer.singleShot(600, self._show_update_success_notification)
+            elif self.update_info.get("update_failed"):
+                QTimer.singleShot(600, lambda: self._show_update_failed_notification(self.update_info["update_failed"]))
+
+    def _show_update_success_notification(self):
+        info = self.update_info or {}
+        dlg = UpdateResultDialog(
+            is_success=True,
+            new_version=info.get("updated_to", __version__),
+            new_build=info.get("updated_build", 0),
+            old_version=info.get("updated_from", ""),
+            parent=self
+        )
+        dlg.exec()
+
+    def _show_update_failed_notification(self, err_code: str):
+        dlg = UpdateResultDialog(
+            is_success=False,
+            error_code=str(err_code),
+            parent=self
+        )
+        dlg.exec()
 
     def _start_auto_update_check(self):
         """Khởi chạy kiểm tra cập nhật ngầm nếu cửa sổ đang hoạt động."""
@@ -406,12 +444,15 @@ class MainWindow(QMainWindow):
                     return
             self.showNormal()
             self.tabs.tabBar().show()
+            if hasattr(self, "kiosk_page") and hasattr(self.kiosk_page, "set_fullscreen_mode"):
+                self.kiosk_page.set_fullscreen_mode(False)
         else:
             self.showFullScreen()
             # Ở chế độ Kiosk toàn màn hình, chuyển về tab Chụp Ảnh và ẩn thanh Tab bar
             self.tabs.setCurrentIndex(0)
             self.tabs.tabBar().hide()
-            self.tabs.tabBar().hide()
+            if hasattr(self, "kiosk_page") and hasattr(self.kiosk_page, "set_fullscreen_mode"):
+                self.kiosk_page.set_fullscreen_mode(True)
 
     def _setup_shortcuts(self):
         # F11 để bật/tắt chế độ toàn màn hình Kiosk
