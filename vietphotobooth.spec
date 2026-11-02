@@ -51,6 +51,7 @@ a = Analysis(
         'vietphotobooth.desktop.widgets.devices_page',
         'vietphotobooth.desktop.widgets.qr_sharing_page',
         'vietphotobooth.desktop.widgets.touch_pin_dialog',
+        'vietphotobooth.desktop.widgets.session_lightbox_dialog',
         'vietphotobooth.camera.backends.nikon_maid',
         'vietphotobooth.camera.backends.nikon_maid.maid_types',
         'vietphotobooth.camera.backends.nikon_maid.maid_loader',
