@@ -87,7 +87,7 @@ class FrameCard(QFrame):
         # Tên khung
         self.lbl_name = QLabel(self.template.name)
         self.lbl_name.setAlignment(Qt.AlignCenter)
-        self.lbl_name.setStyleSheet("color: #F8FAFC; font-weight: bold; font-size: 13px;")
+        self.lbl_name.setStyleSheet("color: #303746; font-weight: bold; font-size: 13px;")
         layout.addWidget(self.lbl_name)
 
     def set_selected(self, selected: bool):
@@ -98,13 +98,13 @@ class FrameCard(QFrame):
     def _update_style(self):
         if self._is_selected:
             self.setStyleSheet(
-                "FrameCard { background-color: #111C30; border: 2.5px solid #D4AF37; border-radius: 12px; }"
-                "FrameCard:hover { background-color: #16243E; }"
+                "FrameCard { background-color: #EFF6FF; border: 2.5px solid #D4AF37; border-radius: 12px; }"
+                "FrameCard:hover { background-color: #DBEAFE; }"
             )
         else:
             self.setStyleSheet(
-                "FrameCard { background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; }"
-                "FrameCard:hover { background-color: #142036; border: 1.5px solid #D4AF37; }"
+                "FrameCard { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; }"
+                "FrameCard:hover { background-color: #F8FAFC; border: 1.5px solid #D4AF37; }"
             )
 
     def mousePressEvent(self, event):
@@ -192,7 +192,7 @@ class FrameGalleryPage(QWidget):
         self.txt_search.addAction(get_svg_icon("search", 16, COLOR_SLATE), QLineEdit.LeadingPosition)
         self.txt_search.setFixedHeight(38)
         self.txt_search.setStyleSheet(
-            "QLineEdit { background-color: #0E1626; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "QLineEdit { background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
             "border-radius: 8px; padding: 4px 12px; font-size: 13px; }"
             "QLineEdit:focus { border: 1.5px solid #D4AF37; }"
         )
@@ -215,9 +215,9 @@ class FrameGalleryPage(QWidget):
         self.combo_cat.setFixedHeight(38)
         self.combo_cat.addItems(["Tất cả danh mục"] + self.CATEGORIES[1:])
         self.combo_cat.setStyleSheet(
-            "QComboBox { background-color: #0E1626; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "QComboBox { background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
             "border-radius: 8px; padding: 4px 12px; min-width: 140px; font-size: 13px; }"
-            "QComboBox:hover { border: 1px solid #D4AF37; }"
+            "QComboBox:hover { border: 1.5px solid #D4AF37; }"
         )
         self.combo_cat.currentIndexChanged.connect(self._on_combo_cat_changed)
         h_filter.addWidget(self.combo_cat)
@@ -294,18 +294,18 @@ class FrameGalleryPage(QWidget):
         for cat, btn in self.cat_buttons.items():
             if cat == self.current_category:
                 btn.setStyleSheet(
-                    "background-color: #D4AF37; color: #070A12; font-weight: bold; border: none; "
+                    "background-color: #D4AF37; color: #0F172A; font-weight: bold; border: none; "
                     "border-radius: 8px; text-align: left; padding-left: 14px; font-size: 13px;"
                 )
             else:
                 btn.setStyleSheet(
-                    "background-color: #0E1626; color: #CBD5E1; border: 1px solid #1E2D4A; "
+                    "background-color: #FFFFFF; color: #475569; border: 1.5px solid #D9DEE7; "
                     "border-radius: 8px; text-align: left; padding-left: 14px; font-size: 13px;"
                 )
 
         # Update ratio filter buttons
-        active_ratio_style = "background-color: #D4AF37; color: #070A12; font-weight: bold; border-radius: 8px; padding: 4px 16px; border: none;"
-        normal_ratio_style = "background-color: #0E1626; color: #94A3B8; border: 1px solid #1E2D4A; border-radius: 8px; padding: 4px 16px;"
+        active_ratio_style = "background-color: #D4AF37; color: #0F172A; font-weight: bold; border-radius: 8px; padding: 4px 16px; border: none;"
+        normal_ratio_style = "background-color: #FFFFFF; color: #475569; border: 1.5px solid #D9DEE7; border-radius: 8px; padding: 4px 16px;"
 
         self.btn_ratio_all.setStyleSheet(active_ratio_style if self.current_ratio == "Tất cả" else normal_ratio_style)
         self.btn_ratio_2x6.setStyleSheet(active_ratio_style if self.current_ratio == "2x6" else normal_ratio_style)

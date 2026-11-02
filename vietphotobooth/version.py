@@ -8,7 +8,7 @@ from typing import Tuple
 
 __app_name__ = "1998 TEAM — Photobooth"
 __version__ = "2.0.0"
-__build__ = 202
+__build__ = 203
 __channel__ = "RC2"
 __release_date__ = "2026-11-02"
 __publisher__ = "1998 Studio phóng sự cưới"

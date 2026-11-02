@@ -164,7 +164,7 @@ class SlotCropDialog(QDialog):
 
         self.setWindowTitle(f"Cắt & Thu Phóng Ảnh — Ô #{slot.id}")
         self.setFixedSize(540, 520)
-        self.setStyleSheet("background-color: #070A12; color: #F8FAFC;")
+        self.setStyleSheet("background-color: #FFFFFF; color: #303746;")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 14, 18, 16)
@@ -172,11 +172,11 @@ class SlotCropDialog(QDialog):
 
         # Tiêu đề
         lbl_head = QLabel(f"<b>CẮT & THU PHÓNG — Ô #{slot.id}</b>")
-        lbl_head.setStyleSheet(f"color: {COLOR_GOLD}; font-size: 15px;")
+        lbl_head.setStyleSheet("color: #1E40AF; font-size: 15px;")
         layout.addWidget(lbl_head)
 
         lbl_guide = QLabel("Kéo ảnh để di chuyển góc nhìn (Pan). Kéo thanh trượt để phóng to (Zoom).")
-        lbl_guide.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        lbl_guide.setStyleSheet("color: #64748B; font-size: 12px;")
         layout.addWidget(lbl_guide)
 
         # Viewport Crop
@@ -203,7 +203,7 @@ class SlotCropDialog(QDialog):
         btn_reset = QPushButton("Đặt Lại")
         btn_reset.setIcon(get_svg_icon("reset", 14, COLOR_GOLD))
         btn_reset.setStyleSheet(
-            "background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "background-color: #F8FAFC; border: 1.5px solid #D9DEE7; color: #303746; "
             "border-radius: 6px; padding: 4px 12px; font-weight: bold;"
         )
         btn_reset.clicked.connect(self._on_reset)
@@ -223,7 +223,7 @@ class SlotCropDialog(QDialog):
         btn_cancel = QPushButton("Hủy")
         btn_cancel.setFixedHeight(38)
         btn_cancel.setStyleSheet(
-            "background-color: #1E293B; border: 1px solid #334155; color: #94A3B8; "
+            "background-color: #F1F5F9; border: 1px solid #CBD5E1; color: #475569; "
             "border-radius: 8px; padding: 0 20px; font-weight: bold;"
         )
         btn_cancel.clicked.connect(self.reject)

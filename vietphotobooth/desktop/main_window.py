@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
         self.brand_layout.addWidget(self.lbl_logo)
 
         self.lbl_title = QLabel("<b>1998 TEAM</b>")
-        self.lbl_title.setStyleSheet("color: #F7E7CE; font-size: 14px; font-weight: bold;")
+        self.lbl_title.setStyleSheet("color: #1E40AF; font-size: 14px; font-weight: 800; letter-spacing: 0.5px;")
         self.brand_layout.addWidget(self.lbl_title)
 
         self.lbl_ver = QLabel(f"v{__version__}")
@@ -149,9 +149,9 @@ class MainWindow(QMainWindow):
         self.btn_dashboard = QPushButton("📊 Dashboard")
         self.btn_dashboard.setCursor(Qt.PointingHandCursor)
         self.btn_dashboard.setStyleSheet(
-            "QPushButton { background: #1E293B; color: #D4AF37; font-weight: 700; font-size: 11px; "
-            "border: 1px solid #D4AF37; border-radius: 4px; padding: 2px 8px; margin-left: 4px; }"
-            "QPushButton:hover { background: #D4AF37; color: #070A12; }"
+            "QPushButton { background: #FFFFFF; color: #1E40AF; font-weight: 700; font-size: 11px; "
+            "border: 1.5px solid #D9DEE7; border-radius: 6px; padding: 2px 10px; margin-left: 4px; }"
+            "QPushButton:hover { background: #EFF6FF; border: 1.5px solid #3B82F6; color: #1E40AF; }"
         )
         self.btn_dashboard.clicked.connect(self.show_dashboard)
         self.brand_layout.addWidget(self.btn_dashboard)

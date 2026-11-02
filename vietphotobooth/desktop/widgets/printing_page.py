@@ -32,7 +32,7 @@ class PrintMarginPreviewWidget(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(140, 210)
-        self.setStyleSheet("background-color: #070A12; border: 1.5px solid #1E2D4A; border-radius: 8px;")
+        self.setStyleSheet("background-color: #F8FAFC; border: 1.5px solid #D9DEE7; border-radius: 8px;")
         self.offset_x = 0
         self.offset_y = 0
         self.zoom = 1.0
@@ -57,8 +57,8 @@ class PrintMarginPreviewWidget(QFrame):
         paper_x, paper_y = 12, 12
         paper_w, paper_h = w - 24, h - 24
 
-        painter.setPen(QPen(QColor("#334155"), 1.5))
-        painter.setBrush(QBrush(QColor("#0F172A")))
+        painter.setPen(QPen(QColor("#CBD5E1"), 1.5))
+        painter.setBrush(QBrush(QColor("#FFFFFF")))
         painter.drawRoundedRect(paper_x, paper_y, paper_w, paper_h, 6, 6)
 
         # Mô phỏng nội dung dải ảnh với offset và zoom
@@ -139,9 +139,9 @@ class PrintingPage(QWidget):
 
         v_head = QVBoxLayout()
         lbl_title = QLabel("CÀI ĐẶT MÁY IN")
-        lbl_title.setStyleSheet("font-size: 20px; font-weight: 900; color: #D4AF37; letter-spacing: 0.5px;")
+        lbl_title.setStyleSheet("font-size: 20px; font-weight: 900; color: #1E40AF; letter-spacing: 0.5px;")
         lbl_sub = QLabel("Chọn máy in và chỉnh thông số in phù hợp với khổ ảnh.")
-        lbl_sub.setStyleSheet("font-size: 13px; color: #94A3B8;")
+        lbl_sub.setStyleSheet("font-size: 13px; color: #64748B;")
         v_head.addWidget(lbl_title)
         v_head.addWidget(lbl_sub)
         h_head.addLayout(v_head)
@@ -164,7 +164,7 @@ class PrintingPage(QWidget):
 
         # Card Máy in Strip (2x6)
         card_strip = QFrame()
-        card_strip.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 10px;")
+        card_strip.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; padding: 10px;")
         l_strip = QVBoxLayout(card_strip)
         l_strip.setSpacing(10)
 
@@ -174,9 +174,9 @@ class PrintingPage(QWidget):
         h_strip_title.addWidget(icon_strip)
         v_st = QVBoxLayout()
         lbl_st_name = QLabel("<b>Máy in strip</b>")
-        lbl_st_name.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_st_name.setStyleSheet("font-size: 15px; color: #1E40AF;")
         lbl_st_sub = QLabel("Dùng cho ảnh strip dọc, ví dụ 2x6.")
-        lbl_st_sub.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        lbl_st_sub.setStyleSheet("font-size: 12px; color: #64748B;")
         v_st.addWidget(lbl_st_name)
         v_st.addWidget(lbl_st_sub)
         h_strip_title.addLayout(v_st)
@@ -187,9 +187,9 @@ class PrintingPage(QWidget):
         self.combo_strip = QComboBox()
         self.combo_strip.setFixedHeight(38)
         self.combo_strip.setStyleSheet(
-            "QComboBox { background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "QComboBox { background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
             "border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: bold; }"
-            "QComboBox:hover { border: 1px solid #D4AF37; }"
+            "QComboBox:hover { border: 1.5px solid #D4AF37; }"
         )
         self.combo_strip.currentIndexChanged.connect(self._check_printer_statuses)
         r_strip_select.addWidget(self.combo_strip, 1)
@@ -203,7 +203,7 @@ class PrintingPage(QWidget):
 
         # Card Máy in Full (4x6)
         card_full = QFrame()
-        card_full.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 10px;")
+        card_full.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; padding: 10px;")
         l_full = QVBoxLayout(card_full)
         l_full.setSpacing(10)
 
@@ -213,9 +213,9 @@ class PrintingPage(QWidget):
         h_full_title.addWidget(icon_full)
         v_ft = QVBoxLayout()
         lbl_ft_name = QLabel("<b>Máy in full</b>")
-        lbl_ft_name.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_ft_name.setStyleSheet("font-size: 15px; color: #1E40AF;")
         lbl_ft_sub = QLabel("Dùng cho ảnh lớn ngang hoặc vuông, ví dụ 4x6.")
-        lbl_ft_sub.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        lbl_ft_sub.setStyleSheet("font-size: 12px; color: #64748B;")
         v_ft.addWidget(lbl_ft_name)
         v_ft.addWidget(lbl_ft_sub)
         h_full_title.addLayout(v_ft)
@@ -226,9 +226,9 @@ class PrintingPage(QWidget):
         self.combo_full = QComboBox()
         self.combo_full.setFixedHeight(38)
         self.combo_full.setStyleSheet(
-            "QComboBox { background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "QComboBox { background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
             "border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: bold; }"
-            "QComboBox:hover { border: 1px solid #D4AF37; }"
+            "QComboBox:hover { border: 1.5px solid #D4AF37; }"
         )
         self.combo_full.currentIndexChanged.connect(self._check_printer_statuses)
         r_full_select.addWidget(self.combo_full, 1)
@@ -244,12 +244,12 @@ class PrintingPage(QWidget):
 
         # 3. KHU VỰC CĂN CHỈNH LỀ & HƯỚNG IN
         grp_align = QFrame()
-        grp_align.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 12px;")
+        grp_align.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; padding: 12px;")
         l_align = QVBoxLayout(grp_align)
         l_align.setSpacing(12)
 
         lbl_al_title = QLabel("<b>Căn chỉnh lề & hướng in</b>")
-        lbl_al_title.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_al_title.setStyleSheet("font-size: 15px; color: #1E40AF;")
         l_align.addWidget(lbl_al_title)
 
         h_align_body = QHBoxLayout()
@@ -274,7 +274,7 @@ class PrintingPage(QWidget):
         self.combo_orient.setFixedHeight(36)
         self.combo_orient.addItems(["Dọc (Portrait)", "Ngang (Landscape)"])
         self.combo_orient.setStyleSheet(
-            "QComboBox { background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; "
+            "QComboBox { background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
             "border-radius: 8px; padding: 4px 10px; font-size: 13px; }"
         )
         self.combo_orient.currentIndexChanged.connect(self._on_margin_changed)
@@ -288,7 +288,7 @@ class PrintingPage(QWidget):
         h_x_stepper.setSpacing(4)
         btn_x_dec = QPushButton("-")
         btn_x_dec.setFixedSize(30, 36)
-        btn_x_dec.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_x_dec.setStyleSheet("background-color: #F8FAFC; color: #303746; font-weight: bold; border-radius: 6px; border: 1px solid #D9DEE7;")
         btn_x_dec.clicked.connect(lambda: self.spin_x.setValue(self.spin_x.value() - 2))
         h_x_stepper.addWidget(btn_x_dec)
 
@@ -298,14 +298,14 @@ class PrintingPage(QWidget):
         self.spin_x.setFixedHeight(36)
         self.spin_x.setAlignment(Qt.AlignCenter)
         self.spin_x.setStyleSheet(
-            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+            "background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; border-radius: 6px; font-weight: bold;"
         )
         self.spin_x.valueChanged.connect(self._on_margin_changed)
         h_x_stepper.addWidget(self.spin_x)
 
         btn_x_inc = QPushButton("+")
         btn_x_inc.setFixedSize(30, 36)
-        btn_x_inc.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_x_inc.setStyleSheet("background-color: #F8FAFC; color: #303746; font-weight: bold; border-radius: 6px; border: 1px solid #D9DEE7;")
         btn_x_inc.clicked.connect(lambda: self.spin_x.setValue(self.spin_x.value() + 2))
         h_x_stepper.addWidget(btn_x_inc)
         v_x.addLayout(h_x_stepper)
@@ -318,7 +318,7 @@ class PrintingPage(QWidget):
         h_y_stepper.setSpacing(4)
         btn_y_dec = QPushButton("-")
         btn_y_dec.setFixedSize(30, 36)
-        btn_y_dec.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_y_dec.setStyleSheet("background-color: #F8FAFC; color: #303746; font-weight: bold; border-radius: 6px; border: 1px solid #D9DEE7;")
         btn_y_dec.clicked.connect(lambda: self.spin_y.setValue(self.spin_y.value() - 2))
         h_y_stepper.addWidget(btn_y_dec)
 
@@ -328,14 +328,14 @@ class PrintingPage(QWidget):
         self.spin_y.setFixedHeight(36)
         self.spin_y.setAlignment(Qt.AlignCenter)
         self.spin_y.setStyleSheet(
-            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+            "background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; border-radius: 6px; font-weight: bold;"
         )
         self.spin_y.valueChanged.connect(self._on_margin_changed)
         h_y_stepper.addWidget(self.spin_y)
 
         btn_y_inc = QPushButton("+")
         btn_y_inc.setFixedSize(30, 36)
-        btn_y_inc.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_y_inc.setStyleSheet("background-color: #F8FAFC; color: #303746; font-weight: bold; border-radius: 6px; border: 1px solid #D9DEE7;")
         btn_y_inc.clicked.connect(lambda: self.spin_y.setValue(self.spin_y.value() + 2))
         h_y_stepper.addWidget(btn_y_inc)
         v_y.addLayout(h_y_stepper)
@@ -351,7 +351,7 @@ class PrintingPage(QWidget):
         self.spin_zoom.setFixedHeight(36)
         self.spin_zoom.setAlignment(Qt.AlignCenter)
         self.spin_zoom.setStyleSheet(
-            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+            "background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; border-radius: 6px; font-weight: bold;"
         )
         self.spin_zoom.valueChanged.connect(self._on_margin_changed)
         v_zoom.addWidget(self.spin_zoom)
@@ -364,7 +364,7 @@ class PrintingPage(QWidget):
         self.btn_reset_align.setFixedHeight(36)
         self.btn_reset_align.setCursor(Qt.PointingHandCursor)
         self.btn_reset_align.setStyleSheet(
-            "background-color: #16223B; color: #E2E8F0; border: 1px solid #28395E; border-radius: 6px; padding: 4px 12px;"
+            "background-color: #F8FAFC; color: #475569; border: 1px solid #D9DEE7; border-radius: 6px; padding: 4px 12px;"
         )
         self.btn_reset_align.clicked.connect(self._reset_margins)
         v_rst.addWidget(self.btn_reset_align)
@@ -405,7 +405,7 @@ class PrintingPage(QWidget):
 
         # 4. KHU VỰC BỘ ĐẾM GIẤY
         grp_paper = QFrame()
-        grp_paper.setStyleSheet("background-color: #0E1626; border: 1.5px solid #1E2D4A; border-radius: 12px; padding: 12px;")
+        grp_paper.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; padding: 12px;")
         l_paper = QVBoxLayout(grp_paper)
         l_paper.setSpacing(10)
 
@@ -417,9 +417,9 @@ class PrintingPage(QWidget):
         h_p_title.addWidget(p_icon)
         v_pt = QVBoxLayout()
         lbl_p_name = QLabel("<b>Bộ đếm giấy</b>")
-        lbl_p_name.setStyleSheet("font-size: 15px; color: #F8FAFC;")
+        lbl_p_name.setStyleSheet("font-size: 15px; color: #1E40AF;")
         lbl_p_sub = QLabel("App tự trừ giấy sau mỗi lần in.")
-        lbl_p_sub.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        lbl_p_sub.setStyleSheet("font-size: 12px; color: #64748B;")
         v_pt.addWidget(lbl_p_name)
         v_pt.addWidget(lbl_p_sub)
         h_p_title.addLayout(v_pt)
@@ -427,7 +427,7 @@ class PrintingPage(QWidget):
         h_p_head.addStretch()
 
         self.lbl_paper_stats = QLabel("Còn lại: 120 tờ / 400 tờ (30%)")
-        self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #F8FAFC;")
+        self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #303746;")
         h_p_head.addWidget(self.lbl_paper_stats)
         l_paper.addLayout(h_p_head)
 
@@ -438,7 +438,7 @@ class PrintingPage(QWidget):
         self.prog_paper.setValue(120)
         self.prog_paper.setTextVisible(False)
         self.prog_paper.setStyleSheet(
-            "QProgressBar { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 9px; }"
+            "QProgressBar { background-color: #E2E8F0; border: 1px solid #CBD5E1; border-radius: 9px; }"
             "QProgressBar::chunk { background-color: #10B981; border-radius: 8px; }"
         )
         l_paper.addWidget(self.prog_paper)
@@ -452,7 +452,7 @@ class PrintingPage(QWidget):
             btn.setFixedHeight(34)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet(
-                "background-color: #121F33; color: #38BDF8; font-weight: bold; border: 1px solid #1E3A8A; "
+                "background-color: #EFF6FF; color: #1E40AF; font-weight: bold; border: 1.5px solid #BFDBFE; "
                 "border-radius: 8px; padding: 4px 14px;"
             )
             btn.clicked.connect(lambda checked=False, a=amount: self._refill_paper(a))
@@ -465,7 +465,7 @@ class PrintingPage(QWidget):
         h_warn_stepper.setSpacing(4)
         btn_w_dec = QPushButton("-")
         btn_w_dec.setFixedSize(28, 34)
-        btn_w_dec.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_w_dec.setStyleSheet("background-color: #F8FAFC; color: #303746; font-weight: bold; border-radius: 6px; border: 1px solid #D9DEE7;")
         btn_w_dec.clicked.connect(lambda: self.spin_warning.setValue(self.spin_warning.value() - 10))
         h_warn_stepper.addWidget(btn_w_dec)
 
@@ -475,13 +475,13 @@ class PrintingPage(QWidget):
         self.spin_warning.setFixedHeight(34)
         self.spin_warning.setAlignment(Qt.AlignCenter)
         self.spin_warning.setStyleSheet(
-            "background-color: #070A12; color: #F8FAFC; border: 1px solid #1E2D4A; border-radius: 6px; font-weight: bold;"
+            "background-color: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; border-radius: 6px; font-weight: bold;"
         )
         h_warn_stepper.addWidget(self.spin_warning)
 
         btn_w_inc = QPushButton("+")
         btn_w_inc.setFixedSize(28, 34)
-        btn_w_inc.setStyleSheet("background-color: #16243E; color: #F8FAFC; font-weight: bold; border-radius: 6px; border: 1px solid #28395E;")
+        btn_w_inc.setStyleSheet("background-color: #F8FAFC; color: #303746; font-weight: bold; border-radius: 6px; border: 1px solid #D9DEE7;")
         btn_w_inc.clicked.connect(lambda: self.spin_warning.setValue(self.spin_warning.value() + 10))
         h_warn_stepper.addWidget(btn_w_inc)
         h_refill.addLayout(h_warn_stepper)
@@ -498,7 +498,7 @@ class PrintingPage(QWidget):
         self.btn_test_print.setFixedHeight(40)
         self.btn_test_print.setCursor(Qt.PointingHandCursor)
         self.btn_test_print.setStyleSheet(
-            "background-color: #121F33; color: #F8FAFC; border: 1px solid #28395E; border-radius: 8px; padding: 4px 18px; font-weight: bold;"
+            "background-color: #F8FAFC; color: #1E40AF; border: 1.5px solid #D9DEE7; border-radius: 8px; padding: 4px 18px; font-weight: bold;"
         )
         self.btn_test_print.clicked.connect(self._print_test_page)
         h_action.addWidget(self.btn_test_print)
@@ -509,7 +509,7 @@ class PrintingPage(QWidget):
         self.btn_cancel.setFixedHeight(40)
         self.btn_cancel.setCursor(Qt.PointingHandCursor)
         self.btn_cancel.setStyleSheet(
-            "background-color: #1E293B; color: #CBD5E1; border: 1px solid #334155; border-radius: 8px; padding: 4px 18px;"
+            "background-color: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; border-radius: 8px; padding: 4px 18px;"
         )
         self.btn_cancel.clicked.connect(self._load_current_settings)
         h_action.addWidget(self.btn_cancel)
@@ -620,16 +620,16 @@ class PrintingPage(QWidget):
 
         if curr <= self.spin_warning.value():
             self.prog_paper.setStyleSheet(
-                "QProgressBar { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 9px; }"
+                "QProgressBar { background-color: #E2E8F0; border: 1px solid #CBD5E1; border-radius: 9px; }"
                 "QProgressBar::chunk { background-color: #EF4444; border-radius: 8px; }"
             )
             self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #EF4444;")
         else:
             self.prog_paper.setStyleSheet(
-                "QProgressBar { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 9px; }"
+                "QProgressBar { background-color: #E2E8F0; border: 1px solid #CBD5E1; border-radius: 9px; }"
                 "QProgressBar::chunk { background-color: #10B981; border-radius: 8px; }"
             )
-            self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #F8FAFC;")
+            self.lbl_paper_stats.setStyleSheet("font-size: 14px; font-weight: bold; color: #303746;")
 
     def _refill_paper(self, amount: int):
         """Xử lý nút nạp thêm giấy nhanh."""

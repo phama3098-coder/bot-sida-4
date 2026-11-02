@@ -58,8 +58,8 @@ class SessionLightboxDialog(QDialog):
         self.setMinimumSize(800, 560)
         self.setStyleSheet("""
             QDialog {
-                background-color: #070A12;
-                color: #F8FAFC;
+                background-color: #F3F4F6;
+                color: #303746;
             }
         """)
 
@@ -203,8 +203,8 @@ class SessionLightboxDialog(QDialog):
         card_meta = QFrame()
         card_meta.setStyleSheet("""
             QFrame {
-                background-color: #0E1626;
-                border: 1px solid #1E2D4A;
+                background-color: #FFFFFF;
+                border: 1.5px solid #D9DEE7;
                 border-radius: 8px;
             }
         """)
@@ -213,27 +213,27 @@ class SessionLightboxDialog(QDialog):
         l_meta.setSpacing(8)
 
         lbl_meta_h = QLabel("THÔNG TIN LƯỢT CHỤP")
-        lbl_meta_h.setStyleSheet("color: #D8BE6B; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
+        lbl_meta_h.setStyleSheet("color: #1E40AF; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
         l_meta.addWidget(lbl_meta_h)
 
         self.lbl_res = QLabel("Độ phân giải: Đang tải...")
-        self.lbl_res.setStyleSheet("color: #F8FAFC; font-size: 12px;")
+        self.lbl_res.setStyleSheet("color: #303746; font-size: 12px; font-weight: 600;")
         l_meta.addWidget(self.lbl_res)
 
         self.lbl_size = QLabel("Dung lượng tệp: --")
-        self.lbl_size.setStyleSheet("color: #F8FAFC; font-size: 12px;")
+        self.lbl_size.setStyleSheet("color: #303746; font-size: 12px; font-weight: 600;")
         l_meta.addWidget(self.lbl_size)
 
         self.lbl_time = QLabel("Thời gian tạo: --")
-        self.lbl_time.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        self.lbl_time.setStyleSheet("color: #64748B; font-size: 12px;")
         l_meta.addWidget(self.lbl_time)
 
         self.lbl_shots_count = QLabel(f"Số ảnh gốc chụp: {len(self.original_photos)} ảnh")
-        self.lbl_shots_count.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        self.lbl_shots_count.setStyleSheet("color: #64748B; font-size: 12px;")
         l_meta.addWidget(self.lbl_shots_count)
 
         self.lbl_sync_badge = QLabel("Đồng bộ Cloud: Kiểm tra...")
-        self.lbl_sync_badge.setStyleSheet("color: #38BDF8; font-size: 12px; font-weight: bold;")
+        self.lbl_sync_badge.setStyleSheet("color: #1E40AF; font-size: 12px; font-weight: bold;")
         l_meta.addWidget(self.lbl_sync_badge)
 
         v_info.addWidget(card_meta)
@@ -242,8 +242,8 @@ class SessionLightboxDialog(QDialog):
         card_actions = QFrame()
         card_actions.setStyleSheet("""
             QFrame {
-                background-color: #0E1626;
-                border: 1px solid #1E2D4A;
+                background-color: #FFFFFF;
+                border: 1.5px solid #D9DEE7;
                 border-radius: 8px;
             }
         """)
@@ -252,7 +252,7 @@ class SessionLightboxDialog(QDialog):
         l_act.setSpacing(8)
 
         lbl_act_h = QLabel("THAO TÁC NHANH")
-        lbl_act_h.setStyleSheet("color: #D8BE6B; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
+        lbl_act_h.setStyleSheet("color: #1E40AF; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
         l_act.addWidget(lbl_act_h)
 
         self.btn_print_now = QPushButton(" In Ngay Lượt Này")
@@ -266,7 +266,7 @@ class SessionLightboxDialog(QDialog):
                 font-weight: 800;
                 font-size: 12px;
                 border-radius: 6px;
-                border: none;
+                border: 1px solid #D4AF37;
             }
             QPushButton:hover {
                 background: #FFE89E;
@@ -281,16 +281,17 @@ class SessionLightboxDialog(QDialog):
         self.btn_open_qr.setCursor(Qt.PointingHandCursor)
         self.btn_open_qr.setStyleSheet("""
             QPushButton {
-                background-color: #121C30;
-                border: 1px solid #28395E;
-                color: #CBD5E1;
+                background-color: #FFFFFF;
+                border: 1.5px solid #D9DEE7;
+                color: #303746;
                 font-size: 12px;
                 font-weight: bold;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                border-color: #D8BE6B;
-                color: #D8BE6B;
+                border-color: #D4AF37;
+                color: #1E40AF;
+                background-color: #FEF9C3;
             }
         """)
         self.btn_open_qr.clicked.connect(self._show_qr_code)

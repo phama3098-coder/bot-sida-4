@@ -60,8 +60,8 @@ class TouchNumberPadDialog(QDialog):
         self.setFixedSize(320, 420)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self.setStyleSheet(
-            "QDialog { background-color: #070A12; border: 2px solid #D4AF37; border-radius: 14px; }"
-            "QLabel { color: #F8FAFC; }"
+            "QDialog { background-color: #FFFFFF; border: 2px solid #D4AF37; border-radius: 14px; }"
+            "QLabel { color: #303746; }"
         )
         self.min_val = min_val
         self.max_val = max_val
@@ -73,25 +73,25 @@ class TouchNumberPadDialog(QDialog):
 
         lbl_title = QLabel("Nhập Số Ảnh Mỗi Lượt")
         lbl_title.setAlignment(Qt.AlignCenter)
-        lbl_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #D4AF37;")
+        lbl_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1E40AF;")
         layout.addWidget(lbl_title)
 
         self.display = QLabel(str(self.value))
         self.display.setAlignment(Qt.AlignCenter)
         self.display.setFixedHeight(54)
         self.display.setStyleSheet(
-            "background-color: #10192A; color: #FDF4DC; font-size: 28px; font-weight: 900; "
-            "border: 1.5px solid #28395E; border-radius: 10px;"
+            "background-color: #F8FAFC; color: #1E40AF; font-size: 28px; font-weight: 900; "
+            "border: 1.5px solid #D9DEE7; border-radius: 10px;"
         )
         layout.addWidget(self.display)
 
         grid = QGridLayout()
         grid.setSpacing(8)
         btn_style = (
-            "QPushButton { background-color: #121C30; color: #F8FAFC; font-size: 20px; font-weight: bold; "
-            "border: 1px solid #28395E; border-radius: 8px; min-height: 48px; }"
-            "QPushButton:hover { background-color: #1C2D4A; border: 1px solid #D4AF37; color: #D4AF37; }"
-            "QPushButton:pressed { background-color: #0B1322; }"
+            "QPushButton { background-color: #FFFFFF; color: #303746; font-size: 20px; font-weight: bold; "
+            "border: 1.5px solid #D9DEE7; border-radius: 8px; min-height: 48px; }"
+            "QPushButton:hover { background-color: #FEF9C3; border: 1.5px solid #D4AF37; color: #1E40AF; }"
+            "QPushButton:pressed { background-color: #E2E8F0; }"
         )
 
         buttons = [
@@ -358,15 +358,15 @@ class FrameCardWidget(QFrame):
     def _update_style(self):
         if self.is_selected:
             self.setStyleSheet(
-                "FrameCardWidget { background-color: #0E1A33; border: 2px solid #E5C158; border-radius: 9px; }"
+                "FrameCardWidget { background-color: #FEF9C3; border: 2px solid #D4AF37; border-radius: 9px; }"
             )
-            self.lbl_caption.setStyleSheet("font-size: 11px; font-weight: 800; color: #F7E7CE;")
+            self.lbl_caption.setStyleSheet("font-size: 11px; font-weight: 800; color: #1E40AF;")
         else:
             self.setStyleSheet(
-                "FrameCardWidget { background-color: #080D1A; border: 1px solid #1E2D4A; border-radius: 9px; }"
-                "FrameCardWidget:hover { border: 1px solid #D4AF37; background-color: #101A2F; }"
+                "FrameCardWidget { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 9px; }"
+                "FrameCardWidget:hover { border: 1.5px solid #D4AF37; background-color: #F8FAFC; }"
             )
-            self.lbl_caption.setStyleSheet("font-size: 11px; font-weight: 600; color: #94A3B8;")
+            self.lbl_caption.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -521,7 +521,7 @@ class KioskPage(QWidget):
         # KHUNG LIVE VIEW LỚN TỐI ĐA (CHÍNH GIỮA)
         # -------------------------------------------------------------
         self.card_live = QFrame()
-        self.card_live.setStyleSheet("background-color: #050811; border: 1.5px solid #1E2D4A; border-radius: 12px;")
+        self.card_live.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px;")
         l_live = QVBoxLayout(self.card_live)
         l_live.setContentsMargins(10, 8, 10, 10)
         l_live.setSpacing(6)
@@ -532,22 +532,22 @@ class KioskPage(QWidget):
 
         self.lbl_live_badge = QLabel("📷 CHƯA KẾT NỐI MÁY ẢNH | XEM TRƯỚC GIAO DIỆN")
         self.lbl_live_badge.setStyleSheet(
-            "background-color: #DC2626; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #EF4444;"
+            "background-color: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #FECACA;"
         )
         self.live_top_bar.addWidget(self.lbl_live_badge)
 
         # Huy hiệu hiển thị sự kiện hiện tại gọn gàng
         self.lbl_active_event_pill = QLabel("📁 Sự kiện: SuKien_MacDinh")
         self.lbl_active_event_pill.setStyleSheet(
-            "background-color: #0E1628; color: #D4AF37; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 4px 10px; border: 1px solid #1E2D4A;"
+            "background-color: #EFF6FF; color: #1E40AF; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 4px 10px; border: 1px solid #BFDBFE;"
         )
         self.live_top_bar.addWidget(self.lbl_active_event_pill)
 
         self.btn_switch_event = QPushButton("Đổi Sự Kiện")
         self.btn_switch_event.setFixedHeight(24)
         self.btn_switch_event.setStyleSheet(
-            "QPushButton { background-color: #16223B; border: 1px solid #28395E; border-radius: 6px; color: #E2E8F0; font-size: 11px; font-weight: 600; padding: 0 8px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #F7E7CE; background-color: #1C2B47; }"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 6px; color: #303746; font-size: 11px; font-weight: 600; padding: 0 8px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #F8FAFC; }"
         )
         self.btn_switch_event.clicked.connect(lambda: self.request_tab_switch.emit(4))
         self.live_top_bar.addWidget(self.btn_switch_event)
@@ -556,7 +556,7 @@ class KioskPage(QWidget):
 
         self.lbl_live_res = QLabel("LIVE VIEW 1920 × 1080")
         self.lbl_live_res.setStyleSheet(
-            "background-color: #111A2E; color: #94A3B8; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 10px; border: 1px solid #233454;"
+            "background-color: #F8FAFC; color: #64748B; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 10px; border: 1px solid #D9DEE7;"
         )
         self.live_top_bar.addWidget(self.lbl_live_res)
 
@@ -564,7 +564,7 @@ class KioskPage(QWidget):
         self.btn_live_fullscreen.setFixedSize(28, 26)
         self.btn_live_fullscreen.setToolTip("Chế độ toàn màn hình (F11)")
         self.btn_live_fullscreen.setStyleSheet(
-            "background-color: #111A2E; color: #E2E8F0; font-size: 13px; font-weight: bold; border-radius: 6px; border: 1px solid #233454;"
+            "background-color: #FFFFFF; color: #303746; font-size: 13px; font-weight: bold; border-radius: 6px; border: 1.5px solid #D9DEE7;"
         )
         self.btn_live_fullscreen.clicked.connect(lambda: self.request_fullscreen.emit())
         self.live_top_bar.addWidget(self.btn_live_fullscreen)
@@ -653,13 +653,13 @@ class KioskPage(QWidget):
         self.card_camera = QFrame()
         self.card_camera.setMinimumWidth(190)
         self.card_camera.setMaximumWidth(250)
-        self.card_camera.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 12px;")
+        self.card_camera.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px;")
         l_cam = QVBoxLayout(self.card_camera)
         l_cam.setContentsMargins(14, 14, 14, 14)
         l_cam.setSpacing(12)
 
         lbl_cam_card_title = QLabel("📷 <b>TRẠNG THÁI MÁY ẢNH</b>")
-        lbl_cam_card_title.setStyleSheet("color: #D4AF37; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        lbl_cam_card_title.setStyleSheet("color: #1E40AF; font-size: 13px; font-weight: bold; border: none; background: transparent;")
         l_cam.addWidget(lbl_cam_card_title)
 
         # Chấm trạng thái và nhãn
@@ -670,7 +670,7 @@ class KioskPage(QWidget):
         h_stat.addWidget(self.lbl_cam_dot)
 
         self.lbl_cam_status_text = QLabel("Chưa kết nối máy ảnh")
-        self.lbl_cam_status_text.setStyleSheet("color: #F87171; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        self.lbl_cam_status_text.setStyleSheet("color: #DC2626; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         h_stat.addWidget(self.lbl_cam_status_text)
         h_stat.addStretch()
         l_cam.addLayout(h_stat)
@@ -678,7 +678,7 @@ class KioskPage(QWidget):
         # Ghi chú hướng dẫn
         self.lbl_cam_note = QLabel("Hãy kết nối máy ảnh và chọn thiết bị trong mục Máy ảnh để bắt đầu chụp.")
         self.lbl_cam_note.setWordWrap(True)
-        self.lbl_cam_note.setStyleSheet("color: #94A3B8; font-size: 12px; line-height: 1.3; border: none; background: transparent;")
+        self.lbl_cam_note.setStyleSheet("color: #64748B; font-size: 12px; line-height: 1.3; border: none; background: transparent;")
         l_cam.addWidget(self.lbl_cam_note)
 
         l_cam.addSpacing(6)
@@ -688,7 +688,7 @@ class KioskPage(QWidget):
         self.btn_reconnect_cam.setFixedHeight(44)
         self.btn_reconnect_cam.setStyleSheet(
             "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27);"
-            "color: #070A12; font-weight: 800; font-size: 13px; border-radius: 8px; border: 1px solid #FDF4DC; }"
+            "color: #070A12; font-weight: 800; font-size: 13px; border-radius: 8px; border: 1px solid #D4AF37; }"
             "QPushButton:hover { background: #E5C158; }"
         )
         self.btn_reconnect_cam.clicked.connect(self._reconnect_camera)
@@ -698,8 +698,8 @@ class KioskPage(QWidget):
         self.btn_cam_settings = QPushButton("⚙️ Mở cài đặt máy ảnh")
         self.btn_cam_settings.setFixedHeight(44)
         self.btn_cam_settings.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; border-radius: 8px; color: #E2E8F0; font-size: 13px; font-weight: 600; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; background-color: #17243E; color: #F7E7CE; }"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 8px; color: #303746; font-size: 13px; font-weight: 600; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; background-color: #F8FAFC; color: #1E40AF; }"
         )
         self.btn_cam_settings.clicked.connect(lambda: self.request_tab_switch.emit(2))
         l_cam.addWidget(self.btn_cam_settings)
@@ -707,7 +707,7 @@ class KioskPage(QWidget):
         l_cam.addStretch()
         self.top_row_layout.addWidget(self.card_camera)
 
-        self.capture_layout.addLayout(self.top_row_layout, 6)
+        self.capture_layout.addLayout(self.top_row_layout, 7)
 
         # =============================================================
         # 2. HÀNG ĐIỀU KHIỂN PHÍA DƯỚI (4 THẺ: SỐ ẢNH, ĐẾM NGƯỢC, KHUNG, BỘ LỌC)
@@ -722,7 +722,7 @@ class KioskPage(QWidget):
         self.card_shots.setObjectName("card_shots")
         self.card_shots.setMinimumWidth(185)
         self.card_shots.setMaximumWidth(225)
-        self.card_shots.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
+        self.card_shots.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 10px;")
         l_shots = QVBoxLayout(self.card_shots)
         l_shots.setContentsMargins(12, 10, 12, 10)
         l_shots.setSpacing(0)
@@ -730,7 +730,7 @@ class KioskPage(QWidget):
         l_shots.addStretch(1)
         lbl_s_title = QLabel("📚 <b>Số ảnh mỗi lượt</b>")
         lbl_s_title.setAlignment(Qt.AlignCenter)
-        lbl_s_title.setStyleSheet("color: #F7E7CE; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        lbl_s_title.setStyleSheet("color: #303746; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         l_shots.addWidget(lbl_s_title)
 
         l_shots.addSpacing(8)
@@ -743,11 +743,11 @@ class KioskPage(QWidget):
         self.btn_shots_minus.setCursor(Qt.PointingHandCursor)
         self.btn_shots_minus.setStyleSheet(
             "QPushButton { min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
-            "font-size: 24px; font-weight: 900; background-color: #121C30; "
-            "border: 1.5px solid #28395E; border-radius: 8px; color: #CBD5E1; padding: 0px; margin: 0px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #1C2D4A; }"
-            "QPushButton:pressed { background-color: #09101C; }"
-            "QPushButton:disabled { background-color: #0E1626; color: #475569; border: 1px solid #1A263D; }"
+            "font-size: 24px; font-weight: 900; background-color: #FFFFFF; "
+            "border: 1.5px solid #D9DEE7; border-radius: 8px; color: #303746; padding: 0px; margin: 0px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #FEF9C3; }"
+            "QPushButton:pressed { background-color: #E2E8F0; }"
+            "QPushButton:disabled { background-color: #F1F5F9; color: #94A3B8; border: 1px solid #E2E8F0; }"
         )
         self.btn_shots_minus.clicked.connect(self._decrease_shots)
         h_s_btns.addWidget(self.btn_shots_minus, 0, Qt.AlignCenter)
@@ -759,10 +759,10 @@ class KioskPage(QWidget):
         self.txt_shots_input.setToolTip("Nhập trực tiếp số ảnh (1 đến 16)")
         self.txt_shots_input.setStyleSheet(
             "QLineEdit { min-width: 56px; max-width: 56px; min-height: 44px; max-height: 44px; "
-            "background: #070A12; color: #D4AF37; font-size: 20px; font-weight: 900; "
-            "border: 1.5px solid #D4AF37; border-radius: 8px; padding: 0px; margin: 0px; selection-background-color: #D4AF37; selection-color: #070A12; }"
-            "QLineEdit:focus { border: 2px solid #FFF8E7; background-color: #141F33; }"
-            "QLineEdit:disabled { background: #0E1626; color: #64748B; border: 1px solid #1E2D4A; }"
+            "background: #FFFFFF; color: #1E40AF; font-size: 20px; font-weight: 900; "
+            "border: 2px solid #D4AF37; border-radius: 8px; padding: 0px; margin: 0px; selection-background-color: #D4AF37; selection-color: #070A12; }"
+            "QLineEdit:focus { border: 2px solid #1E40AF; background-color: #F8FAFC; }"
+            "QLineEdit:disabled { background: #F1F5F9; color: #94A3B8; border: 1px solid #E2E8F0; }"
         )
         self.txt_shots_input.setValidator(QIntValidator(1, 16, self))
         self.txt_shots_input.editingFinished.connect(self._on_shots_input_finished)
@@ -774,11 +774,11 @@ class KioskPage(QWidget):
         self.btn_shots_plus.setCursor(Qt.PointingHandCursor)
         self.btn_shots_plus.setStyleSheet(
             "QPushButton { min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
-            "font-size: 24px; font-weight: 900; background-color: #121C30; "
-            "border: 1.5px solid #28395E; border-radius: 8px; color: #CBD5E1; padding: 0px; margin: 0px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #1C2D4A; }"
-            "QPushButton:pressed { background-color: #09101C; }"
-            "QPushButton:disabled { background-color: #0E1626; color: #475569; border: 1px solid #1A263D; }"
+            "font-size: 24px; font-weight: 900; background-color: #FFFFFF; "
+            "border: 1.5px solid #D9DEE7; border-radius: 8px; color: #303746; padding: 0px; margin: 0px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #FEF9C3; }"
+            "QPushButton:pressed { background-color: #E2E8F0; }"
+            "QPushButton:disabled { background-color: #F1F5F9; color: #94A3B8; border: 1px solid #E2E8F0; }"
         )
         self.btn_shots_plus.clicked.connect(self._increase_shots)
         h_s_btns.addWidget(self.btn_shots_plus, 0, Qt.AlignCenter)
@@ -787,7 +787,7 @@ class KioskPage(QWidget):
 
         l_shots.addSpacing(8)
         lbl_s_hint = QLabel("Giới hạn: 1 – 16 ảnh")
-        lbl_s_hint.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 500; border: none; background: transparent;")
+        lbl_s_hint.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 500; border: none; background: transparent;")
         lbl_s_hint.setAlignment(Qt.AlignCenter)
         l_shots.addWidget(lbl_s_hint)
         l_shots.addStretch(1)
@@ -799,13 +799,13 @@ class KioskPage(QWidget):
         self.card_cd = QFrame()
         self.card_cd.setMinimumWidth(170)
         self.card_cd.setMaximumWidth(240)
-        self.card_cd.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
+        self.card_cd.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 10px;")
         l_cd = QVBoxLayout(self.card_cd)
         l_cd.setContentsMargins(10, 10, 10, 10)
         l_cd.setSpacing(8)
 
         lbl_cd_title = QLabel("⏱️ <b>Đếm ngược</b>")
-        lbl_cd_title.setStyleSheet("color: #F7E7CE; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        lbl_cd_title.setStyleSheet("color: #303746; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         l_cd.addWidget(lbl_cd_title)
 
         h_cd_btns = QHBoxLayout()
@@ -833,7 +833,7 @@ class KioskPage(QWidget):
         # THẺ 3: MẪU KHUNG ẢNH (CAROUSEL THUMBNAIL THẬT)
         # -------------------------------------------------------------
         self.card_frames = QFrame()
-        self.card_frames.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
+        self.card_frames.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 10px;")
         l_fr = QVBoxLayout(self.card_frames)
         l_fr.setContentsMargins(12, 8, 12, 8)
         l_fr.setSpacing(6)
@@ -841,7 +841,7 @@ class KioskPage(QWidget):
         # Tiêu đề & nút Chọn khung khác
         h_fr_head = QHBoxLayout()
         lbl_fr_title = QLabel("🖼️ <b>Mẫu khung ảnh</b>")
-        lbl_fr_title.setStyleSheet("color: #F7E7CE; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        lbl_fr_title.setStyleSheet("color: #303746; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         h_fr_head.addWidget(lbl_fr_title)
 
         h_fr_head.addStretch()
@@ -849,7 +849,8 @@ class KioskPage(QWidget):
         self.btn_goto_frames = QPushButton("🖼️ Chọn khung khác")
         self.btn_goto_frames.setFixedHeight(26)
         self.btn_goto_frames.setStyleSheet(
-            "background-color: #121C30; border: 1px solid #28395E; border-radius: 6px; color: #E2E8F0; font-size: 11px; font-weight: 600; padding: 2px 10px;"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 6px; color: #303746; font-size: 11px; font-weight: 600; padding: 2px 10px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #F8FAFC; }"
         )
         self.btn_goto_frames.clicked.connect(lambda: self.request_tab_switch.emit(1))
         h_fr_head.addWidget(self.btn_goto_frames)
@@ -862,7 +863,8 @@ class KioskPage(QWidget):
         self.btn_frame_prev = QPushButton("‹")
         self.btn_frame_prev.setFixedSize(22, 50)
         self.btn_frame_prev.setStyleSheet(
-            "background-color: #121C30; border: 1px solid #243555; color: #94A3B8; font-size: 18px; font-weight: bold; border-radius: 4px;"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; color: #303746; font-size: 18px; font-weight: bold; border-radius: 4px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #FEF9C3; }"
         )
         self.btn_frame_prev.clicked.connect(self._prev_frame_page)
         h_fr_carousel.addWidget(self.btn_frame_prev)
@@ -874,7 +876,8 @@ class KioskPage(QWidget):
         self.btn_frame_next = QPushButton("›")
         self.btn_frame_next.setFixedSize(22, 50)
         self.btn_frame_next.setStyleSheet(
-            "background-color: #121C30; border: 1px solid #243555; color: #94A3B8; font-size: 18px; font-weight: bold; border-radius: 4px;"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; color: #303746; font-size: 18px; font-weight: bold; border-radius: 4px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #FEF9C3; }"
         )
         self.btn_frame_next.clicked.connect(self._next_frame_page)
         h_fr_carousel.addWidget(self.btn_frame_next)
@@ -888,13 +891,13 @@ class KioskPage(QWidget):
         self.card_filters = QFrame()
         self.card_filters.setMinimumWidth(170)
         self.card_filters.setMaximumWidth(240)
-        self.card_filters.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
+        self.card_filters.setStyleSheet("background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 10px;")
         l_fil = QVBoxLayout(self.card_filters)
         l_fil.setContentsMargins(12, 10, 12, 10)
         l_fil.setSpacing(6)
 
         lbl_fil_title = QLabel("🎨 <b>Bộ lọc màu</b>")
-        lbl_fil_title.setStyleSheet("color: #F7E7CE; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        lbl_fil_title.setStyleSheet("color: #303746; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         l_fil.addWidget(lbl_fil_title)
 
         # Trạng thái Chưa có bộ lọc
@@ -908,26 +911,26 @@ class KioskPage(QWidget):
         icon_plus.setAlignment(Qt.AlignCenter)
         icon_plus.setFixedSize(30, 30)
         icon_plus.setStyleSheet(
-            "font-size: 20px; font-weight: bold; color: #D4AF37; border: 1.5px dashed #475569; border-radius: 15px; background: #0A111F;"
+            "font-size: 20px; font-weight: bold; color: #D4AF37; border: 1.5px dashed #CBD5E1; border-radius: 15px; background: #F8FAFC;"
         )
         l_nf.addWidget(icon_plus, alignment=Qt.AlignCenter)
 
         lbl_nf_text = QLabel("Chưa có bộ lọc")
         lbl_nf_text.setAlignment(Qt.AlignCenter)
-        lbl_nf_text.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 700; border: none; background: transparent;")
+        lbl_nf_text.setStyleSheet("color: #303746; font-size: 12px; font-weight: 700; border: none; background: transparent;")
         l_nf.addWidget(lbl_nf_text)
 
         lbl_nf_sub = QLabel("Thêm bộ lọc của bạn để tạo phong cách riêng cho ảnh.")
         lbl_nf_sub.setAlignment(Qt.AlignCenter)
         lbl_nf_sub.setWordWrap(True)
-        lbl_nf_sub.setStyleSheet("color: #94A3B8; font-size: 10px; border: none; background: transparent;")
+        lbl_nf_sub.setStyleSheet("color: #64748B; font-size: 10px; border: none; background: transparent;")
         l_nf.addWidget(lbl_nf_sub)
 
         self.btn_add_filter_champagne = QPushButton("➕ Thêm bộ lọc")
         self.btn_add_filter_champagne.setFixedHeight(34)
         self.btn_add_filter_champagne.setStyleSheet(
             "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27);"
-            "color: #070A12; font-weight: 800; font-size: 12px; border-radius: 6px; border: 1px solid #FDF4DC; }"
+            "color: #070A12; font-weight: 800; font-size: 12px; border-radius: 6px; border: 1px solid #D4AF37; }"
             "QPushButton:hover { background: #E5C158; }"
         )
         self.btn_add_filter_champagne.clicked.connect(self._open_filter_dialog)
@@ -949,7 +952,8 @@ class KioskPage(QWidget):
         self.btn_manage_filter = QPushButton("+ Thêm / Quản Lý")
         self.btn_manage_filter.setFixedHeight(30)
         self.btn_manage_filter.setStyleSheet(
-            "background-color: #121C30; border: 1px solid #28395E; border-radius: 6px; color: #E2E8F0; font-size: 11px; font-weight: 600;"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 6px; color: #303746; font-size: 11px; font-weight: 600; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #F8FAFC; }"
         )
         self.btn_manage_filter.clicked.connect(self._open_filter_dialog)
         l_hf.addWidget(self.btn_manage_filter)
@@ -960,7 +964,7 @@ class KioskPage(QWidget):
         l_fil.addStretch()
         self.ctrl_row_layout.addWidget(self.card_filters)
 
-        self.capture_layout.addLayout(self.ctrl_row_layout, 3)
+        self.capture_layout.addLayout(self.ctrl_row_layout, 2)
 
         # =============================================================
         # 3. ĐÁY MÀN HÌNH: TÙY CHỌN, NÚT BẮT ĐẦU CHỤP VÀNG KHỔNG LỒ & TOÀN MÀN HÌNH
@@ -972,17 +976,21 @@ class KioskPage(QWidget):
         # Checkbox bên trái
         l_chk = QVBoxLayout()
         l_chk.setSpacing(4)
+        chk_style = "QCheckBox { color: #303746; font-size: 13px; font-weight: 600; } QCheckBox::indicator { width: 18px; height: 18px; border: 1.5px solid #D9DEE7; border-radius: 4px; background: #FFFFFF; } QCheckBox::indicator:checked { background: #D4AF37; border: 1.5px solid #D4AF37; }"
         self.chk_preview = QCheckBox("Xem trước ảnh sau khi chụp")
         self.chk_preview.setChecked(True)
+        self.chk_preview.setStyleSheet(chk_style)
         l_chk.addWidget(self.chk_preview)
 
         self.chk_beauty = QCheckBox("Làm đẹp thông minh AI")
         self.chk_beauty.setChecked(self.config_mgr.get("kiosk.enable_smart_beauty", True))
         self.chk_beauty.toggled.connect(lambda val: self.config_mgr.set("kiosk.enable_smart_beauty", val))
+        self.chk_beauty.setStyleSheet(chk_style)
         l_chk.addWidget(self.chk_beauty)
 
         self.chk_autoprint = QCheckBox("Tự động in sau khi chụp")
         self.chk_autoprint.setChecked(False)
+        self.chk_autoprint.setStyleSheet(chk_style)
         l_chk.addWidget(self.chk_autoprint)
         self.bottom_bar_layout.addLayout(l_chk)
 
@@ -990,50 +998,54 @@ class KioskPage(QWidget):
 
         # NÚT BẮT ĐẦU CHỤP KHỔNG LỒ VÀNG CHAMPAGNE (CAPSULE GLOW)
         self.btn_start = QPushButton("📷 BẮT ĐẦU CHỤP")
-        self.btn_start.setFixedSize(360, 62)
+        self.btn_start.setFixedSize(360, 58)
         self.btn_start.setCursor(Qt.PointingHandCursor)
         self.btn_start.setStyleSheet(
             "QPushButton {"
             "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F7E7CE, stop:0.35 #E5C158, stop:1 #C59B27);"
             "  color: #070A12;"
-            "  font-size: 22px;"
+            "  font-size: 20px;"
             "  font-weight: 900;"
             "  letter-spacing: 1px;"
-            "  border-radius: 31px;"
-            "  border: 2px solid #FFF8E7;"
+            "  border-radius: 29px;"
+            "  border: 2px solid #D4AF37;"
             "}"
             "QPushButton:hover {"
             "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:0.35 #F0D278, stop:1 #D4AF37);"
-            "  border: 2px solid #FFFFFF;"
+            "  border: 2px solid #F5DE88;"
             "}"
             "QPushButton:pressed {"
             "  background: #C59B27;"
             "}"
             "QPushButton:disabled {"
-            "  background: #2D3748; color: #718096; border: 1px solid #4A5568;"
+            "  background: #E2E8F0; color: #94A3B8; border: 1px solid #CBD5E1;"
             "}"
         )
         self.btn_start.clicked.connect(self.start_capture_flow)
         self.bottom_bar_layout.addWidget(self.btn_start)
 
         # CÁC NÚT KHI Ở CHẾ ĐỘ XEM KẾT QUẢ (REVIEW STATE)
+        review_btn_style = (
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; color: #303746; border-radius: 8px; font-weight: 700; padding: 0 16px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; background-color: #FEF9C3; color: #1E40AF; }"
+        )
         self.btn_retake = QPushButton("🔄 Chụp Lại")
         self.btn_retake.setFixedHeight(50)
-        self.btn_retake.setStyleSheet("background-color: #15223D; border: 1px solid #28395E; color: #E2E8F0; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_retake.setStyleSheet(review_btn_style)
         self.btn_retake.clicked.connect(self._retake_session)
         self.btn_retake.hide()
         self.bottom_bar_layout.addWidget(self.btn_retake)
 
         self.btn_save = QPushButton("💾 Lưu Ảnh")
         self.btn_save.setFixedHeight(50)
-        self.btn_save.setStyleSheet("background-color: #15223D; border: 1px solid #28395E; color: #E2E8F0; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_save.setStyleSheet(review_btn_style)
         self.btn_save.clicked.connect(self._save_photo_dialog)
         self.btn_save.hide()
         self.bottom_bar_layout.addWidget(self.btn_save)
 
         self.btn_qr = QPushButton("📱 Quét Mã QR")
         self.btn_qr.setFixedHeight(50)
-        self.btn_qr.setStyleSheet("background-color: #15223D; border: 1px solid #28395E; color: #E2E8F0; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_qr.setStyleSheet(review_btn_style)
         self.btn_qr.clicked.connect(self._show_qr_dialog)
         self.btn_qr.hide()
         self.bottom_bar_layout.addWidget(self.btn_qr)
@@ -1042,7 +1054,7 @@ class KioskPage(QWidget):
         self.btn_print.setFixedHeight(50)
         self.btn_print.setStyleSheet(
             "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27);"
-            "color: #070A12; font-weight: 900; font-size: 15px; border-radius: 8px; border: 1px solid #FDF4DC; padding: 0 24px;"
+            "color: #070A12; font-weight: 900; font-size: 15px; border-radius: 8px; border: 1.5px solid #D4AF37; padding: 0 24px;"
         )
         self.btn_print.clicked.connect(self._print_composite)
         self.btn_print.hide()
@@ -1158,11 +1170,11 @@ class KioskPage(QWidget):
     def _update_countdown_buttons_style(self):
         active_style = (
             "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27);"
-            "color: #070A12; font-weight: 800; font-size: 13px; border-radius: 6px; border: 1.5px solid #FDF4DC; padding: 4px 4px; }"
+            "color: #070A12; font-weight: 800; font-size: 13px; border-radius: 6px; border: 1.5px solid #D4AF37; padding: 4px 4px; }"
         )
         inactive_style = (
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; border-radius: 6px; color: #CBD5E1; font-size: 13px; font-weight: 600; padding: 4px 4px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #F7E7CE; }"
+            "QPushButton { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 6px; color: #303746; font-size: 13px; font-weight: 600; padding: 4px 4px; }"
+            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #1E40AF; background-color: #F8FAFC; }"
         )
         self.btn_cd_3.setStyleSheet(active_style if self.countdown_duration == 3 else inactive_style)
         self.btn_cd_5.setStyleSheet(active_style if self.countdown_duration == 5 else inactive_style)
