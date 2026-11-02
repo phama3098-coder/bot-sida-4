@@ -492,6 +492,63 @@ def get_brand_logo_svg_path() -> str:
     return os.path.abspath(candidates[0] if candidates else "Assets/Branding/1998-team-logo.svg")
 
 
+def get_brand_logo_path(variant: str = "transparent") -> str:
+    """
+    Trả về đường dẫn tuyệt đối đến tài nguyên logo thương hiệu 1998 TEAM chuẩn hóa.
+    Hỗ trợ các biến thể: 'transparent', 'navbar', 'kiosk', 'studio', 'svg'.
+    """
+    filename_map = {
+        "transparent": "logo_1998_transparent.png",
+        "navbar": "logo_1998_navbar.png",
+        "kiosk": "logo_1998_kiosk.png",
+        "studio": "logo_1998_studio.png",
+        "svg": "1998-team-logo.svg",
+    }
+    filename = filename_map.get(variant, "logo_1998_transparent.png")
+    
+    candidates = []
+    if hasattr(sys, "_MEIPASS"):
+        candidates.append(os.path.join(sys._MEIPASS, "Assets", "Branding", filename))
+        candidates.append(os.path.join(sys._MEIPASS, "assets", "branding", filename))
+    exe_dir = os.path.dirname(sys.executable)
+    candidates.append(os.path.join(exe_dir, "Assets", "Branding", filename))
+    candidates.append(os.path.join(exe_dir, "assets", "branding", filename))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    candidates.append(os.path.join(root, "Assets", "Branding", filename))
+    candidates.append(os.path.join(root, "assets", "branding", filename))
+    candidates.append(os.path.abspath(f"Assets/Branding/{filename}"))
+    candidates.append(os.path.abspath(f"assets/branding/{filename}"))
+
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+    return os.path.abspath(candidates[0] if candidates else f"Assets/Branding/{filename}")
+
+
+def get_brand_logo_tight_pixmap(height: Optional[int] = None, width: Optional[int] = None) -> QPixmap:
+    """
+    Trả về QPixmap logo thương hiệu 1998 TEAM với viền sát (Tight Bounding Box),
+    nền trong suốt 100%, tỷ lệ ngang chuẩn (~2.06:1), tối ưu cho Header, Navbar và Card.
+    """
+    path = get_brand_logo_path(variant="transparent")
+    if not os.path.exists(path):
+        path = get_brand_logo_path(variant="navbar")
+    if not os.path.exists(path):
+        return get_brand_logo_pixmap(height=height or 36, width=width)
+    
+    pix = QPixmap(path)
+    if pix.isNull():
+        return QPixmap()
+    
+    if height is not None and width is not None:
+        return pix.scaled(width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    elif height is not None:
+        return pix.scaledToHeight(height, Qt.SmoothTransformation)
+    elif width is not None:
+        return pix.scaledToWidth(width, Qt.SmoothTransformation)
+    return pix
+
+
 def get_brand_logo_pixmap(height: int = 36, width: Optional[int] = None) -> QPixmap:
     """
     Render logo SVG chính thức của 1998 TEAM thành QPixmap sắc nét, bảo toàn tuyệt đối

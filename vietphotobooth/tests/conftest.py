@@ -31,8 +31,16 @@ def cleanup_qt():
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance()
     if app:
-        app.closeAllWindows()
-        app.processEvents()
+        try:
+            for w in QApplication.allWidgets():
+                try:
+                    w.close()
+                    w.deleteLater()
+                except Exception:
+                    pass
+            app.processEvents()
+        except Exception:
+            pass
     import gc
     gc.collect()
 

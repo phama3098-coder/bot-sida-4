@@ -40,7 +40,7 @@ from vietphotobooth.desktop.widgets.devices_page import DevicesPage
 from vietphotobooth.desktop.widgets.qr_sharing_page import QRSharingPage
 from vietphotobooth.desktop.icons import (
     get_svg_icon, MorphIconButton, COLOR_GOLD, COLOR_GREEN,
-    get_brand_logo_pixmap, get_brand_logo_svg_path
+    get_brand_logo_pixmap, get_brand_logo_svg_path, get_brand_logo_tight_pixmap
 )
 from vietphotobooth.version import __version__, get_version_string
 from vietphotobooth.updates import (
@@ -118,15 +118,15 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setElideMode(Qt.ElideRight)
         self.tabs.tabBar().setExpanding(False)
 
-        # Thanh thương hiệu Logo 1998 TEAM bên trái hàng tab (Co giãn thông minh, SVG chính thức)
+        # Thanh thương hiệu Logo 1998 TEAM bên trái hàng tab (Co giãn thông minh, chuẩn hóa trong suốt)
         self.brand_widget = QWidget()
-        self.brand_widget.setMaximumWidth(210)
+        self.brand_widget.setMaximumWidth(250)
         self.brand_layout = QHBoxLayout(self.brand_widget)
-        self.brand_layout.setContentsMargins(6, 2, 6, 2)
+        self.brand_layout.setContentsMargins(4, 2, 4, 2)
         self.brand_layout.setSpacing(6)
 
         self.lbl_logo = QLabel()
-        logo_pix = get_brand_logo_pixmap(height=30)
+        logo_pix = get_brand_logo_tight_pixmap(height=24)
         if not logo_pix.isNull():
             self.lbl_logo.setPixmap(logo_pix)
         else:
@@ -263,6 +263,7 @@ class MainWindow(QMainWindow):
             camera_mgr=self.camera_mgr,
             print_mgr=self.print_mgr,
             config_mgr=self.config_mgr,
+            frame_mgr=self.frame_mgr,
             parent=self
         )
         self.dashboard_page.start_kiosk_requested.connect(self.start_kiosk_mode)

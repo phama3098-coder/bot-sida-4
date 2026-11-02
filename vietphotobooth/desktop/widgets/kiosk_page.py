@@ -49,8 +49,7 @@ from vietphotobooth.audio import SoundController
 logger = get_logger()
 
 # Đường dẫn tài nguyên thương hiệu
-LOGO_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
-EVENT_BANNER_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "event_banner_sample.jpg"))
+LOGO_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_transparent.png"))
 
 
 class TouchNumberPadDialog(QDialog):

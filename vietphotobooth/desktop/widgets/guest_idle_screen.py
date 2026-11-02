@@ -18,14 +18,13 @@ from PySide6.QtCore import Qt, Signal, QTimer, QSize
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QCursor, QLinearGradient
 
 from vietphotobooth.desktop.icons import (
-    get_svg_pixmap, COLOR_GOLD, COLOR_WHITE, COLOR_BLUE, get_brand_logo_pixmap
+    get_svg_pixmap, COLOR_GOLD, COLOR_WHITE, COLOR_BLUE, get_brand_logo_pixmap, get_brand_logo_tight_pixmap
 )
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
 
-LOGO_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_studio.png"))
-SAMPLE_PORTRAIT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "sample_slot_portrait.jpg"))
+LOGO_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Assets", "Branding", "logo_1998_transparent.png"))
 
 class GuestIdleScreen(QWidget):
     """Màn hình chờ toàn màn hình chào đón khách chụp ảnh."""
@@ -95,8 +94,8 @@ class GuestIdleScreen(QWidget):
         v_center.setAlignment(Qt.AlignCenter)
         v_center.setSpacing(20)
 
-        # Logo 1998 TEAM SVG chính thức
-        pix = get_brand_logo_pixmap(height=90)
+        # Logo 1998 TEAM chuẩn hóa trong suốt
+        pix = get_brand_logo_tight_pixmap(height=90)
         if not pix.isNull():
             lbl_logo = QLabel()
             lbl_logo.setPixmap(pix)
@@ -190,21 +189,38 @@ class GuestIdleScreen(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
 
+        slot_titles = ["✨ POSE 1", "💖 POSE 2", "🌟 POSE 3"] if is_left else ["📸 SMILE", "🎉 CELEBRATE", "💫 MEMORY"]
         for i in range(3):
-            slot = QLabel()
-            slot.setAlignment(Qt.AlignCenter)
-            slot.setStyleSheet("background-color: #F1F5F9; border-radius: 6px; border: 1px solid #CBD5E1;")
-            if os.path.exists(SAMPLE_PORTRAIT):
-                pix = QPixmap(SAMPLE_PORTRAIT)
-                slot.setPixmap(pix.scaled(140, 130, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
-            else:
-                slot.setText("1998")
-                slot.setStyleSheet("color: #D4AF37; font-weight: bold;")
+            slot = QFrame()
+            slot.setFixedSize(144, 130)
+            slot.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F8FAFC, stop:1 #E2E8F0);
+                    border-radius: 8px;
+                    border: 1px dashed #CBD5E1;
+                }
+            """)
+            s_layout = QVBoxLayout(slot)
+            s_layout.setContentsMargins(4, 4, 4, 4)
+            s_layout.setAlignment(Qt.AlignCenter)
+            
+            icon_lbl = QLabel()
+            icon_lbl.setAlignment(Qt.AlignCenter)
+            icon_pix = get_svg_pixmap("camera", COLOR_GOLD, 30)
+            if not icon_pix.isNull():
+                icon_lbl.setPixmap(icon_pix)
+            s_layout.addWidget(icon_lbl)
+            
+            txt_lbl = QLabel(slot_titles[i])
+            txt_lbl.setAlignment(Qt.AlignCenter)
+            txt_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 1px;")
+            s_layout.addWidget(txt_lbl)
+
             layout.addWidget(slot)
 
-        lbl_foot = QLabel("Good Memories" if is_left else "Happy Moments")
+        lbl_foot = QLabel("1998 TEAM" if is_left else "PHOTOBOOTH")
         lbl_foot.setAlignment(Qt.AlignCenter)
-        lbl_foot.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748B; font-style: italic;")
+        lbl_foot.setStyleSheet("font-size: 11px; font-weight: bold; color: #D4AF37; letter-spacing: 2px;")
         layout.addWidget(lbl_foot)
 
         return frame

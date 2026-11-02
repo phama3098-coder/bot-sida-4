@@ -507,25 +507,15 @@ class FrameDesigner:
         Đảm bảo 100% WYSIWYG: những gì nhìn thấy là những gì được xuất và in ra.
         """
         if not sample_photos:
-            sample_portrait_path = os.path.abspath(os.path.join(
-                os.path.dirname(__file__), "..", "..", "Assets", "Branding", "sample_slot_portrait.jpg"
-            ))
-            if os.path.exists(sample_portrait_path):
-                try:
-                    loaded_sample = Image.open(sample_portrait_path).convert("RGB")
-                    sample_photos = [loaded_sample] * max(len(template.slots), 1)
-                except Exception:
-                    sample_photos = []
-
-            if not sample_photos:
-                sample_photos = []
-                colors = ["#1E293B", "#0F172A", "#334155", "#475569"]
-                for i in range(4):
-                    sample_img = Image.new("RGB", (600, 450), color=colors[i % len(colors)])
-                    d = ImageDraw.Draw(sample_img)
-                    f = get_windows_font("arial.ttf", 52, is_bold=True)
-                    d.text((200, 190), f"Ảnh Chụp #{i+1}", font=f, fill="#D4AF37")
-                    sample_photos.append(sample_img)
+            sample_photos = []
+            colors = ["#1E293B", "#0F172A", "#1A2234", "#24324D"]
+            num_needed = max(len(template.slots), 4)
+            for i in range(num_needed):
+                sample_img = Image.new("RGB", (600, 450), color=colors[i % len(colors)])
+                d = ImageDraw.Draw(sample_img)
+                f = get_windows_font("arial.ttf", 46, is_bold=True)
+                d.text((200, 190), f"Ô Ảnh #{i+1}", font=f, fill="#D4AF37")
+                sample_photos.append(sample_img)
 
         if not template.slots:
             dummy = Image.new("RGB", (400, 400), (240, 240, 240))

@@ -21,7 +21,7 @@ import tempfile
 import pytest
 import numpy as np
 import cv2
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
@@ -35,12 +35,14 @@ from vietphotobooth.desktop.widgets.smart_beauty_panel import (
 
 @pytest.fixture(scope="module")
 def sample_portrait_image():
-    """Tải ảnh chân dung mẫu hoặc tạo ảnh giả lập chân dung."""
-    path = "Assets/Branding/sample_slot_portrait.jpg"
-    if os.path.exists(path):
-        return Image.open(path)
-    # Ảnh giả lập nếu không tìm thấy
-    im = Image.new("RGB", (400, 500), color=(180, 150, 130))
+    """Tạo ảnh chân dung tổng hợp chuẩn phục vụ kiểm thử thuật toán làm đẹp."""
+    im = Image.new("RGB", (400, 500), color=(210, 180, 160))
+    d = ImageDraw.Draw(im)
+    # Vẽ khuôn mặt và mắt cơ bản để kiểm tra phân tích điểm ảnh
+    d.ellipse((100, 100, 300, 380), fill=(225, 195, 175), outline=(180, 150, 130))
+    d.ellipse((140, 180, 180, 210), fill=(40, 40, 40))
+    d.ellipse((220, 180, 260, 210), fill=(40, 40, 40))
+    d.rectangle((170, 290, 230, 320), fill=(200, 90, 90))
     return im
 
 
@@ -323,7 +325,7 @@ class TestSmartBeautyDialog:
 
     def test_exif_orientation_preserved_in_dialog(self, tmp_path, qapp):
         """Hộp thoại tự động chuẩn hóa hướng ảnh theo EXIF orientation metadata."""
-        from PIL import Image
+        from PIL import Image, ImageDraw
 
         img_path = tmp_path / "exif_test.jpg"
         im = Image.new("RGB", (200, 300), color=(100, 150, 200))
