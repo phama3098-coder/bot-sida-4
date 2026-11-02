@@ -8,9 +8,9 @@ from typing import Tuple
 
 __app_name__ = "1998 TEAM — Photobooth"
 __version__ = "2.0.0"
-__build__ = 204
+__build__ = 205
 __channel__ = "RC"
-__release_date__ = "2026-11-02"
+__release_date__ = "2026-11-03"
 __publisher__ = "1998 Studio phóng sự cưới"
 __copyright__ = "© 2026 1998 Studio. All rights reserved."
 
