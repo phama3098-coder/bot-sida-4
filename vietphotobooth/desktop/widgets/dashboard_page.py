@@ -143,28 +143,37 @@ class DashboardPage(QWidget):
 
         main_layout.addLayout(header_layout)
 
-        # 2. Disclaimer Banner Minh Bạch
-        disclaimer_banner = QFrame()
-        disclaimer_banner.setFixedHeight(42)
-        disclaimer_banner.setStyleSheet(
-            "QFrame { background-color: rgba(212, 175, 55, 0.08); border: 1px solid rgba(212, 175, 55, 0.3); "
-            "border-radius: 8px; padding: 6px 14px; }"
+        # 2. Disclaimer Banner Minh Bạch (Tự co giãn, không clip text, căn giữa icon)
+        self.disclaimer_banner = QFrame()
+        self.disclaimer_banner.setObjectName("disclaimer_banner")
+        self.disclaimer_banner.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.disclaimer_banner.setMinimumHeight(44)
+        self.disclaimer_banner.setStyleSheet(
+            "QFrame#disclaimer_banner { background-color: rgba(212, 175, 55, 0.08); "
+            "border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 8px; }"
         )
-        disclaimer_layout = QHBoxLayout(disclaimer_banner)
-        disclaimer_layout.setContentsMargins(12, 4, 12, 4)
-        disclaimer_layout.setSpacing(10)
+        disclaimer_layout = QHBoxLayout(self.disclaimer_banner)
+        disclaimer_layout.setContentsMargins(14, 8, 14, 8)
+        disclaimer_layout.setSpacing(12)
+
         lbl_warn_icon = QLabel("⚠️")
-        lbl_warn_icon.setStyleSheet("font-size: 14px;")
-        lbl_warn_text = QLabel(
+        lbl_warn_icon.setObjectName("lbl_disclaimer_icon")
+        lbl_warn_icon.setStyleSheet("font-size: 15px; background: transparent; border: none;")
+        lbl_warn_icon.setAlignment(Qt.AlignCenter)
+
+        self.lbl_disclaimer_text = QLabel(
             "<b>BUỒNG LÁI VẬN HÀNH 1998 TEAM:</b> Dữ liệu phiên, bản in và telemetry phần cứng "
             "được biểu diễn ở chế độ <b>[DEMO / SIMULATED]</b> nhằm xác thực trải nghiệm UI/UX. "
             "Camera engine thực tế tuân thủ driver Windows WPD và Nikon MAID3 SDK."
         )
-        lbl_warn_text.setStyleSheet("font-size: 11px; color: #F59E0B;")
-        lbl_warn_text.setWordWrap(False)
-        disclaimer_layout.addWidget(lbl_warn_icon)
-        disclaimer_layout.addWidget(lbl_warn_text, 1)
-        main_layout.addWidget(disclaimer_banner)
+        self.lbl_disclaimer_text.setObjectName("lbl_disclaimer_text")
+        self.lbl_disclaimer_text.setStyleSheet("font-size: 11.5px; color: #F59E0B; background: transparent; border: none;")
+        self.lbl_disclaimer_text.setWordWrap(True)
+        self.lbl_disclaimer_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        disclaimer_layout.addWidget(lbl_warn_icon, 0, Qt.AlignVCenter)
+        disclaimer_layout.addWidget(self.lbl_disclaimer_text, 1, Qt.AlignVCenter)
+        main_layout.addWidget(self.disclaimer_banner)
 
         # 3. 4 Stat Cards Đồng Nhất Chiều Cao và Baseline
         stats_grid = QGridLayout()

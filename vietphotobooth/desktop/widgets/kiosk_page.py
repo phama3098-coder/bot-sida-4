@@ -716,64 +716,81 @@ class KioskPage(QWidget):
         self.ctrl_row_layout.setSpacing(12)
 
         # -------------------------------------------------------------
-        # THẺ 1: SỐ ẢNH MỖI LƯỢT (BỘ ĐIỀU KHIỂN LINH HOẠT [ − ] [ 3 ] [ + ])
+        # THẺ 1: SỐ ẢNH MỖI LƯỢT (BỘ ĐIỀU KHIỂN CÂN ĐỐI [ − ] [ 3 ] [ + ])
         # -------------------------------------------------------------
         self.card_shots = QFrame()
-        self.card_shots.setMinimumWidth(150)
-        self.card_shots.setMaximumWidth(200)
+        self.card_shots.setObjectName("card_shots")
+        self.card_shots.setMinimumWidth(185)
+        self.card_shots.setMaximumWidth(225)
         self.card_shots.setStyleSheet("background-color: #0A111F; border: 1px solid #1E2D4A; border-radius: 10px;")
         l_shots = QVBoxLayout(self.card_shots)
-        l_shots.setContentsMargins(10, 8, 10, 8)
-        l_shots.setSpacing(6)
+        l_shots.setContentsMargins(12, 10, 12, 10)
+        l_shots.setSpacing(0)
 
+        l_shots.addStretch(1)
         lbl_s_title = QLabel("📚 <b>Số ảnh mỗi lượt</b>")
+        lbl_s_title.setAlignment(Qt.AlignCenter)
         lbl_s_title.setStyleSheet("color: #F7E7CE; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         l_shots.addWidget(lbl_s_title)
 
+        l_shots.addSpacing(8)
         h_s_btns = QHBoxLayout()
-        h_s_btns.setSpacing(6)
+        h_s_btns.setAlignment(Qt.AlignCenter)
+        h_s_btns.setSpacing(8)
 
         self.btn_shots_minus = QPushButton("−")
-        self.btn_shots_minus.setFixedSize(38, 38)
+        self.btn_shots_minus.setFixedSize(44, 44)
+        self.btn_shots_minus.setCursor(Qt.PointingHandCursor)
         self.btn_shots_minus.setStyleSheet(
-            "QPushButton { font-size: 20px; font-weight: 900; background-color: #121C30; border: 1.5px solid #28395E; border-radius: 8px; color: #CBD5E1; }"
+            "QPushButton { min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
+            "font-size: 24px; font-weight: 900; background-color: #121C30; "
+            "border: 1.5px solid #28395E; border-radius: 8px; color: #CBD5E1; padding: 0px; margin: 0px; }"
             "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #1C2D4A; }"
             "QPushButton:pressed { background-color: #09101C; }"
+            "QPushButton:disabled { background-color: #0E1626; color: #475569; border: 1px solid #1A263D; }"
         )
         self.btn_shots_minus.clicked.connect(self._decrease_shots)
-        h_s_btns.addWidget(self.btn_shots_minus)
+        h_s_btns.addWidget(self.btn_shots_minus, 0, Qt.AlignCenter)
 
         self.txt_shots_input = QLineEdit(str(self.total_shots_needed))
-        self.txt_shots_input.setFixedSize(46, 38)
+        self.txt_shots_input.setFixedSize(56, 44)
         self.txt_shots_input.setAlignment(Qt.AlignCenter)
         self.txt_shots_input.setMaxLength(2)
         self.txt_shots_input.setToolTip("Nhập trực tiếp số ảnh (1 đến 16)")
         self.txt_shots_input.setStyleSheet(
-            "QLineEdit { background: #070A12; color: #D4AF37; font-size: 17px; font-weight: 900; border: 1.5px solid #D4AF37; border-radius: 8px; }"
-            "QLineEdit:focus { border: 2px solid #FDF4DC; background-color: #141F33; }"
+            "QLineEdit { min-width: 56px; max-width: 56px; min-height: 44px; max-height: 44px; "
+            "background: #070A12; color: #D4AF37; font-size: 20px; font-weight: 900; "
+            "border: 1.5px solid #D4AF37; border-radius: 8px; padding: 0px; margin: 0px; selection-background-color: #D4AF37; selection-color: #070A12; }"
+            "QLineEdit:focus { border: 2px solid #FFF8E7; background-color: #141F33; }"
+            "QLineEdit:disabled { background: #0E1626; color: #64748B; border: 1px solid #1E2D4A; }"
         )
         self.txt_shots_input.setValidator(QIntValidator(1, 16, self))
         self.txt_shots_input.editingFinished.connect(self._on_shots_input_finished)
         self.txt_shots_input.returnPressed.connect(self._on_shots_input_finished)
-        h_s_btns.addWidget(self.txt_shots_input)
+        h_s_btns.addWidget(self.txt_shots_input, 0, Qt.AlignCenter)
 
         self.btn_shots_plus = QPushButton("+")
-        self.btn_shots_plus.setFixedSize(38, 38)
+        self.btn_shots_plus.setFixedSize(44, 44)
+        self.btn_shots_plus.setCursor(Qt.PointingHandCursor)
         self.btn_shots_plus.setStyleSheet(
-            "QPushButton { font-size: 20px; font-weight: 900; background-color: #121C30; border: 1.5px solid #28395E; border-radius: 8px; color: #CBD5E1; }"
+            "QPushButton { min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
+            "font-size: 24px; font-weight: 900; background-color: #121C30; "
+            "border: 1.5px solid #28395E; border-radius: 8px; color: #CBD5E1; padding: 0px; margin: 0px; }"
             "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #1C2D4A; }"
             "QPushButton:pressed { background-color: #09101C; }"
+            "QPushButton:disabled { background-color: #0E1626; color: #475569; border: 1px solid #1A263D; }"
         )
         self.btn_shots_plus.clicked.connect(self._increase_shots)
-        h_s_btns.addWidget(self.btn_shots_plus)
+        h_s_btns.addWidget(self.btn_shots_plus, 0, Qt.AlignCenter)
 
         l_shots.addLayout(h_s_btns)
 
+        l_shots.addSpacing(8)
         lbl_s_hint = QLabel("Giới hạn: 1 – 16 ảnh")
-        lbl_s_hint.setStyleSheet("color: #64748B; font-size: 11px; border: none; background: transparent;")
+        lbl_s_hint.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 500; border: none; background: transparent;")
         lbl_s_hint.setAlignment(Qt.AlignCenter)
         l_shots.addWidget(lbl_s_hint)
-        l_shots.addStretch()
+        l_shots.addStretch(1)
         self.ctrl_row_layout.addWidget(self.card_shots)
 
         # -------------------------------------------------------------
@@ -2423,7 +2440,8 @@ class KioskPage(QWidget):
                     "QPushButton:hover { background: #F0D278; } QPushButton:disabled { background: #2D3748; color: #718096; }"
                 )
                 if hasattr(self, "card_shots"):
-                    self.card_shots.setMaximumWidth(170)
+                    self.card_shots.setMinimumWidth(180)
+                    self.card_shots.setMaximumWidth(210)
                 if hasattr(self, "card_cd"):
                     self.card_cd.setMaximumWidth(190)
                 if hasattr(self, "card_filters"):
@@ -2454,7 +2472,8 @@ class KioskPage(QWidget):
                     "}"
                 )
                 if hasattr(self, "card_shots"):
-                    self.card_shots.setMaximumWidth(200)
+                    self.card_shots.setMinimumWidth(185)
+                    self.card_shots.setMaximumWidth(230)
                 if hasattr(self, "card_cd"):
                     self.card_cd.setMaximumWidth(240)
                 if hasattr(self, "card_filters"):

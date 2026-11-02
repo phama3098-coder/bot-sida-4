@@ -48,16 +48,16 @@ from starlette.testclient import TestClient
 # =========================================================================
 
 def test_rc2_version_and_channel():
-    """Xác minh phiên bản 2.0.0, Build 201, Channel RC2 theo đúng Single Source of Truth."""
+    """Xác minh phiên bản 2.0.0, Build 202, Channel RC2 theo đúng Single Source of Truth."""
     assert __version__ == "2.0.0"
-    assert __build__ == 201
+    assert __build__ == 202
     assert __channel__ == "RC2"
-    assert get_version_string() == "2.0.0 (Build 201)"
+    assert get_version_string() == "2.0.0 (Build 202)"
     assert parse_semver(__version__) == (2, 0, 0)
 
 
 # =========================================================================
-# 2. AGENT A: RESPONSIVE & LAYOUT HARDENING
+# 2. AGENT A: RESPONSIVE & LAYOUT HARDENING + DEFECT FIX VERIFICATION
 # =========================================================================
 
 def test_rc2_responsive_resolutions(qapp):
@@ -74,6 +74,53 @@ def test_rc2_responsive_resolutions(qapp):
     window.show_dashboard()
     assert window.dashboard_page.scroll_area is not None
     assert window.dashboard_page.btn_start_kiosk.height() >= 44
+    
+    # DEF-UI-01: Kiểm tra Disclaimer Banner không bị cố định 42px, có wordWrap=True
+    banner = window.dashboard_page.disclaimer_banner
+    lbl_text = window.dashboard_page.lbl_disclaimer_text
+    assert banner is not None
+    assert banner.minimumHeight() >= 44
+    assert lbl_text.wordWrap() is True
+    assert "DEMO / SIMULATED" in lbl_text.text()
+    
+    window.close()
+
+
+def test_def_ui_02_photo_count_selector(qapp):
+    """Xác minh DEF-UI-02: Bộ điều khiển số ảnh trong Capture Studio đạt chuẩn touch 44x44px, cân đối."""
+    window = MainWindow(start_in_kiosk=False)
+    kiosk = window.kiosk_page
+    assert kiosk.btn_shots_minus is not None
+    assert kiosk.btn_shots_plus is not None
+    assert kiosk.txt_shots_input is not None
+    assert kiosk.card_shots is not None
+
+    # Kiểm tra kích thước tối thiểu nút bấm cảm ứng >= 44x44 px
+    assert kiosk.btn_shots_minus.width() >= 44
+    assert kiosk.btn_shots_minus.height() >= 44
+    assert kiosk.btn_shots_plus.width() >= 44
+    assert kiosk.btn_shots_plus.height() >= 44
+
+    # Kiểm tra ô nhập số ảnh có kích thước cân đối và căn giữa
+    assert kiosk.txt_shots_input.width() >= 50
+    assert kiosk.txt_shots_input.height() >= 40
+    assert kiosk.txt_shots_input.alignment() & Qt.AlignHCenter
+
+    # Thử nghiệm các giá trị biên và thông thường: 1, 3, 9, 16
+    for val in [1, 3, 9, 16]:
+        kiosk.txt_shots_input.setText(str(val))
+        kiosk._on_shots_input_finished()
+        assert kiosk.total_shots_needed == val
+        assert kiosk.txt_shots_input.text() == str(val)
+
+    # Thử tăng / giảm bằng nút
+    kiosk.txt_shots_input.setText("3")
+    kiosk._on_shots_input_finished()
+    kiosk._increase_shots()
+    assert kiosk.total_shots_needed == 4
+    kiosk._decrease_shots()
+    assert kiosk.total_shots_needed == 3
+
     window.close()
 
 
