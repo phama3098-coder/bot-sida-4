@@ -12,27 +12,27 @@ from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtCore import QByteArray, QSize, Qt, Signal, QVariantAnimation, QEasingCurve, QRectF, QPointF
 from PySide6.QtWidgets import QPushButton
 
-# Color Palette Constants (WARM MOCHA x CHAMPAGNE GOLD)
-COLOR_GOLD = "#B89555"
-COLOR_GOLD_LIGHT = "#CDB07B"
-COLOR_GOLD_PALE = "#F0E7D8"
-COLOR_GOLD_DARK = "#8F7038"
-COLOR_WHITE = "#E7DFD2"
-COLOR_SLATE = "#777067"
-COLOR_DARK_SLATE = "#5C5449"
-COLOR_NAVY = "#34312E"
-COLOR_NAVY_SURFACE = "#E7DFD2"
-COLOR_NAVY_CARD = "#C9BDAA"
+# Color Palette Constants (SOFT TAUPE STUDIO)
+COLOR_GOLD = "#AD905B"
+COLOR_GOLD_LIGHT = "#D0BC94"
+COLOR_GOLD_PALE = "#EBE5D8"
+COLOR_GOLD_DARK = "#8A703F"
+COLOR_WHITE = "#D9D5CC"
+COLOR_SLATE = "#716F68"
+COLOR_DARK_SLATE = "#55534D"
+COLOR_NAVY = "#353631"
+COLOR_NAVY_SURFACE = "#D9D5CC"
+COLOR_NAVY_CARD = "#B9B5AB"
 COLOR_GREEN = "#2E7D32"
 COLOR_RED = "#C53030"
-COLOR_BLUE = "#B89555"
+COLOR_BLUE = "#AD905B"
 
-# Warm Mocha Theme Specific Tokens
-COLOR_TEXT_PRIMARY = "#34312E"
-COLOR_TEXT_SECONDARY = "#777067"
-COLOR_BORDER = "#BEB3A3"
-COLOR_SURFACE = "#E7DFD2"
-COLOR_ICON_DARK = "#34312E"
+# Soft Taupe Studio Theme Specific Tokens
+COLOR_TEXT_PRIMARY = "#353631"
+COLOR_TEXT_SECONDARY = "#716F68"
+COLOR_BORDER = "#AAA69D"
+COLOR_SURFACE = "#D9D5CC"
+COLOR_ICON_DARK = "#353631"
 
 SVG_TEMPLATES = {
     "camera": """<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -131,9 +131,17 @@ SVG_TEMPLATES = {
         <polyline points="12 5 19 12 12 19"/>
     </svg>""",
 
+    "chevron_right": """<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+    </svg>""",
+
     "arrow_left": """<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="19" y1="12" x2="5" y2="12"/>
         <polyline points="12 19 5 12 12 5"/>
+    </svg>""",
+
+    "chevron_left": """<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
     </svg>""",
 
     "more": """<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

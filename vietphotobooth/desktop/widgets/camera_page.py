@@ -35,7 +35,15 @@ from vietphotobooth.camera.enumerator import enumerate_directshow_devices, probe
 from vietphotobooth.camera.diagnostics import (
     run_full_camera_diagnostics, format_diagnostic_report_text, export_diagnostic_report_file
 )
-from vietphotobooth.desktop.icons import get_svg_icon
+from vietphotobooth.desktop.icons import (
+    COLOR_GOLD, COLOR_GOLD_LIGHT, COLOR_GOLD_DARK, COLOR_GREEN, COLOR_RED, get_svg_icon
+)
+from vietphotobooth.desktop.styles import (
+    THEME_BG_MAIN, THEME_SURFACE, THEME_BG_SECONDARY, THEME_INPUT_BG,
+    THEME_BORDER, THEME_BORDER_LIGHT, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY,
+    THEME_TEXT_DISABLED, THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_PALE,
+    THEME_GOLD_DARK, LIVE_VIEW_BG, THEME_SUCCESS, THEME_DANGER, THEME_WARNING
+)
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
@@ -90,14 +98,14 @@ class CameraDiagnosticDialog(QDialog):
         self.report_text = report_text
         self.setWindowTitle("1998 TEAM — Báo Cáo Chẩn Đoán Thiết Bị Máy Ảnh & Webcam")
         self.resize(780, 560)
-        self.setStyleSheet("background-color: #0B111E; color: #F8FAFC;")
+        self.setStyleSheet(f"background-color: {THEME_BG_MAIN}; color: {THEME_TEXT_PRIMARY};")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
 
         lbl_title = QLabel("BÁO CÁO CHẨN ĐOÁN CHI TIẾT THIẾT BỊ VIDEO & WEBCAM")
-        lbl_title.setStyleSheet("font-size: 16px; font-weight: 900; color: #D4AF37; letter-spacing: 0.5px;")
+        lbl_title.setStyleSheet(f"font-size: 16px; font-weight: 900; color: {THEME_TEXT_PRIMARY}; letter-spacing: 0.5px;")
         layout.addWidget(lbl_title)
 
         self.txt_report = QTextEdit()
@@ -105,8 +113,8 @@ class CameraDiagnosticDialog(QDialog):
         self.txt_report.setFont(QFont("Consolas", 10))
         self.txt_report.setText(self.report_text)
         self.txt_report.setStyleSheet(
-            "QTextEdit { background-color: #070A12; border: 1.5px solid #1E2D4A; "
-            "border-radius: 8px; padding: 12px; color: #E2E8F0; line-height: 1.4; }"
+            f"QTextEdit {{ background-color: {THEME_INPUT_BG}; border: 1.5px solid {THEME_BORDER}; "
+            f"border-radius: 8px; padding: 12px; color: {THEME_TEXT_PRIMARY}; line-height: 1.4; }}"
         )
         layout.addWidget(self.txt_report, 1)
 
@@ -115,9 +123,9 @@ class CameraDiagnosticDialog(QDialog):
         self.btn_copy.setFixedHeight(40)
         self.btn_copy.setCursor(Qt.PointingHandCursor)
         self.btn_copy.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 18px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 18px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
         )
         self.btn_copy.clicked.connect(self._copy_to_clipboard)
         h_btn.addWidget(self.btn_copy)
@@ -126,9 +134,9 @@ class CameraDiagnosticDialog(QDialog):
         self.btn_save.setFixedHeight(40)
         self.btn_save.setCursor(Qt.PointingHandCursor)
         self.btn_save.setStyleSheet(
-            "QPushButton { background-color: #1E3A5F; border: 1px solid #38BDF8; color: #FFFFFF; "
-            "font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 20px; }"
-            "QPushButton:hover { background-color: #2563EB; }"
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD}); "
+            f"border: 1px solid {THEME_GOLD_DARK}; color: #FFFFFF; font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 20px; }} "
+            f"QPushButton:hover {{ background: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         self.btn_save.clicked.connect(self._save_to_file)
         h_btn.addWidget(self.btn_save)
@@ -139,9 +147,9 @@ class CameraDiagnosticDialog(QDialog):
         self.btn_close.setFixedHeight(40)
         self.btn_close.setCursor(Qt.PointingHandCursor)
         self.btn_close.setStyleSheet(
-            "QPushButton { background-color: #0E1626; border: 1px solid #1E2D4A; color: #94A3B8; "
-            "font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 22px; }"
-            "QPushButton:hover { color: #FFFFFF; background-color: #162033; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 13px; font-weight: bold; border-radius: 6px; padding: 0 22px; }} "
+            f"QPushButton:hover {{ background-color: {THEME_BG_SECONDARY}; }}"
         )
         self.btn_close.clicked.connect(self.accept)
         h_btn.addWidget(self.btn_close)
@@ -187,7 +195,7 @@ class CameraFullscreenDialog(QDialog):
 
         self.setWindowTitle("1998 TEAM — Khung Hình Live Preview Toàn Màn Hình")
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
-        self.setStyleSheet("background-color: #03050A;")
+        self.setStyleSheet(f"background-color: {LIVE_VIEW_BG};")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -197,7 +205,7 @@ class CameraFullscreenDialog(QDialog):
         self.top_bar = QWidget(self)
         self.top_bar.setFixedHeight(54)
         self.top_bar.setStyleSheet(
-            "background-color: rgba(7, 11, 22, 0.94); border-bottom: 1.5px solid #1E2D4A;"
+            f"background-color: rgba(23, 25, 28, 0.94); border-bottom: 1.5px solid {THEME_BORDER};"
         )
         h_top = QHBoxLayout(self.top_bar)
         h_top.setContentsMargins(20, 0, 20, 0)
@@ -211,7 +219,7 @@ class CameraFullscreenDialog(QDialog):
         h_top.addWidget(lbl_badge)
 
         self.lbl_info = QLabel("Nikon D780 Native USB  |  1024 × 680  |  3:2  |  KeepAspectRatio")
-        self.lbl_info.setStyleSheet("color: #94A3B8; font-size: 13px; font-weight: 600;")
+        self.lbl_info.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 13px; font-weight: 600;")
         h_top.addWidget(self.lbl_info)
 
         h_top.addStretch()
@@ -220,9 +228,9 @@ class CameraFullscreenDialog(QDialog):
         self.btn_exit.setFixedHeight(36)
         self.btn_exit.setCursor(Qt.PointingHandCursor)
         self.btn_exit.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27); "
-            "color: #070A12; font-weight: 800; font-size: 12px; border-radius: 6px; padding: 0 18px; border: 1px solid #FFF8E7; } "
-            "QPushButton:hover { background: #F0D278; }"
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD}); "
+            f"color: #FFFFFF; font-weight: 800; font-size: 12px; border-radius: 6px; padding: 0 18px; border: 1px solid {THEME_GOLD_DARK}; }} "
+            f"QPushButton:hover {{ background: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         self.btn_exit.clicked.connect(self.accept)
         h_top.addWidget(self.btn_exit)
@@ -478,9 +486,9 @@ class CameraPage(QWidget):
         header_box = QHBoxLayout()
         header_text = QVBoxLayout()
         lbl_title = QLabel("CẤU HÌNH MÁY ẢNH & LIVE VIEW")
-        lbl_title.setStyleSheet("font-size: 20px; font-weight: 900; color: #D4AF37; letter-spacing: 0.5px;")
+        lbl_title.setStyleSheet(f"font-size: 20px; font-weight: 900; color: {THEME_TEXT_PRIMARY}; letter-spacing: 0.5px;")
         lbl_subtitle = QLabel("1998 TEAM Photobooth • Quản lý kết nối, giám sát chất lượng luồng và chẩn đoán phần cứng.")
-        lbl_subtitle.setStyleSheet("font-size: 12px; color: #94A3B8;")
+        lbl_subtitle.setStyleSheet(f"font-size: 12px; color: {THEME_TEXT_SECONDARY};")
         header_text.addWidget(lbl_title)
         header_text.addWidget(lbl_subtitle)
         header_box.addLayout(header_text)
@@ -503,7 +511,7 @@ class CameraPage(QWidget):
 
         self.card_preview = QFrame()
         self.card_preview.setStyleSheet(
-            "QFrame { background-color: #050811; border: 1.5px solid #1E2D4A; border-radius: 12px; }"
+            f"QFrame {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 12px; }}"
         )
         l_prev = QVBoxLayout(self.card_preview)
         l_prev.setContentsMargins(12, 10, 12, 12)
@@ -522,24 +530,24 @@ class CameraPage(QWidget):
         self.lbl_af_status = QLabel("🎯 AF: SẴN SÀNG")
         self.lbl_af_status.setFixedHeight(24)
         self.lbl_af_status.setStyleSheet(
-            "background-color: #0F172A; color: #38BDF8; font-size: 11px; font-weight: 700; "
-            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 700; "
+            f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
         )
         h_prev_top.addWidget(self.lbl_af_status)
 
         self.lbl_ai_badge = QLabel("👁 AI MẮT: TẮT")
         self.lbl_ai_badge.setFixedHeight(24)
         self.lbl_ai_badge.setStyleSheet(
-            "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
-            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; font-size: 11px; font-weight: 700; "
+            f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
         )
         h_prev_top.addWidget(self.lbl_ai_badge)
 
         self.lbl_face_eye_af_status = QLabel("🎯 EYE AF: TẮT")
         self.lbl_face_eye_af_status.setFixedHeight(24)
         self.lbl_face_eye_af_status.setStyleSheet(
-            "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
-            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; font-size: 11px; font-weight: 700; "
+            f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
         )
         h_prev_top.addWidget(self.lbl_face_eye_af_status)
         h_prev_top.addStretch()
@@ -555,8 +563,8 @@ class CameraPage(QWidget):
         self.lbl_preview_stats.setAlignment(Qt.AlignCenter)
         self.lbl_preview_stats.setFixedHeight(28)
         self.lbl_preview_stats.setStyleSheet(
-            "background-color: #0A111F; color: #CBD5E1; font-size: 12px; font-weight: 600; "
-            "border-radius: 6px; padding: 4px 12px; border: 1px solid #1A263E;"
+            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; font-size: 12px; font-weight: 600; "
+            f"border-radius: 6px; padding: 4px 12px; border: 1px solid {THEME_BORDER};"
         )
         l_prev.addWidget(self.lbl_preview_stats)
         col_left.addWidget(self.card_preview, 1)
@@ -565,16 +573,18 @@ class CameraPage(QWidget):
         h_prev_actions = QHBoxLayout()
         h_prev_actions.setSpacing(8)
 
+        action_btn_style = (
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }} "
+            f"QPushButton:disabled {{ background-color: {THEME_BG_MAIN}; border: 1px solid {THEME_BORDER}; color: {THEME_TEXT_DISABLED}; }}"
+        )
+
         self.btn_af = QPushButton("🎯 Lấy Nét (AF)")
         self.btn_af.setFixedHeight(38)
         self.btn_af.setCursor(Qt.PointingHandCursor)
         self.btn_af.setToolTip("Yêu cầu camera thực hiện lấy nét tự động một lần qua USB (One-shot AF)")
-        self.btn_af.setStyleSheet(
-            "QPushButton { background-color: #164E63; border: 1.5px solid #06B6D4; color: #FFFFFF; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { background-color: #0891B2; border: 1.5px solid #22D3EE; }"
-            "QPushButton:disabled { background-color: #1E293B; border: 1px solid #334155; color: #64748B; }"
-        )
+        self.btn_af.setStyleSheet(action_btn_style)
         self.btn_af.clicked.connect(self._trigger_camera_af)
         h_prev_actions.addWidget(self.btn_af)
 
@@ -582,11 +592,7 @@ class CameraPage(QWidget):
         self.btn_face_eye_af.setFixedHeight(38)
         self.btn_face_eye_af.setCursor(Qt.PointingHandCursor)
         self.btn_face_eye_af.setToolTip("Bật/tắt tự động lấy nét mắt & khuôn mặt khi chủ thể ổn định (Software-Triggered Face/Eye AF)")
-        self.btn_face_eye_af.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { border: 1px solid #10B981; color: #10B981; background-color: #064E3B; }"
-        )
+        self.btn_face_eye_af.setStyleSheet(action_btn_style)
         self.btn_face_eye_af.clicked.connect(self._toggle_face_eye_af)
         h_prev_actions.addWidget(self.btn_face_eye_af)
 
@@ -594,11 +600,7 @@ class CameraPage(QWidget):
         self.btn_face_detect.setFixedHeight(38)
         self.btn_face_detect.setCursor(Qt.PointingHandCursor)
         self.btn_face_detect.setToolTip("Bật/tắt nhận diện khuôn mặt và mắt bằng AI trên khung xem trước (Software Preview)")
-        self.btn_face_detect.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
-        )
+        self.btn_face_detect.setStyleSheet(action_btn_style)
         self.btn_face_detect.clicked.connect(self._toggle_face_detection)
         h_prev_actions.addWidget(self.btn_face_detect)
 
@@ -607,47 +609,39 @@ class CameraPage(QWidget):
             self.lbl_viewport.set_face_detection_enabled(True)
             self.btn_face_detect.setText("👁 Nhận Diện: BẬT")
             self.btn_face_detect.setStyleSheet(
-                "QPushButton { background-color: #164E63; border: 1.5px solid #22D3EE; color: #22D3EE; "
-                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+                f"QPushButton {{ background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; "
+                f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }}"
             )
             self.lbl_ai_badge.setText("👁 AI MẮT: BẬT")
             self.lbl_ai_badge.setStyleSheet(
-                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
-                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+                f"background-color: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 700; "
+                f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_GOLD};"
             )
 
         if self._face_eye_af_enabled:
             self.lbl_viewport.set_face_eye_af_state(True, "SEARCHING", None)
             self.btn_face_eye_af.setText("🎯 Face/Eye AF: BẬT")
             self.btn_face_eye_af.setStyleSheet(
-                "QPushButton { background-color: #064E3B; border: 1.5px solid #10B981; color: #34D399; "
-                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+                f"QPushButton {{ background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; "
+                f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }}"
             )
             self.lbl_face_eye_af_status.setText("🎯 EYE AF: ĐANG TÌM KHUÔN MẶT")
             self.lbl_face_eye_af_status.setStyleSheet(
-                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
-                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+                f"background-color: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 700; "
+                f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_GOLD};"
             )
 
         self.btn_test_shot = QPushButton("📸 Chụp Thử Nghiệm")
         self.btn_test_shot.setFixedHeight(38)
         self.btn_test_shot.setCursor(Qt.PointingHandCursor)
-        self.btn_test_shot.setStyleSheet(
-            "QPushButton { background-color: #1E3A5F; border: 1.5px solid #38BDF8; color: #FFFFFF; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { background-color: #2563EB; border: 1.5px solid #60A5FA; }"
-        )
+        self.btn_test_shot.setStyleSheet(action_btn_style)
         self.btn_test_shot.clicked.connect(self._take_test_shot)
         h_prev_actions.addWidget(self.btn_test_shot)
 
         self.btn_grid = QPushButton("▦ Lưới: Tắt")
         self.btn_grid.setFixedHeight(38)
         self.btn_grid.setCursor(Qt.PointingHandCursor)
-        self.btn_grid.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
-        )
+        self.btn_grid.setStyleSheet(action_btn_style)
         self.btn_grid.clicked.connect(self._toggle_grid)
         h_prev_actions.addWidget(self.btn_grid)
 
@@ -655,22 +649,14 @@ class CameraPage(QWidget):
         self.btn_fullscreen.setFixedHeight(38)
         self.btn_fullscreen.setCursor(Qt.PointingHandCursor)
         self.btn_fullscreen.setToolTip("Mở toàn màn hình live preview (ESC để thoát)")
-        self.btn_fullscreen.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
-        )
+        self.btn_fullscreen.setStyleSheet(action_btn_style)
         self.btn_fullscreen.clicked.connect(self._toggle_fullscreen_preview)
         h_prev_actions.addWidget(self.btn_fullscreen)
 
         self.btn_reset = QPushButton("↺ Đặt Lại")
         self.btn_reset.setFixedHeight(38)
         self.btn_reset.setCursor(Qt.PointingHandCursor)
-        self.btn_reset.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
-        )
+        self.btn_reset.setStyleSheet(action_btn_style)
         self.btn_reset.clicked.connect(self._reset_camera_stream)
         h_prev_actions.addWidget(self.btn_reset)
 
@@ -688,34 +674,41 @@ class CameraPage(QWidget):
         # Card 1: Chọn Thiết Bị
         grp_ctrl = QGroupBox("CHỌN THIẾT BỊ")
         grp_ctrl.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: bold; color: #D4AF37; "
-            "border: 1.5px solid #1E2D4A; border-radius: 10px; margin-top: 10px; padding-top: 14px; background-color: #070B16; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; }"
+            f"QGroupBox {{ font-size: 13px; font-weight: bold; color: {THEME_TEXT_PRIMARY}; "
+            f"border: 1.5px solid {THEME_BORDER}; border-radius: 10px; margin-top: 10px; padding-top: 14px; background-color: {THEME_SURFACE}; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         l_ctrl = QVBoxLayout(grp_ctrl)
         l_ctrl.setContentsMargins(14, 14, 14, 14)
         l_ctrl.setSpacing(10)
 
         # Dropdown 1: Loại Camera (Backend)
-        l_ctrl.addWidget(QLabel("<b style='color:#CBD5E1;'>Loại máy ảnh (Backend):</b>"))
+        lbl_backend = QLabel(f"<b style='color:{THEME_TEXT_PRIMARY};'>Loại máy ảnh (Backend):</b>")
+        l_ctrl.addWidget(lbl_backend)
         self.combo_backend = QComboBox()
         self.combo_backend.blockSignals(True)
         self.combo_backend.addItem("Nikon MAID Native USB (Nikon D780 trực tiếp USB)", "nikon_maid")
         self.combo_backend.addItem("DirectShow Webcam (Nikon Webcam Utility, Logitech...)", "directshow")
         self.combo_backend.addItem("digiCamControl (DSLR Nikon / Canon Tethered)", "digicam")
-        self.combo_backend.addItem("Simulator (Mô Phỏng Studio Không Cần Phần Cứng)", "simulator")
+        self.combo_backend.addItem("Simulator (Mô Phỏng Studio Không Cần Phần CỨng)", "simulator")
         self.combo_backend.blockSignals(False)
         self.combo_backend.setFixedHeight(36)
+        self.combo_backend.setStyleSheet(
+            f"background-color: {THEME_INPUT_BG}; color: {THEME_TEXT_PRIMARY}; border: 1.5px solid {THEME_BORDER}; border-radius: 6px; padding: 2px 8px;"
+        )
         self.combo_backend.currentIndexChanged.connect(self._on_backend_changed)
         l_ctrl.addWidget(self.combo_backend)
 
         # Dropdown 2: Nguồn thiết bị cụ thể kèm nút làm mới
-        self.lbl_device_title = QLabel("<b style='color:#CBD5E1;'>Nguồn Video / Webcam Cụ Thể:</b>")
+        self.lbl_device_title = QLabel(f"<b style='color:{THEME_TEXT_PRIMARY};'>Nguồn Video / Webcam Cụ Thể:</b>")
         l_ctrl.addWidget(self.lbl_device_title)
 
         h_dev = QHBoxLayout()
         self.combo_device = QComboBox()
         self.combo_device.setFixedHeight(36)
+        self.combo_device.setStyleSheet(
+            f"background-color: {THEME_INPUT_BG}; color: {THEME_TEXT_PRIMARY}; border: 1.5px solid {THEME_BORDER}; border-radius: 6px; padding: 2px 8px;"
+        )
         h_dev.addWidget(self.combo_device, 1)
 
         btn_refresh = QPushButton("🔄")
@@ -723,9 +716,9 @@ class CameraPage(QWidget):
         btn_refresh.setCursor(Qt.PointingHandCursor)
         btn_refresh.setToolTip("Dò quét lại danh sách thiết bị")
         btn_refresh.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 14px; border-radius: 6px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 14px; border-radius: 6px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
         )
         btn_refresh.clicked.connect(self._refresh_device_list)
         h_dev.addWidget(btn_refresh)
@@ -737,7 +730,7 @@ class CameraPage(QWidget):
             auto_conn = self.camera_mgr.config_mgr.get("camera.auto_connect", True)
         self.chk_auto_connect = QCheckBox("Tự động kết nối camera này khi khởi động")
         self.chk_auto_connect.setChecked(auto_conn)
-        self.chk_auto_connect.setStyleSheet("QCheckBox { color: #94A3B8; font-size: 12px; margin-top: 4px; }")
+        self.chk_auto_connect.setStyleSheet(f"QCheckBox {{ color: {THEME_TEXT_SECONDARY}; font-size: 12px; margin-top: 4px; }}")
         self.chk_auto_connect.toggled.connect(self._on_auto_connect_toggled)
         l_ctrl.addWidget(self.chk_auto_connect)
 
@@ -747,9 +740,9 @@ class CameraPage(QWidget):
         self.btn_switch.setFixedHeight(38)
         self.btn_switch.setCursor(Qt.PointingHandCursor)
         self.btn_switch.setStyleSheet(
-            "QPushButton { background-color: #D4AF37; border: none; color: #050811; "
-            "font-size: 12px; font-weight: 900; border-radius: 6px; padding: 0 12px; }"
-            "QPushButton:hover { background-color: #F3E5AB; }"
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD}); "
+            f"border: 1px solid {THEME_GOLD_DARK}; color: #FFFFFF; font-size: 12px; font-weight: 900; border-radius: 6px; padding: 0 12px; }} "
+            f"QPushButton:hover {{ background: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         self.btn_switch.clicked.connect(self._switch_backend)
         h_conn_btns.addWidget(self.btn_switch, 1)
@@ -758,9 +751,9 @@ class CameraPage(QWidget):
         self.btn_disconnect.setFixedHeight(38)
         self.btn_disconnect.setCursor(Qt.PointingHandCursor)
         self.btn_disconnect.setStyleSheet(
-            "QPushButton { background-color: #162033; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }"
-            "QPushButton:hover { background-color: #7F1D1D; border-color: #EF4444; color: #FFFFFF; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }} "
+            f"QPushButton:hover {{ background-color: #FDE8E8; border-color: #FCA5A5; color: #C53030; }}"
         )
         self.btn_disconnect.clicked.connect(self._disconnect_camera)
         h_conn_btns.addWidget(self.btn_disconnect)
@@ -771,9 +764,9 @@ class CameraPage(QWidget):
         # Card 2: Thông Tin Phần Cứng & Trạng Thái
         grp_info = QGroupBox("THÔNG TIN THIẾT BỊ")
         grp_info.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: bold; color: #D4AF37; "
-            "border: 1.5px solid #1E2D4A; border-radius: 10px; margin-top: 10px; padding-top: 14px; background-color: #070B16; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; }"
+            f"QGroupBox {{ font-size: 13px; font-weight: bold; color: {THEME_TEXT_PRIMARY}; "
+            f"border: 1.5px solid {THEME_BORDER}; border-radius: 10px; margin-top: 10px; padding-top: 14px; background-color: {THEME_SURFACE}; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         l_info = QVBoxLayout(grp_info)
         l_info.setContentsMargins(14, 14, 14, 14)
@@ -781,7 +774,7 @@ class CameraPage(QWidget):
 
         # Huy hiệu trạng thái
         self.lbl_status = QLabel("Trạng thái: Đang kết nối...")
-        self.lbl_status.setStyleSheet("font-size: 13px; font-weight: bold; color: #10B981;")
+        self.lbl_status.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {THEME_SUCCESS};")
         self.lbl_status.setWordWrap(True)
         l_info.addWidget(self.lbl_status)
 
@@ -793,13 +786,10 @@ class CameraPage(QWidget):
         self.table_caps.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_caps.verticalHeader().setVisible(False)
         self.table_caps.setFixedHeight(145)
-        self.table_caps.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table_caps.verticalHeader().setVisible(False)
-        self.table_caps.setFixedHeight(145)
         self.table_caps.setStyleSheet(
-            "QTableWidget { background-color: #050811; border: 1px solid #1E2D4A; gridline-color: #121A2B; font-size: 11px; }"
-            "QHeaderView::section { background-color: #0A111F; color: #D4AF37; font-weight: bold; padding: 4px; border: 1px solid #1E2D4A; font-size: 11px; }"
-            "QTableWidget::item { padding: 4px; color: #F8FAFC; }"
+            f"QTableWidget {{ background-color: {THEME_SURFACE}; border: 1px solid {THEME_BORDER}; gridline-color: {THEME_BORDER_LIGHT}; font-size: 11px; }} "
+            f"QHeaderView::section {{ background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; font-weight: bold; padding: 4px; border: 1px solid {THEME_BORDER}; font-size: 11px; }} "
+            f"QTableWidget::item {{ padding: 4px; color: {THEME_TEXT_PRIMARY}; }}"
         )
         self.table_caps.setItem(0, 0, QTableWidgetItem("Tên Thiết Bị / Model"))
         self.table_caps.setItem(1, 0, QTableWidgetItem("Xem Trực Tiếp (Live View)"))
@@ -814,9 +804,9 @@ class CameraPage(QWidget):
         self.btn_run_diag.setFixedHeight(34)
         self.btn_run_diag.setCursor(Qt.PointingHandCursor)
         self.btn_run_diag.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
         )
         self.btn_run_diag.clicked.connect(self._run_diagnostics)
         h_diag_acts.addWidget(self.btn_run_diag)
@@ -825,9 +815,9 @@ class CameraPage(QWidget):
         self.btn_export_diag.setFixedHeight(34)
         self.btn_export_diag.setCursor(Qt.PointingHandCursor)
         self.btn_export_diag.setStyleSheet(
-            "QPushButton { background-color: #162033; border: 1px solid #38BDF8; color: #38BDF8; "
-            "font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 12px; }"
-            "QPushButton:hover { background-color: #1E3A5F; color: #FFFFFF; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 12px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
         )
         self.btn_export_diag.clicked.connect(self._export_diagnostics)
         h_diag_acts.addWidget(self.btn_export_diag)
@@ -836,9 +826,9 @@ class CameraPage(QWidget):
         self.btn_test_af.setFixedHeight(34)
         self.btn_test_af.setCursor(Qt.PointingHandCursor)
         self.btn_test_af.setStyleSheet(
-            "QPushButton { background-color: #0F172A; border: 1.5px solid #38BDF8; color: #38BDF8; "
-            "font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }"
-            "QPushButton:hover { background-color: #0369A1; border: 1.5px solid #7DD3FC; color: #FFFFFF; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 6px; padding: 0 10px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
         )
         self.btn_test_af.setToolTip("Chẩn đoán AF chuyên sâu: Kiểm tra kết nối, MF/AF, Live View, đo độ nét quang học (Tenengrad Laplacian) và phân loại lỗi.")
         self.btn_test_af.clicked.connect(self._run_af_diagnostic)
@@ -857,16 +847,16 @@ class CameraPage(QWidget):
         # =========================================================================
         grp_diag = QGroupBox("BẢNG CHẨN ĐOÁN CHI TIẾT TẤT CẢ NGUỒN VIDEO TÌM ĐƯỢC")
         grp_diag.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: bold; color: #D4AF37; "
-            "border: 1.5px solid #1E2D4A; border-radius: 10px; margin-top: 14px; padding-top: 14px; background-color: #070B16; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; }"
+            f"QGroupBox {{ font-size: 13px; font-weight: bold; color: {THEME_TEXT_PRIMARY}; "
+            f"border: 1.5px solid {THEME_BORDER}; border-radius: 10px; margin-top: 14px; padding-top: 14px; background-color: {THEME_SURFACE}; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         l_diag = QVBoxLayout(grp_diag)
         l_diag.setContentsMargins(14, 14, 14, 14)
         l_diag.setSpacing(10)
 
         lbl_diag_hint = QLabel("Kiểm tra khả năng mở nguồn, đọc khung hình thật, độ phân giải và FPS đo được trước khi đưa vào studio.")
-        lbl_diag_hint.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        lbl_diag_hint.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 12px;")
         l_diag.addWidget(lbl_diag_hint)
 
         self.table_diag = QTableWidget(0, 8)
@@ -882,9 +872,9 @@ class CameraPage(QWidget):
         self.table_diag.verticalHeader().setVisible(False)
         self.table_diag.setMinimumHeight(150)
         self.table_diag.setStyleSheet(
-            "QTableWidget { background-color: #050811; border: 1px solid #1E2D4A; gridline-color: #162033; }"
-            "QHeaderView::section { background-color: #0E1626; color: #D4AF37; font-weight: bold; padding: 6px; border: 1px solid #1E2D4A; }"
-            "QTableWidget::item { padding: 6px; color: #F8FAFC; }"
+            f"QTableWidget {{ background-color: {THEME_SURFACE}; border: 1px solid {THEME_BORDER}; gridline-color: {THEME_BORDER_LIGHT}; font-size: 11px; }} "
+            f"QHeaderView::section {{ background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; font-weight: bold; padding: 6px; border: 1px solid {THEME_BORDER}; font-size: 11px; }} "
+            f"QTableWidget::item {{ padding: 6px; color: {THEME_TEXT_PRIMARY}; }}"
         )
         l_diag.addWidget(self.table_diag)
         layout.addWidget(grp_diag)
@@ -894,9 +884,9 @@ class CameraPage(QWidget):
         # =========================================================================
         grp_compat = QGroupBox("HƯỚNG DẪN KỸ THUẬT & TƯƠNG THÍCH THIẾT BỊ STUDIO 1998")
         grp_compat.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: bold; color: #D4AF37; "
-            "border: 1.5px solid #1E2D4A; border-radius: 10px; margin-top: 14px; padding-top: 14px; background-color: #070B16; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; }"
+            f"QGroupBox {{ font-size: 13px; font-weight: bold; color: {THEME_TEXT_PRIMARY}; "
+            f"border: 1.5px solid {THEME_BORDER}; border-radius: 10px; margin-top: 14px; padding-top: 14px; background-color: {THEME_SURFACE}; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         l_compat = QVBoxLayout(grp_compat)
         l_compat.setContentsMargins(14, 14, 14, 14)
@@ -915,9 +905,9 @@ class CameraPage(QWidget):
         self.table_compat.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.table_compat.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
         self.table_compat.setStyleSheet(
-            "QTableWidget { background-color: #050811; border: 1px solid #1E2D4A; gridline-color: #162033; }"
-            "QHeaderView::section { background-color: #0E1626; color: #D4AF37; font-weight: bold; padding: 6px; border: 1px solid #1E2D4A; }"
-            "QTableWidget::item { padding: 6px; color: #CBD5E1; }"
+            f"QTableWidget {{ background-color: {THEME_SURFACE}; border: 1px solid {THEME_BORDER}; gridline-color: {THEME_BORDER_LIGHT}; font-size: 11px; }} "
+            f"QHeaderView::section {{ background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; font-weight: bold; padding: 6px; border: 1px solid {THEME_BORDER}; font-size: 11px; }} "
+            f"QTableWidget::item {{ padding: 6px; color: {THEME_TEXT_PRIMARY}; }}"
         )
 
         brands_data = [
@@ -1160,8 +1150,8 @@ class CameraPage(QWidget):
             return
         self.lbl_af_status.setText("🎯 AF: SẴN SÀNG")
         self.lbl_af_status.setStyleSheet(
-            "background-color: #0F172A; color: #38BDF8; font-size: 11px; font-weight: 700; "
-            "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 700; "
+            f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
         )
 
     def _calculate_sharpness(self, rgb_image) -> float:
@@ -1428,14 +1418,14 @@ class CameraPage(QWidget):
         else:
             self.btn_face_eye_af.setText("🎯 Face/Eye AF: Tắt")
             self.btn_face_eye_af.setStyleSheet(
-                "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-                "QPushButton:hover { border: 1px solid #10B981; color: #10B981; background-color: #064E3B; }"
+                f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+                f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }} "
+                f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
             )
             self.lbl_face_eye_af_status.setText("🎯 EYE AF: TẮT")
             self.lbl_face_eye_af_status.setStyleSheet(
-                "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
-                "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+                f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; font-size: 11px; font-weight: 700; "
+                f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
             )
             self.lbl_viewport.set_face_eye_af_state(False, None, None)
 
@@ -1531,26 +1521,26 @@ class CameraPage(QWidget):
             self.lbl_viewport.set_face_detection_enabled(True)
             self.btn_face_detect.setText("👁 Nhận Diện: BẬT")
             self.btn_face_detect.setStyleSheet(
-                "QPushButton { background-color: #164E63; border: 1.5px solid #22D3EE; color: #22D3EE; "
-                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
+                f"QPushButton {{ background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; "
+                f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }}"
             )
             self.lbl_ai_badge.setText("👁 AI MẮT: BẬT")
             self.lbl_ai_badge.setStyleSheet(
-                "background-color: #0C4A6E; color: #38BDF8; font-size: 11px; font-weight: 700; "
-                "border-radius: 6px; padding: 4px 10px; border: 1px solid #0284C7;"
+                f"background-color: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 700; "
+                f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_GOLD};"
             )
         else:
             self.lbl_viewport.set_face_detection_enabled(False)
             self.btn_face_detect.setText("👁 Nhận Diện: Tắt")
             self.btn_face_detect.setStyleSheet(
-                "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-                "font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }"
-                "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
+                f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+                f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }} "
+                f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
             )
             self.lbl_ai_badge.setText("👁 AI MẮT: TẮT")
             self.lbl_ai_badge.setStyleSheet(
-                "background-color: #0F172A; color: #64748B; font-size: 11px; font-weight: 700; "
-                "border-radius: 6px; padding: 4px 10px; border: 1px solid #334155;"
+                f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; font-size: 11px; font-weight: 700; "
+                f"border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
             )
 
     def _toggle_grid(self):
@@ -1558,11 +1548,12 @@ class CameraPage(QWidget):
         self.lbl_viewport.set_grid_enabled(self.grid_enabled)
         self.btn_grid.setText("▦ Lưới Căn Chỉnh: BẬT" if self.grid_enabled else "▦ Lưới Căn Chỉnh: Tắt")
         self.btn_grid.setStyleSheet(
-            "QPushButton { background-color: #1A2844; border: 1.5px solid #D4AF37; color: #D4AF37; "
-            "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 18px; }"
+            f"QPushButton {{ background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }}"
             if self.grid_enabled else
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
-            "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 18px; }"
+            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; "
+            f"font-size: 12px; font-weight: bold; border-radius: 8px; padding: 0 12px; }} "
+            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
         )
 
     def _toggle_fullscreen_preview(self):

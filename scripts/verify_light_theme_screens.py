@@ -1,9 +1,11 @@
 """
-1998 TEAM PHOTOBOOTH v2.0.0 — GLOBAL LIGHT THEME VISUAL VERIFICATION SCRIPT
+1998 TEAM PHOTOBOOTH v2.0.0 — SOFT TAUPE STUDIO VISUAL VERIFICATION SCRIPT
 Captures visual screenshots across all screens and key resolutions:
 - Dashboard: 1366x768, 1600x900, 1920x1080
 - Capture Studio (KioskPage): 1366x768, 1600x900, 1920x1080
 - Guest Idle Screen: 1366x768, 1600x900, 1920x1080
+- Camera Settings (CameraPage): 1920x1080
+- Frame Selector Close-up: 1920x1080
 - Events & Gallery: 1920x1080
 - Printing Settings: 1920x1080
 - Frame Gallery: 1920x1080
@@ -37,7 +39,7 @@ def main():
         ("1920x1080", 1920, 1080),
     ]
 
-    print("=== CAPTURING LIGHT THEME SCREENSHOTS ===")
+    print("=== CAPTURING SOFT TAUPE STUDIO SCREENSHOTS ===")
 
     for label, w, h in resolutions:
         print(f"\n--- Testing Resolution: {label} ---")
@@ -51,8 +53,9 @@ def main():
         app.processEvents()
         time.sleep(0.15)
         pix = win.grab()
-        p = os.path.join(out_dir, f"dashboard_warm_mocha_{label}.png")
+        p = os.path.join(out_dir, f"dashboard_soft_taupe_{label}.png")
         pix.save(p, "PNG")
+        pix.save(os.path.join(out_dir, f"dashboard_warm_mocha_{label}.png"), "PNG")
         pix.save(os.path.join(out_dir, f"dashboard_light_{label}.png"), "PNG")
         print(f"Captured: {p}")
 
@@ -61,18 +64,26 @@ def main():
         app.processEvents()
         time.sleep(0.15)
         pix = win.grab()
-        p = os.path.join(out_dir, f"capture_studio_warm_mocha_{label}.png")
+        p = os.path.join(out_dir, f"capture_studio_soft_taupe_{label}.png")
         pix.save(p, "PNG")
+        pix.save(os.path.join(out_dir, f"capture_studio_warm_mocha_{label}.png"), "PNG")
         pix.save(os.path.join(out_dir, f"capture_studio_light_{label}.png"), "PNG")
         print(f"Captured: {p}")
+
+        # Frame Selector Close-up (at 1920x1080)
+        if label == "1920x1080" and hasattr(win.kiosk_page, "card_frames"):
+            p_frame = os.path.join(out_dir, "frame_selector_soft_taupe_1920x1080.png")
+            win.kiosk_page.card_frames.grab().save(p_frame, "PNG")
+            print(f"Captured Frame Selector: {p_frame}")
 
         # 3. Guest Idle Screen
         win.show_idle_screen()
         app.processEvents()
         time.sleep(0.15)
         pix = win.grab()
-        p = os.path.join(out_dir, f"guest_idle_warm_mocha_{label}.png")
+        p = os.path.join(out_dir, f"guest_idle_soft_taupe_{label}.png")
         pix.save(p, "PNG")
+        pix.save(os.path.join(out_dir, f"guest_idle_warm_mocha_{label}.png"), "PNG")
         pix.save(os.path.join(out_dir, f"guest_idle_light_{label}.png"), "PNG")
         print(f"Captured: {p}")
 
@@ -90,13 +101,23 @@ def main():
     # Authenticate admin so tabs can switch without blocking dialogs
     win.auth_mgr.authenticate("1234")
 
+    # Camera Settings (Tab index 2)
+    win.switch_to_tab(2)
+    app.processEvents()
+    time.sleep(0.15)
+    pix = win.grab()
+    p = os.path.join(out_dir, "camera_settings_soft_taupe_1920x1080.png")
+    pix.save(p, "PNG")
+    print(f"Captured: {p}")
+
     # Events & Gallery (Tab index 4)
     win.switch_to_tab(4)
     app.processEvents()
     time.sleep(0.15)
     pix = win.grab()
-    p = os.path.join(out_dir, "events_gallery_warm_mocha_1920x1080.png")
+    p = os.path.join(out_dir, "events_gallery_soft_taupe_1920x1080.png")
     pix.save(p, "PNG")
+    pix.save(os.path.join(out_dir, "events_gallery_warm_mocha_1920x1080.png"), "PNG")
     pix.save(os.path.join(out_dir, "events_gallery_light_1920x1080.png"), "PNG")
     print(f"Captured: {p}")
 
@@ -105,8 +126,9 @@ def main():
     app.processEvents()
     time.sleep(0.15)
     pix = win.grab()
-    p = os.path.join(out_dir, "printing_page_warm_mocha_1920x1080.png")
+    p = os.path.join(out_dir, "printing_page_soft_taupe_1920x1080.png")
     pix.save(p, "PNG")
+    pix.save(os.path.join(out_dir, "printing_page_warm_mocha_1920x1080.png"), "PNG")
     pix.save(os.path.join(out_dir, "printing_page_light_1920x1080.png"), "PNG")
     print(f"Captured: {p}")
 
@@ -115,8 +137,9 @@ def main():
     app.processEvents()
     time.sleep(0.15)
     pix = win.grab()
-    p = os.path.join(out_dir, "frame_gallery_warm_mocha_1920x1080.png")
+    p = os.path.join(out_dir, "frame_gallery_soft_taupe_1920x1080.png")
     pix.save(p, "PNG")
+    pix.save(os.path.join(out_dir, "frame_gallery_warm_mocha_1920x1080.png"), "PNG")
     pix.save(os.path.join(out_dir, "frame_gallery_light_1920x1080.png"), "PNG")
     print(f"Captured: {p}")
 
@@ -125,8 +148,9 @@ def main():
     app.processEvents()
     time.sleep(0.15)
     pix = win.grab()
-    p = os.path.join(out_dir, "devices_page_warm_mocha_1920x1080.png")
+    p = os.path.join(out_dir, "devices_page_soft_taupe_1920x1080.png")
     pix.save(p, "PNG")
+    pix.save(os.path.join(out_dir, "devices_page_warm_mocha_1920x1080.png"), "PNG")
     pix.save(os.path.join(out_dir, "devices_page_light_1920x1080.png"), "PNG")
     print(f"Captured: {p}")
 
@@ -135,8 +159,9 @@ def main():
     app.processEvents()
     time.sleep(0.15)
     pix = win.grab()
-    p = os.path.join(out_dir, "qr_sharing_warm_mocha_1920x1080.png")
+    p = os.path.join(out_dir, "qr_sharing_soft_taupe_1920x1080.png")
     pix.save(p, "PNG")
+    pix.save(os.path.join(out_dir, "qr_sharing_warm_mocha_1920x1080.png"), "PNG")
     pix.save(os.path.join(out_dir, "qr_sharing_light_1920x1080.png"), "PNG")
     print(f"Captured: {p}")
 

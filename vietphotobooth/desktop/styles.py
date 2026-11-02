@@ -1,40 +1,42 @@
 """
-1998 TEAM — Photobooth Global Design System & Warm Mocha Stylesheet
-Phong cách thiết kế chính thức: WARM MOCHA × CHAMPAGNE GOLD – PREMIUM STUDIO
+1998 TEAM — Photobooth Global Design System & Soft Taupe Stylesheet
+Phong cách thiết kế chính thức: SOFT TAUPE STUDIO – LUXURY WEDDING PHOTOBOOTH
 Design Tokens:
-- Main Background: #D8D0C3
-- Surface (Panel / Card): #E7DFD2
-- Secondary Surface: #C9BDAA
-- Primary Text: #34312E
-- Secondary Text: #777067
-- Champagne Gold (CTA & Accents): #B89555
+- Main Background: #C8C5BD
+- Surface (Panel / Card): #D9D5CC
+- Secondary Surface: #B9B5AB
+- Input Background: #E2DED5
+- Border: #AAA69D
+- Primary Text: #353631
+- Secondary Text: #716F68
+- Muted Champagne (CTA & Accents): #AD905B
+- Gold Light (Highlights): #D0BC94
 - Live View Canvas: #17191C
-- Border: #BEB3A3
 """
 
 # =========================================================================
-# 1. CENTRALIZED DESIGN TOKENS (WARM MOCHA x CHAMPAGNE GOLD)
+# 1. CENTRALIZED DESIGN TOKENS (SOFT TAUPE STUDIO)
 # =========================================================================
-THEME_BG_MAIN = "#D8D0C3"
-THEME_SURFACE = "#E7DFD2"
-THEME_BG_SECONDARY = "#C9BDAA"
-THEME_INPUT_BG = "#EFE8DC"
-THEME_BORDER = "#BEB3A3"
-THEME_BORDER_LIGHT = "#C9BDAA"
-THEME_TEXT_PRIMARY = "#34312E"
-THEME_TEXT_SECONDARY = "#777067"
-THEME_TEXT_DISABLED = "#9E9689"
+THEME_BG_MAIN = "#C8C5BD"
+THEME_SURFACE = "#D9D5CC"
+THEME_BG_SECONDARY = "#B9B5AB"
+THEME_INPUT_BG = "#E2DED5"
+THEME_BORDER = "#AAA69D"
+THEME_BORDER_LIGHT = "#B9B5AB"
+THEME_TEXT_PRIMARY = "#353631"
+THEME_TEXT_SECONDARY = "#716F68"
+THEME_TEXT_DISABLED = "#97948D"
 
 # Brand Identity Colors (1998 TEAM & 1998 Studio Phóng Sự Cưới)
-THEME_GOLD = "#B89555"
-THEME_GOLD_LIGHT = "#CDB07B"
-THEME_GOLD_PALE = "#F0E7D8"
-THEME_GOLD_DARK = "#8F7038"
+THEME_GOLD = "#AD905B"
+THEME_GOLD_LIGHT = "#D0BC94"
+THEME_GOLD_PALE = "#EBE5D8"
+THEME_GOLD_DARK = "#8A703F"
 
-# Warm Studio Accents (Replacing harsh cold blues with deep mocha charcoal)
-THEME_BRAND_BLUE = "#34312E"
-THEME_BRAND_BLUE_LIGHT = "#5C5449"
-THEME_BRAND_BLUE_PALE = "#E7DFD2"
+# Warm Studio Accents (Replacing harsh cold blues with deep studio taupe)
+THEME_BRAND_BLUE = "#353631"
+THEME_BRAND_BLUE_LIGHT = "#55534D"
+THEME_BRAND_BLUE_PALE = "#D9D5CC"
 
 # Live View Contrast Background
 LIVE_VIEW_BG = "#17191C"
@@ -51,10 +53,10 @@ THEME_DANGER_BG = "#FDE8E8"
 THEME_DANGER_BORDER = "#FCA5A5"
 
 # =========================================================================
-# 2. GLOBAL WARM MOCHA STYLESHEET (KIOSK_STYLE)
+# 2. GLOBAL SOFT TAUPE STYLESHEET (KIOSK_STYLE)
 # =========================================================================
 KIOSK_STYLE = f"""
-/* === Giao Diện Toàn Cục 1998 TEAM Photobooth (Warm Mocha x Champagne Gold) === */
+/* === Giao Diện Toàn Cục 1998 TEAM Photobooth (Soft Taupe Studio) === */
 QWidget {{
     background-color: {THEME_BG_MAIN};
     color: {THEME_TEXT_PRIMARY};
@@ -75,13 +77,13 @@ QTabBar {{
 QTabBar::tab {{
     background: {THEME_SURFACE};
     color: {THEME_TEXT_PRIMARY};
-    padding: 6px 14px;
+    padding: 6px 16px;
     font-size: 13px;
     font-weight: 600;
     border-radius: 8px;
     border: 1.5px solid {THEME_BORDER};
-    margin: 2px 2px;
-    min-width: 52px;
+    margin: 2px 3px;
+    min-width: 60px;
 }}
 
 QTabBar::tab:selected {{
@@ -371,7 +373,7 @@ QScrollBar:vertical {{
 }}
 
 QScrollBar::handle:vertical {{
-    background: #BAAEA0;
+    background: {THEME_BORDER};
     min-height: 24px;
     border-radius: 4px;
 }}
@@ -393,7 +395,7 @@ QScrollBar:horizontal {{
 }}
 
 QScrollBar::handle:horizontal {{
-    background: #BAAEA0;
+    background: {THEME_BORDER};
     min-width: 24px;
     border-radius: 4px;
 }}
@@ -431,9 +433,9 @@ QMenu::item:selected {{
 }}
 
 QToolTip {{
-    background-color: #34312E;
-    color: #F0E7D8;
-    border: 1px solid #777067;
+    background-color: {THEME_TEXT_PRIMARY};
+    color: {THEME_GOLD_PALE};
+    border: 1px solid {THEME_TEXT_SECONDARY};
     border-radius: 6px;
     padding: 4px 8px;
     font-size: 12px;

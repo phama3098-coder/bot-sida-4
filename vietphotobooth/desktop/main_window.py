@@ -9,7 +9,8 @@ import os
 from typing import Optional, Dict, Any
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
-    QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar, QStackedWidget
+    QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QTabBar, QStackedWidget,
+    QSizePolicy
 )
 from PySide6.QtCore import Qt, QKeyCombination, QTimer
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut, QPixmap
@@ -25,7 +26,11 @@ from vietphotobooth.printing.manager import PrintManager
 from vietphotobooth.sharing.token_manager import TokenManager
 from vietphotobooth.cloud import SyncManager
 
-from vietphotobooth.desktop.styles import KIOSK_STYLE
+from vietphotobooth.desktop.styles import (
+    KIOSK_STYLE, THEME_BG_MAIN, THEME_SURFACE, THEME_BG_SECONDARY,
+    THEME_BORDER, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY, THEME_GOLD,
+    THEME_INPUT_BG, THEME_SUCCESS, THEME_SUCCESS_BG, THEME_SUCCESS_BORDER
+)
 from vietphotobooth.desktop.widgets.kiosk_page import KioskPage
 from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorPage
 from vietphotobooth.desktop.widgets.frame_designer_page import FrameDesignerPage
@@ -115,43 +120,39 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.tabBar().setUsesScrollButtons(True)
-        self.tabs.tabBar().setElideMode(Qt.ElideRight)
+        self.tabs.tabBar().setElideMode(Qt.ElideNone)
         self.tabs.tabBar().setExpanding(False)
 
-        # Thanh thương hiệu Logo 1998 TEAM bên trái hàng tab (Co giãn thông minh, chuẩn hóa trong suốt)
+        # Thanh thương hiệu Logo 1998 TEAM bên trái hàng tab (Không clip text, căn chỉnh chuẩn xác)
         self.brand_widget = QWidget()
-        self.brand_widget.setMaximumWidth(250)
+        self.brand_widget.setMaximumWidth(260)
         self.brand_layout = QHBoxLayout(self.brand_widget)
         self.brand_layout.setContentsMargins(4, 2, 4, 2)
-        self.brand_layout.setSpacing(6)
+        self.brand_layout.setSpacing(5)
 
         self.lbl_logo = QLabel()
-        logo_pix = get_brand_logo_tight_pixmap(height=24)
+        logo_pix = get_brand_logo_tight_pixmap(height=22)
         if not logo_pix.isNull():
             self.lbl_logo.setPixmap(logo_pix)
         else:
             self.lbl_logo.setText("1998 TEAM")
-            self.lbl_logo.setStyleSheet("color: #D4AF37; font-weight: bold; font-size: 14px;")
-        self.lbl_logo.setToolTip("1998 TEAM — Photobooth")
+            self.lbl_logo.setStyleSheet(f"color: {THEME_GOLD}; font-weight: bold; font-size: 13px;")
+        self.lbl_logo.setToolTip(f"1998 TEAM — Photobooth v{__version__}")
         self.lbl_logo.setAccessibleName("Logo 1998 TEAM Photobooth")
         self.brand_layout.addWidget(self.lbl_logo)
 
-        self.lbl_title = QLabel("<b>1998 TEAM</b>")
-        self.lbl_title.setStyleSheet("color: #34312E; font-size: 14px; font-weight: 800; letter-spacing: 0.5px;")
+        self.lbl_title = QLabel("1998 TEAM")
+        self.lbl_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 800; letter-spacing: 0.5px;")
+        self.lbl_title.setToolTip(f"1998 TEAM Photobooth v{__version__} ({get_version_string()})")
         self.brand_layout.addWidget(self.lbl_title)
 
-        self.lbl_ver = QLabel(f"v{__version__}")
-        self.lbl_ver.setStyleSheet("color: #777067; font-size: 10px; font-weight: bold; padding-top: 2px;")
-        self.lbl_ver.setToolTip(f"Phiên bản: {get_version_string()}")
-        self.brand_layout.addWidget(self.lbl_ver)
-
-        # Nút chuyển nhanh sang Buồng Lái Vận Hành (Dashboard) v2.0
+        # Nút chuyển nhanh sang Buồng Lái Vận Hành (Dashboard) v2.0 - Đảm bảo đủ chiều rộng hiển thị trọn vẹn nhãn
         self.btn_dashboard = QPushButton("📊 Dashboard")
         self.btn_dashboard.setCursor(Qt.PointingHandCursor)
         self.btn_dashboard.setStyleSheet(
-            "QPushButton { background: #E7DFD2; color: #34312E; font-weight: 700; font-size: 11px; "
-            "border: 1.5px solid #BEB3A3; border-radius: 6px; padding: 2px 10px; margin-left: 4px; }"
-            "QPushButton:hover { background: #C9BDAA; border: 1.5px solid #B89555; color: #34312E; }"
+            f"QPushButton {{ background: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; font-weight: 700; font-size: 11px; "
+            f"border: 1.5px solid {THEME_BORDER}; border-radius: 6px; padding: 3px 8px; margin-left: 2px; }} "
+            f"QPushButton:hover {{ background: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; }}"
         )
         self.btn_dashboard.clicked.connect(self.show_dashboard)
         self.brand_layout.addWidget(self.btn_dashboard)
@@ -389,8 +390,8 @@ class MainWindow(QMainWindow):
         if not self.auth_mgr.is_pin_enabled:
             self.btn_auth_status.setText("🔓 Không Khóa PIN")
             self.btn_auth_status.setStyleSheet(
-                "QPushButton { background-color: #0E1A2F; color: #94A3B8; border: 1px solid #1E2D4A; "
-                "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
+                f"QPushButton {{ background-color: {THEME_INPUT_BG}; color: {THEME_TEXT_SECONDARY}; border: 1px solid {THEME_BORDER}; "
+                f"border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }}"
             )
         elif self.auth_mgr.is_authenticated():
             rem = self.auth_mgr.get_remaining_seconds()
@@ -399,18 +400,18 @@ class MainWindow(QMainWindow):
             if hasattr(self.btn_auth_status, "set_morph_state"):
                 self.btn_auth_status.set_morph_state(True)
             self.btn_auth_status.setStyleSheet(
-                "QPushButton { background-color: #052618; color: #10B981; border: 1.5px solid #10B981; "
-                "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
-                "QPushButton:hover { background-color: #073824; }"
+                f"QPushButton {{ background-color: {THEME_SUCCESS_BG}; color: {THEME_SUCCESS}; border: 1.5px solid {THEME_SUCCESS_BORDER}; "
+                f"border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }}"
+                f"QPushButton:hover {{ background-color: #D4E8D4; }}"
             )
         else:
             self.btn_auth_status.setText(" Khóa Quản Trị")
             if hasattr(self.btn_auth_status, "set_morph_state"):
                 self.btn_auth_status.set_morph_state(False)
             self.btn_auth_status.setStyleSheet(
-                "QPushButton { background-color: #1A1308; color: #D4AF37; border: 1.5px solid #D4AF37; "
-                "border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }"
-                "QPushButton:hover { background-color: #291E0D; color: #F7E7CE; }"
+                f"QPushButton {{ background-color: {THEME_INPUT_BG}; color: {THEME_GOLD}; border: 1.5px solid {THEME_GOLD}; "
+                f"border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }}"
+                f"QPushButton:hover {{ background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; }}"
             )
 
     def _on_auth_timer_tick(self):
@@ -628,9 +629,10 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "brand_widget") or not hasattr(self, "tabs"):
             return
 
+        self.lbl_title.setText("1998 TEAM")
+
         if width < 1000:
-            self.lbl_title.setText("<b>1998 TEAM</b>")
-            self.brand_widget.setMaximumWidth(160)
+            self.brand_widget.setMaximumWidth(220)
             self.tabs.setTabText(0, "Chụp")
             self.tabs.setTabText(1, "Khung")
             self.tabs.setTabText(2, "Máy")
@@ -638,8 +640,7 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(4, "Sự Kiện")
             self.tabs.setTabText(5, "Cài Đặt")
         else:
-            self.lbl_title.setText("<b>1998 TEAM</b> — Photobooth")
-            self.brand_widget.setMaximumWidth(250)
+            self.brand_widget.setMaximumWidth(260)
             self.tabs.setTabText(0, "Chụp Ảnh")
             self.tabs.setTabText(1, "Khung Ảnh")
             self.tabs.setTabText(2, "Máy Ảnh")

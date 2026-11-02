@@ -151,7 +151,7 @@ class CameraLiveViewport(QWidget):
         self._flash_active = False
         self.update()
 
-    def set_message(self, text: str, color_hex: str = "#CBD5E1", border_hex: str = "#1E2D4A"):
+    def set_message(self, text: str, color_hex: str = "#716F68", border_hex: str = "#2A2D33"):
         """Hiển thị thông báo trạng thái khi không có tín hiệu hình ảnh."""
         if self._message_text == text and self._current_pixmap is None:
             return
