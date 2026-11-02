@@ -91,11 +91,11 @@ class EventsPage(QWidget):
         v_head = QVBoxLayout()
         v_head.setSpacing(2)
         lbl_title = QLabel("QUẢN LÝ SỰ KIỆN")
-        lbl_title.setStyleSheet("font-size: 19px; font-weight: 800; color: #D4AF37; letter-spacing: 0.5px;")
+        lbl_title.setStyleSheet("font-size: 19px; font-weight: 800; color: #34312E; letter-spacing: 0.5px;")
         v_head.addWidget(lbl_title)
 
         lbl_subtitle = QLabel("1998 TEAM Photobooth • 1998 Studio phóng sự cưới")
-        lbl_subtitle.setStyleSheet("font-size: 12px; color: #94A3B8; font-weight: 500;")
+        lbl_subtitle.setStyleSheet("font-size: 12px; color: #777067; font-weight: 500;")
         v_head.addWidget(lbl_subtitle)
         header_bar.addLayout(v_head)
 
@@ -136,8 +136,8 @@ class EventsPage(QWidget):
         self.card_active.setObjectName("card_active_event")
         self.card_active.setStyleSheet("""
             QFrame#card_active_event {
-                background-color: #FFFFFF;
-                border: 2px solid #D4AF37;
+                background-color: #E7DFD2;
+                border: 2px solid #B89555;
                 border-radius: 10px;
                 padding: 4px;
             }
@@ -151,12 +151,12 @@ class EventsPage(QWidget):
         l_active.addWidget(lbl_badge_active)
 
         self.lbl_active_name = QLabel("SuKien_MacDinh")
-        self.lbl_active_name.setStyleSheet("color: #1E40AF; font-size: 20px; font-weight: 800;")
+        self.lbl_active_name.setStyleSheet("color: #34312E; font-size: 20px; font-weight: 800;")
         self.lbl_active_name.setWordWrap(True)
         l_active.addWidget(self.lbl_active_name)
 
         self.lbl_active_details = QLabel("Ngày tạo: -- • 0 ảnh thành phẩm • 0 MB")
-        self.lbl_active_details.setStyleSheet("color: #64748B; font-size: 13px;")
+        self.lbl_active_details.setStyleSheet("color: #777067; font-size: 13px;")
         l_active.addWidget(self.lbl_active_details)
 
         l_active.addSpacing(4)
@@ -200,8 +200,8 @@ class EventsPage(QWidget):
         card_create.setObjectName("card_create_event")
         card_create.setStyleSheet("""
             QFrame#card_create_event {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 10px;
                 padding: 4px;
             }
@@ -211,26 +211,26 @@ class EventsPage(QWidget):
         l_create.setSpacing(8)
 
         lbl_create_title = QLabel("TẠO SỰ KIỆN MỚI")
-        lbl_create_title.setStyleSheet("color: #1E40AF; font-weight: 800; font-size: 12px; letter-spacing: 0.5px;")
+        lbl_create_title.setStyleSheet("color: #34312E; font-weight: 800; font-size: 12px; letter-spacing: 0.5px;")
         l_create.addWidget(lbl_create_title)
 
         lbl_create_hint = QLabel("Tạo không gian lưu ảnh độc lập cho khách cưới hoặc tiệc sinh nhật:")
-        lbl_create_hint.setStyleSheet("color: #64748B; font-size: 13px;")
+        lbl_create_hint.setStyleSheet("color: #777067; font-size: 13px;")
         l_create.addWidget(lbl_create_hint)
 
         self.txt_new_event = QLineEdit()
         self.txt_new_event.setPlaceholderText("Nhập tên sự kiện (VD: Đám cưới Tuấn & Lan, Sinh nhật 18 tuổi...)")
         self.txt_new_event.setStyleSheet("""
             QLineEdit {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 6px;
                 padding: 7px 10px;
-                color: #303746;
+                color: #34312E;
                 font-size: 13px;
             }
             QLineEdit:focus {
-                border-color: #D4AF37;
+                border-color: #B89555;
             }
         """)
         self.txt_new_event.returnPressed.connect(self._create_new_event_from_input)
@@ -256,12 +256,12 @@ class EventsPage(QWidget):
         grp_events = QGroupBox("Danh Sách Sự Kiện")
         grp_events.setStyleSheet("""
             QGroupBox {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 8px;
                 margin-top: 10px;
                 font-weight: 700;
-                color: #1E40AF;
+                color: #34312E;
                 padding-top: 14px;
             }
             QGroupBox::title {
@@ -283,16 +283,16 @@ class EventsPage(QWidget):
         self.txt_search_event.addAction(get_svg_icon("search", size=14, color=COLOR_SLATE), QLineEdit.LeadingPosition)
         self.txt_search_event.setStyleSheet("""
             QLineEdit {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 6px;
                 padding: 6px 10px;
-                color: #303746;
+                color: #34312E;
                 font-size: 13px;
                 max-width: 320px;
             }
             QLineEdit:focus {
-                border-color: #D4AF37;
+                border-color: #B89555;
             }
         """)
         self.txt_search_event.textChanged.connect(self._on_search_text_changed)
@@ -326,29 +326,29 @@ class EventsPage(QWidget):
         self.table_events.verticalHeader().setVisible(False)
         self.table_events.setStyleSheet("""
             QTableWidget {
-                background-color: #FFFFFF;
-                alternate-background-color: #F8FAFC;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                alternate-background-color: #EFE8DC;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 6px;
-                gridline-color: #E2E8F0;
-                color: #303746;
+                gridline-color: #BEB3A3;
+                color: #34312E;
                 font-size: 13px;
             }
             QTableWidget::item {
                 padding: 8px 6px;
             }
             QTableWidget::item:selected {
-                background-color: #FEF9C3;
-                color: #1E40AF;
+                background-color: #C9BDAA;
+                color: #34312E;
             }
             QHeaderView::section {
-                background-color: #F8FAFC;
-                color: #1E40AF;
+                background-color: #C9BDAA;
+                color: #34312E;
                 font-weight: 700;
                 font-size: 12px;
                 padding: 6px;
                 border: none;
-                border-bottom: 2px solid #D9DEE7;
+                border-bottom: 2px solid #BEB3A3;
             }
         """)
         self.table_events.itemSelectionChanged.connect(self._on_event_row_selected)
@@ -362,12 +362,12 @@ class EventsPage(QWidget):
         grp_gallery = QGroupBox("Thư Viện Lượt Chụp & In Lại")
         grp_gallery.setStyleSheet("""
             QGroupBox {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 8px;
                 margin-top: 10px;
                 font-weight: 700;
-                color: #1E40AF;
+                color: #34312E;
                 padding-top: 14px;
             }
             QGroupBox::title {
@@ -383,11 +383,11 @@ class EventsPage(QWidget):
         # Gallery Top Controls
         bar_gal = QHBoxLayout()
         self.lbl_gallery_event_title = QLabel("Thư viện ảnh: SuKien_MacDinh")
-        self.lbl_gallery_event_title.setStyleSheet("color: #1E40AF; font-weight: 700; font-size: 14px;")
+        self.lbl_gallery_event_title.setStyleSheet("color: #34312E; font-weight: 700; font-size: 14px;")
         bar_gal.addWidget(self.lbl_gallery_event_title)
 
         self.lbl_storage_stats = QLabel("")
-        self.lbl_storage_stats.setStyleSheet("color: #64748B; font-size: 12px; padding-left: 8px;")
+        self.lbl_storage_stats.setStyleSheet("color: #777067; font-size: 12px; padding-left: 8px;")
         bar_gal.addWidget(self.lbl_storage_stats)
 
         bar_gal.addStretch(1)
@@ -422,16 +422,16 @@ class EventsPage(QWidget):
         self.txt_search_session.addAction(get_svg_icon("search", size=14, color=COLOR_SLATE), QLineEdit.LeadingPosition)
         self.txt_search_session.setStyleSheet("""
             QLineEdit {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 6px;
                 padding: 6px 10px;
-                color: #303746;
+                color: #34312E;
                 font-size: 12px;
                 max-width: 320px;
             }
             QLineEdit:focus {
-                border-color: #D4AF37;
+                border-color: #B89555;
             }
         """)
         self.txt_search_session.textChanged.connect(lambda: self._refresh_gallery())
@@ -456,12 +456,12 @@ class EventsPage(QWidget):
         self.table_sessions.verticalHeader().setVisible(False)
         self.table_sessions.setStyleSheet("""
             QTableWidget {
-                background-color: #FFFFFF;
-                alternate-background-color: #F8FAFC;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                alternate-background-color: #EFE8DC;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 6px;
-                gridline-color: #E2E8F0;
-                color: #303746;
+                gridline-color: #BEB3A3;
+                color: #34312E;
                 font-size: 13px;
                 min-height: 200px;
             }
@@ -469,17 +469,17 @@ class EventsPage(QWidget):
                 padding: 6px;
             }
             QTableWidget::item:selected {
-                background-color: #FEF9C3;
-                color: #1E40AF;
+                background-color: #C9BDAA;
+                color: #34312E;
             }
             QHeaderView::section {
-                background-color: #F8FAFC;
-                color: #1E40AF;
+                background-color: #C9BDAA;
+                color: #34312E;
                 font-weight: 700;
                 font-size: 12px;
                 padding: 6px;
                 border: none;
-                border-bottom: 2px solid #D9DEE7;
+                border-bottom: 2px solid #BEB3A3;
             }
         """)
         self.table_sessions.doubleClicked.connect(lambda idx: self._preview_session_selected())

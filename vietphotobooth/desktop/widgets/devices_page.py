@@ -31,12 +31,12 @@ class DeviceChannelCard(QFrame):
         super().__init__(parent)
         self.setStyleSheet("""
             DeviceChannelCard {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 12px;
             }
             DeviceChannelCard:hover {
-                border-color: #D4AF37;
+                border-color: #B89555;
             }
         """)
         self.layout = QVBoxLayout(self)
@@ -51,19 +51,19 @@ class DeviceChannelCard(QFrame):
         top.addWidget(self.lbl_icon)
 
         self.lbl_title = QLabel(f"<b>{title}</b>")
-        self.lbl_title.setStyleSheet("color: #1E40AF; font-size: 13px; border: none;")
+        self.lbl_title.setStyleSheet("color: #34312E; font-size: 13px; border: none;")
         top.addWidget(self.lbl_title)
         top.addStretch()
 
         self.lbl_pill = QLabel("ĐANG KIỂM TRA")
         self.lbl_pill.setStyleSheet("""
-            background-color: #F1F5F9;
-            color: #64748B;
+            background-color: #C9BDAA;
+            color: #34312E;
             font-size: 10px;
             font-weight: 800;
             border-radius: 5px;
             padding: 3px 8px;
-            border: 1px solid #CBD5E1;
+            border: 1px solid #BEB3A3;
         """)
         top.addWidget(self.lbl_pill)
         self.layout.addLayout(top)
@@ -77,12 +77,12 @@ class DeviceChannelCard(QFrame):
     def set_status_pill(self, text: str, state: str = "connected"):
         """Đặt trạng thái Concept C: connected, connecting, busy, warning, error, disconnected."""
         colors = {
-            "connected": ("#ECFDF5", "#047857", "#A7F3D0"),
-            "connecting": ("#EFF6FF", "#1D4ED8", "#BFDBFE"),
-            "busy": ("#EEF2FF", "#4338CA", "#C7D2FE"),
-            "warning": ("#FFFBEB", "#B45309", "#FDE68A"),
-            "error": ("#FEF2F2", "#B91C1C", "#FECACA"),
-            "disconnected": ("#F1F5F9", "#64748B", "#CBD5E1"),
+            "connected": ("#D1E7DD", "#0F5132", "#A3CFBB"),
+            "connecting": ("#E0E7FF", "#3730A3", "#C7D2FE"),
+            "busy": ("#FEF3C7", "#92400E", "#FDE68A"),
+            "warning": ("#FEF3C7", "#92400E", "#FDE68A"),
+            "error": ("#F8D7DA", "#842029", "#F5C2C7"),
+            "disconnected": ("#C9BDAA", "#777067", "#BEB3A3"),
         }
         bg, fg, bd = colors.get(state.lower(), colors["disconnected"])
         self.lbl_pill.setText(text)
@@ -106,9 +106,9 @@ class DeviceChannelCard(QFrame):
 
         for r_idx, (lbl_txt, val_txt, is_hi) in enumerate(rows):
             lbl = QLabel(lbl_txt)
-            lbl.setStyleSheet("color: #64748B; font-size: 11px; border: none;")
+            lbl.setStyleSheet("color: #777067; font-size: 11px; border: none;")
             val = QLabel(val_txt)
-            hi_color = "#1E40AF" if is_hi else "#303746"
+            hi_color = "#B89555" if is_hi else "#34312E"
             val.setStyleSheet(f"color: {hi_color}; font-size: 11px; font-weight: {'bold' if is_hi else 'normal'}; border: none;")
             val.setAlignment(Qt.AlignRight)
 
@@ -136,7 +136,7 @@ class DevicesPage(QWidget):
         self.config_mgr = config_mgr
         self.token_mgr = token_mgr
 
-        self.setStyleSheet("background-color: #F3F4F6; color: #303746;")
+        self.setStyleSheet("background-color: #D8D0C3; color: #34312E;")
 
         self._init_ui()
 
@@ -159,11 +159,11 @@ class DevicesPage(QWidget):
         v_title.setSpacing(2)
 
         lbl_title = QLabel("📡 <b>GIÁM SÁT THIẾT BỊ & CẢM BIẾN (DEVICES TELEMETRY)</b>")
-        lbl_title.setStyleSheet("color: #1E40AF; font-size: 16px; font-weight: 800;")
+        lbl_title.setStyleSheet("color: #34312E; font-size: 16px; font-weight: 800;")
         v_title.addWidget(lbl_title)
 
         lbl_sub = QLabel("Theo dõi liên tục kết nối phần cứng, trạng thái máy ảnh, máy in, mạng LAN và tài nguyên hệ thống")
-        lbl_sub.setStyleSheet("color: #64748B; font-size: 11px;")
+        lbl_sub.setStyleSheet("color: #777067; font-size: 11px;")
         v_title.addWidget(lbl_sub)
         h_head.addLayout(v_title)
         h_head.addStretch()
@@ -174,18 +174,21 @@ class DevicesPage(QWidget):
         self.btn_refresh.setCursor(Qt.PointingHandCursor)
         self.btn_refresh.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
-                color: #303746;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
+                color: #34312E;
                 font-size: 12px;
                 font-weight: bold;
                 border-radius: 8px;
                 padding: 0 16px;
             }
             QPushButton:hover {
-                border-color: #D4AF37;
-                color: #1E40AF;
-                background-color: #FEF9C3;
+                border-color: #B89555;
+                color: #34312E;
+                background-color: #C9BDAA;
+            }
+            QPushButton:pressed {
+                background-color: #BEB3A3;
             }
         """)
         self.btn_refresh.clicked.connect(self.refresh_telemetry)

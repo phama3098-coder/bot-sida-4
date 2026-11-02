@@ -4,67 +4,35 @@ Generates crisp, high-DPI vector icons matching the luxury Navy & Champagne Gold
 Avoids low-resolution emojis on functional buttons.
 """
 
-from typing import Optional
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
-from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtCore import QByteArray, QSize, Qt
-
-# Color Palette Constants
-COLOR_GOLD = "#D4AF37"
-COLOR_GOLD_LIGHT = "#E5C158"
-COLOR_GOLD_PALE = "#FDF4DC"
-COLOR_WHITE = "#F8FAFC"
-COLOR_SLATE = "#94A3B8"
-COLOR_DARK_SLATE = "#64748B"
-COLOR_NAVY = "#070A12"
-COLOR_NAVY_SURFACE = "#0E1626"
-COLOR_GREEN = "#10B981"
-COLOR_RED = "#EF4444"
-COLOR_BLUE = "#38BDF8"
-
-"""
-1998 TEAM — Photobooth SVG Icon & Morphicons Vector Design System
-Generates crisp, high-DPI vector icons matching the luxury Navy & Champagne Gold aesthetic.
-Provides seamless morphing micro-interactions (Lock ↔ Unlock, Menu ↔ Close, Play ↔ Stop, Refresh ↔ Check)
-compatible with PySide6 desktop framework and offline Windows installer.
-Avoids low-resolution emojis on functional buttons.
-"""
-
-import os
 import sys
-import math
-from typing import Optional, Tuple, Callable
-from PySide6.QtGui import (
-    QIcon, QPixmap, QPainter, QColor, QPainterPath, QPen, QBrush, QFont, QImage
-)
+import os
+from typing import Optional
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QImage, QPen, QPainterPath, QBrush
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtCore import (
-    QByteArray, QSize, Qt, QRectF, QPointF, QVariantAnimation,
-    QEasingCurve, Signal, Property
-)
-from PySide6.QtWidgets import QPushButton, QWidget
+from PySide6.QtCore import QByteArray, QSize, Qt, Signal, QVariantAnimation, QEasingCurve, QRectF, QPointF
+from PySide6.QtWidgets import QPushButton
 
-# Color Palette Constants (1998 TEAM & 1998 Studio Phóng Sự Cưới)
-COLOR_GOLD = "#D4AF37"
-COLOR_GOLD_LIGHT = "#E5C158"
-COLOR_GOLD_PALE = "#FDF4DC"
-COLOR_GOLD_DARK = "#997A15"
-COLOR_WHITE = "#F8FAFC"
-COLOR_SLATE = "#94A3B8"
-COLOR_DARK_SLATE = "#64748B"
-COLOR_NAVY = "#070A12"
-COLOR_NAVY_SURFACE = "#0E1626"
-COLOR_NAVY_CARD = "#111C30"
-COLOR_GREEN = "#10B981"
-COLOR_RED = "#EF4444"
-COLOR_BLUE = "#38BDF8"
+# Color Palette Constants (WARM MOCHA x CHAMPAGNE GOLD)
+COLOR_GOLD = "#B89555"
+COLOR_GOLD_LIGHT = "#CDB07B"
+COLOR_GOLD_PALE = "#F0E7D8"
+COLOR_GOLD_DARK = "#8F7038"
+COLOR_WHITE = "#E7DFD2"
+COLOR_SLATE = "#777067"
+COLOR_DARK_SLATE = "#5C5449"
+COLOR_NAVY = "#34312E"
+COLOR_NAVY_SURFACE = "#E7DFD2"
+COLOR_NAVY_CARD = "#C9BDAA"
+COLOR_GREEN = "#2E7D32"
+COLOR_RED = "#C53030"
+COLOR_BLUE = "#B89555"
 
-# Light Theme Specific Tokens
-COLOR_TEXT_PRIMARY = "#303746"
-COLOR_TEXT_SECONDARY = "#64748B"
-COLOR_BORDER = "#D9DEE7"
-COLOR_SURFACE = "#FFFFFF"
-COLOR_ICON_DARK = "#303746"
+# Warm Mocha Theme Specific Tokens
+COLOR_TEXT_PRIMARY = "#34312E"
+COLOR_TEXT_SECONDARY = "#777067"
+COLOR_BORDER = "#BEB3A3"
+COLOR_SURFACE = "#E7DFD2"
+COLOR_ICON_DARK = "#34312E"
 
 SVG_TEMPLATES = {
     "camera": """<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

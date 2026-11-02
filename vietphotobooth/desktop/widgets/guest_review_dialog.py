@@ -528,7 +528,7 @@ class ReviewFrameCard(QFrame):
         top_bar.setContentsMargins(0, 0, 0, 0)
 
         self.lbl_check = QLabel()
-        self.lbl_check.setPixmap(get_svg_pixmap("check", 12, "#070A12"))
+        self.lbl_check.setPixmap(get_svg_pixmap("check", 12, "#FFFFFF"))
         self.lbl_check.setFixedSize(16, 16)
         self.lbl_check.setAlignment(Qt.AlignCenter)
         self.lbl_check.setStyleSheet(f"background-color: {COLOR_GOLD}; border-radius: 8px;")
@@ -540,7 +540,7 @@ class ReviewFrameCard(QFrame):
         lbl_type = QLabel(type_text)
         lbl_type.setAlignment(Qt.AlignCenter)
         lbl_type.setFixedSize(32, 16)
-        lbl_type.setStyleSheet("background-color: #1E3A8A; color: #93C5FD; border-radius: 3px; font-size: 10px; font-weight: bold;")
+        lbl_type.setStyleSheet("background-color: #C9BDAA; color: #34312E; border-radius: 3px; font-size: 10px; font-weight: bold;")
         top_bar.addWidget(lbl_type)
         layout.addLayout(top_bar)
 
@@ -555,14 +555,14 @@ class ReviewFrameCard(QFrame):
             self.lbl_thumb.setPixmap(pix.scaled(80, 95, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.lbl_thumb.setText(self.template.name)
-            self.lbl_thumb.setStyleSheet("color: #94A3B8; font-size: 10px;")
+            self.lbl_thumb.setStyleSheet("color: #777067; font-size: 10px;")
 
         layout.addWidget(self.lbl_thumb, 1, Qt.AlignCenter)
 
         # Tên khung
         self.lbl_name = QLabel(self.template.name)
         self.lbl_name.setAlignment(Qt.AlignCenter)
-        self.lbl_name.setStyleSheet("color: #F8FAFC; font-size: 11px; font-weight: bold;")
+        self.lbl_name.setStyleSheet("color: #34312E; font-size: 11px; font-weight: bold;")
         layout.addWidget(self.lbl_name)
 
     def set_selected(self, selected: bool):
@@ -572,10 +572,10 @@ class ReviewFrameCard(QFrame):
 
     def _update_style(self):
         if self._is_selected:
-            self.setStyleSheet(f"ReviewFrameCard {{ background-color: #111C30; border: 2px solid {COLOR_GOLD}; border-radius: 8px; }}")
+            self.setStyleSheet(f"ReviewFrameCard {{ background-color: #C9BDAA; border: 2px solid {COLOR_GOLD}; border-radius: 8px; }}")
         else:
-            self.setStyleSheet("ReviewFrameCard {{ background-color: #0E1626; border: 1px solid #1E2D4A; border-radius: 8px; }}"
-                               "ReviewFrameCard:hover {{ border: 1.5px solid #38BDF8; background-color: #121F33; }}")
+            self.setStyleSheet("ReviewFrameCard {{ background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 8px; }}"
+                               "ReviewFrameCard:hover {{ border: 1.5px solid #B89555; background-color: #DFD7C9; }}")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -839,12 +839,12 @@ class SlotCard(QFrame):
 
     def update_style(self):
         if self.is_selected:
-            self.setStyleSheet(f"SlotCard {{ background-color: #111C30; border: 2px solid {COLOR_GOLD}; border-radius: 8px; }}")
-            self.lbl_num.setStyleSheet(f"background-color: {COLOR_GOLD}; color: #070A12; border-radius: 9px; font-size: 11px; font-weight: bold;")
+            self.setStyleSheet(f"SlotCard {{ background-color: #C9BDAA; border: 2px solid {COLOR_GOLD}; border-radius: 8px; }}")
+            self.lbl_num.setStyleSheet(f"background-color: {COLOR_GOLD}; color: #FFFFFF; border-radius: 9px; font-size: 11px; font-weight: bold;")
         else:
-            self.setStyleSheet("SlotCard {{ background-color: #0E1626; border: 1px solid #1E2D4A; border-radius: 8px; }}"
-                               "SlotCard:hover {{ border: 1px solid #38BDF8; }}")
-            self.lbl_num.setStyleSheet("background-color: #1E3A8A; color: #93C5FD; border-radius: 9px; font-size: 11px; font-weight: bold;")
+            self.setStyleSheet("SlotCard {{ background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 8px; }}"
+                               "SlotCard:hover {{ border: 1.5px solid #B89555; }}")
+            self.lbl_num.setStyleSheet("background-color: #C9BDAA; color: #34312E; border-radius: 9px; font-size: 11px; font-weight: bold;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -920,7 +920,7 @@ class GuestReviewWidget(QWidget):
         self.setWindowTitle("1998 TEAM — Hoàn Thiện Ảnh")
         self.setMinimumSize(1024, 680)
         self.resize(1180, 720)
-        self.setStyleSheet("background-color: #070A12; color: #F8FAFC;")
+        self.setStyleSheet("background-color: #D8D0C3; color: #34312E;")
 
         # Thành phần tương thích kiểm thử
         self.txt_guest_input = QLineEdit()
@@ -1046,35 +1046,35 @@ class GuestReviewWidget(QWidget):
         step1_badge = QLabel("1")
         step1_badge.setFixedSize(22, 22)
         step1_badge.setAlignment(Qt.AlignCenter)
-        step1_badge.setStyleSheet(f"background-color: {COLOR_GOLD}; color: #070A12; border-radius: 11px; font-weight: bold; font-size: 11px;")
+        step1_badge.setStyleSheet(f"background-color: {COLOR_GOLD}; color: #FFFFFF; border-radius: 11px; font-weight: bold; font-size: 11px;")
         lbl_step1 = QLabel("1. Chọn khung")
         lbl_step1.setStyleSheet(f"color: {COLOR_GOLD}; font-weight: bold; font-size: 11px;")
         h_stepper.addWidget(step1_badge)
         h_stepper.addWidget(lbl_step1)
 
         sep1 = QLabel("——")
-        sep1.setStyleSheet("color: #334155;")
+        sep1.setStyleSheet("color: #BEB3A3;")
         h_stepper.addWidget(sep1)
 
         step2_badge = QLabel("2")
         step2_badge.setFixedSize(22, 22)
         step2_badge.setAlignment(Qt.AlignCenter)
-        step2_badge.setStyleSheet("background-color: #1E2D4A; color: #CBD5E1; border-radius: 11px; font-size: 11px; font-weight: bold;")
+        step2_badge.setStyleSheet("background-color: #C9BDAA; color: #34312E; border-radius: 11px; font-size: 11px; font-weight: bold;")
         lbl_step2 = QLabel("2. Chọn ảnh")
-        lbl_step2.setStyleSheet("color: #94A3B8; font-size: 11px;")
+        lbl_step2.setStyleSheet("color: #777067; font-size: 11px;")
         h_stepper.addWidget(step2_badge)
         h_stepper.addWidget(lbl_step2)
 
         sep2 = QLabel("——")
-        sep2.setStyleSheet("color: #334155;")
+        sep2.setStyleSheet("color: #BEB3A3;")
         h_stepper.addWidget(sep2)
 
         step3_badge = QLabel("3")
         step3_badge.setFixedSize(22, 22)
         step3_badge.setAlignment(Qt.AlignCenter)
-        step3_badge.setStyleSheet("background-color: #1E2D4A; color: #CBD5E1; border-radius: 11px; font-size: 11px; font-weight: bold;")
+        step3_badge.setStyleSheet("background-color: #C9BDAA; color: #34312E; border-radius: 11px; font-size: 11px; font-weight: bold;")
         lbl_step3 = QLabel("3. Xem trước & in")
-        lbl_step3.setStyleSheet("color: #94A3B8; font-size: 11px;")
+        lbl_step3.setStyleSheet("color: #777067; font-size: 11px;")
         h_stepper.addWidget(step3_badge)
         h_stepper.addWidget(lbl_step3)
 
@@ -1083,13 +1083,13 @@ class GuestReviewWidget(QWidget):
 
         # Nút vàng "TIẾN HÀNH IN ẢNH" góc trên phải
         self.btn_top_print = QPushButton("TIẾN HÀNH IN ẢNH")
-        self.btn_top_print.setIcon(get_svg_icon("printer", 18, "#070A12"))
+        self.btn_top_print.setIcon(get_svg_icon("printer", 18, "#FFFFFF"))
         self.btn_top_print.setFixedHeight(40)
         self.btn_top_print.setCursor(Qt.PointingHandCursor)
         self.btn_top_print.setStyleSheet(
-            f"QPushButton {{ background-color: {COLOR_GOLD}; color: #070A12; font-weight: 900; "
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #CDB07B, stop:1 {COLOR_GOLD}); color: #FFFFFF; font-weight: 900; "
             "border: none; border-radius: 8px; padding: 0 20px; font-size: 13px; letter-spacing: 0.5px; }"
-            "QPushButton:hover { background-color: #E5C158; }"
+            "QPushButton:hover { background-color: #CDB07B; }"
         )
         self.btn_top_print.clicked.connect(self._on_confirm_and_render)
         h_head.addWidget(self.btn_top_print)
@@ -1100,9 +1100,9 @@ class GuestReviewWidget(QWidget):
         self.btn_top_finish.setFixedHeight(40)
         self.btn_top_finish.setCursor(Qt.PointingHandCursor)
         self.btn_top_finish.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1.5px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; color: #34312E; "
             "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 16px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; }"
+            "QPushButton:hover { border: 1.5px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         self.btn_top_finish.clicked.connect(self._on_finish_clicked)
         h_head.addWidget(self.btn_top_finish)
@@ -1119,7 +1119,7 @@ class GuestReviewWidget(QWidget):
         # KHU VỰC A (TRÁI): XEM TRƯỚC ẢNH GHÉP THỰC TẾ
         # -------------------------------------------------------------
         container_a = QFrame()
-        container_a.setStyleSheet("background-color: #0B1322; border: 1.5px solid #1E2D4A; border-radius: 12px;")
+        container_a.setStyleSheet("background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 12px;")
         l_a = QVBoxLayout(container_a)
         l_a.setContentsMargins(10, 10, 10, 10)
         l_a.setSpacing(8)
@@ -1150,9 +1150,9 @@ class GuestReviewWidget(QWidget):
         btn_rotate.setFixedHeight(32)
         btn_rotate.setCursor(Qt.PointingHandCursor)
         btn_rotate.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1px solid #BEB3A3; color: #34312E; "
             "border-radius: 6px; padding: 0 12px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; }"
+            "QPushButton:hover { border: 1px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         btn_rotate.clicked.connect(self._rotate_selected_slot)
         bar_a_bot.addWidget(btn_rotate)
@@ -1162,9 +1162,9 @@ class GuestReviewWidget(QWidget):
         btn_flip.setFixedHeight(32)
         btn_flip.setCursor(Qt.PointingHandCursor)
         btn_flip.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1px solid #BEB3A3; color: #34312E; "
             "border-radius: 6px; padding: 0 12px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; }"
+            "QPushButton:hover { border: 1px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         btn_flip.clicked.connect(self._flip_selected_slot)
         bar_a_bot.addWidget(btn_flip)
@@ -1174,9 +1174,9 @@ class GuestReviewWidget(QWidget):
         btn_reset_crop.setFixedHeight(32)
         btn_reset_crop.setCursor(Qt.PointingHandCursor)
         btn_reset_crop.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1px solid #BEB3A3; color: #34312E; "
             "border-radius: 6px; padding: 0 12px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; }"
+            "QPushButton:hover { border: 1px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         btn_reset_crop.clicked.connect(self._reset_selected_slot_pan)
         bar_a_bot.addWidget(btn_reset_crop)
@@ -1186,9 +1186,9 @@ class GuestReviewWidget(QWidget):
         btn_crop.setFixedHeight(32)
         btn_crop.setCursor(Qt.PointingHandCursor)
         btn_crop.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1px solid #BEB3A3; color: #34312E; "
             "border-radius: 6px; padding: 0 12px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; }"
+            "QPushButton:hover { border: 1px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         btn_crop.clicked.connect(self._open_crop_dialog_for_selected_slot)
         bar_a_bot.addWidget(btn_crop)
@@ -1198,9 +1198,9 @@ class GuestReviewWidget(QWidget):
         self.btn_retake_slot.setFixedHeight(32)
         self.btn_retake_slot.setCursor(Qt.PointingHandCursor)
         self.btn_retake_slot.setStyleSheet(
-            "QPushButton { background-color: #1A2844; border: 1.5px solid #D4AF37; color: #F5DE88; "
+            "QPushButton { background-color: #C9BDAA; border: 1.5px solid #B89555; color: #34312E; "
             "border-radius: 6px; padding: 0 14px; font-size: 11px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #243B66; color: #FFFFFF; border-color: #FFF8E7; }"
+            "QPushButton:hover { background-color: #DFD7C9; color: #34312E; border-color: #8F7038; }"
         )
         self.btn_retake_slot.clicked.connect(self._on_retake_selected_slot)
         bar_a_bot.addWidget(self.btn_retake_slot)
@@ -1212,7 +1212,7 @@ class GuestReviewWidget(QWidget):
         # KHU VỰC B (PHẢI TRÊN): THƯ VIỆN CHỌN KHUNG ẢNH
         # -------------------------------------------------------------
         container_b = QFrame()
-        container_b.setStyleSheet("background-color: #0B1322; border: 1.5px solid #1E2D4A; border-radius: 12px;")
+        container_b.setStyleSheet("background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 12px;")
         l_b = QVBoxLayout(container_b)
         l_b.setContentsMargins(12, 12, 12, 12)
         l_b.setSpacing(10)
@@ -1226,9 +1226,9 @@ class GuestReviewWidget(QWidget):
         v_b_title = QVBoxLayout()
         v_b_title.setSpacing(1)
         lbl_b_title = QLabel("CHỌN KHUNG")
-        lbl_b_title.setStyleSheet("font-size: 14px; font-weight: 900; color: #F8FAFC;")
+        lbl_b_title.setStyleSheet("font-size: 14px; font-weight: 900; color: #34312E;")
         lbl_b_sub = QLabel("Chọn kiểu khung ảnh yêu thích")
-        lbl_b_sub.setStyleSheet("font-size: 11px; color: #94A3B8;")
+        lbl_b_sub.setStyleSheet("font-size: 11px; color: #777067;")
         v_b_title.addWidget(lbl_b_title)
         v_b_title.addWidget(lbl_b_sub)
         h_b_head.addLayout(v_b_title)
@@ -1240,9 +1240,9 @@ class GuestReviewWidget(QWidget):
         self.txt_search_frame.addAction(get_svg_icon("search", 14, COLOR_SLATE), QLineEdit.LeadingPosition)
         self.txt_search_frame.setFixedSize(180, 32)
         self.txt_search_frame.setStyleSheet(
-            "QLineEdit { background-color: #070A12; border: 1px solid #1E2D4A; border-radius: 6px; "
-            "padding: 2px 8px; color: #F8FAFC; font-size: 11px; }"
-            "QLineEdit:focus { border: 1px solid #D4AF37; }"
+            "QLineEdit { background-color: #EFE8DC; border: 1.5px solid #BEB3A3; border-radius: 6px; "
+            "padding: 2px 8px; color: #34312E; font-size: 11px; }"
+            "QLineEdit:focus { border: 1.5px solid #B89555; }"
         )
         self.txt_search_frame.textChanged.connect(self._filter_frames_grid)
         h_b_head.addWidget(self.txt_search_frame)
@@ -1286,7 +1286,7 @@ class GuestReviewWidget(QWidget):
         # 3. KHU VỰC C (DƯỚI): CHỌN ẢNH VÀ GÁN VÀO Ô BẰNG CLICK (CLICK-TO-ASSIGN)
         # =========================================================================
         container_c = QFrame()
-        container_c.setStyleSheet("background-color: #0B1322; border: 1.5px solid #1E2D4A; border-radius: 12px;")
+        container_c.setStyleSheet("background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 12px;")
         l_c = QVBoxLayout(container_c)
         l_c.setContentsMargins(12, 8, 12, 8)
         l_c.setSpacing(5)
@@ -1296,8 +1296,8 @@ class GuestReviewWidget(QWidget):
         icon_c.setPixmap(get_svg_pixmap("image", 18, COLOR_GOLD))
         h_c_head.addWidget(icon_c)
 
-        lbl_c_title = QLabel("<b>ẢNH ĐÃ CHỤP (CHỌN ẢNH & GÁN VÀO Ô)</b> — <span style='color: #94A3B8; font-size: 11px;'>Nhấp vào ảnh để chọn và gán nhanh vào ô trên khung, hoặc nhấp chọn ô rồi chọn ảnh</span>")
-        lbl_c_title.setStyleSheet("font-size: 13px; color: #F8FAFC;")
+        lbl_c_title = QLabel("<b>ẢNH ĐÃ CHỤP (CHỌN ẢNH & GÁN VÀO Ô)</b> — <span style='color: #777067; font-size: 11px;'>Nhấp vào ảnh để chọn và gán nhanh vào ô trên khung, hoặc nhấp chọn ô rồi chọn ảnh</span>")
+        lbl_c_title.setStyleSheet("font-size: 13px; color: #34312E;")
         h_c_head.addWidget(lbl_c_title)
         h_c_head.addStretch()
         l_c.addLayout(h_c_head)
@@ -1326,13 +1326,13 @@ class GuestReviewWidget(QWidget):
 
         # Nút Chụp lại
         self.btn_back = QPushButton("Chụp lại")
-        self.btn_back.setIcon(get_svg_icon("arrow_left", 16, "#94A3B8"))
+        self.btn_back.setIcon(get_svg_icon("arrow_left", 16, "#777067"))
         self.btn_back.setFixedHeight(44)
         self.btn_back.setCursor(Qt.PointingHandCursor)
         self.btn_back.setStyleSheet(
-            "QPushButton { background-color: #0E1626; border: 1.5px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; color: #34312E; "
             "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 20px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #121C30; }"
+            "QPushButton:hover { border: 1.5px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         self.btn_back.clicked.connect(self._on_retake_clicked)
         h_bottom.addWidget(self.btn_back)
@@ -1345,9 +1345,9 @@ class GuestReviewWidget(QWidget):
         self.btn_save.setFixedHeight(44)
         self.btn_save.setCursor(Qt.PointingHandCursor)
         self.btn_save.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1.5px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; color: #34312E; "
             "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 22px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #17243E; }"
+            "QPushButton:hover { border: 1.5px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         self.btn_save.clicked.connect(self._on_save_photo_clicked)
         h_bottom.addWidget(self.btn_save)
@@ -1358,22 +1358,22 @@ class GuestReviewWidget(QWidget):
         self.btn_test_print.setFixedHeight(44)
         self.btn_test_print.setCursor(Qt.PointingHandCursor)
         self.btn_test_print.setStyleSheet(
-            "QPushButton { background-color: #121C30; border: 1.5px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; color: #34312E; "
             "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 22px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #17243E; }"
+            "QPushButton:hover { border: 1.5px solid #B89555; color: #34312E; background-color: #C9BDAA; }"
         )
         self.btn_test_print.clicked.connect(self._on_test_print_clicked)
         h_bottom.addWidget(self.btn_test_print)
 
         # Nút Tiến hành in (Vàng champagne nổi bật)
         self.btn_confirm = QPushButton("Tiến hành in")
-        self.btn_confirm.setIcon(get_svg_icon("printer", 18, "#070A12"))
+        self.btn_confirm.setIcon(get_svg_icon("printer", 18, "#FFFFFF"))
         self.btn_confirm.setFixedHeight(44)
         self.btn_confirm.setCursor(Qt.PointingHandCursor)
         self.btn_confirm.setStyleSheet(
-            f"QPushButton {{ background-color: {COLOR_GOLD}; color: #070A12; font-size: 14px; font-weight: 900; "
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #CDB07B, stop:1 {COLOR_GOLD}); color: #FFFFFF; font-size: 14px; font-weight: 900; "
             "border: none; border-radius: 8px; padding: 0 28px; letter-spacing: 0.5px; }"
-            "QPushButton:hover { background-color: #E5C158; }"
+            "QPushButton:hover { background-color: #CDB07B; }"
         )
         self.btn_confirm.clicked.connect(self._on_confirm_and_render)
         h_bottom.addWidget(self.btn_confirm)
@@ -1384,9 +1384,9 @@ class GuestReviewWidget(QWidget):
         self.btn_finish.setFixedHeight(44)
         self.btn_finish.setCursor(Qt.PointingHandCursor)
         self.btn_finish.setStyleSheet(
-            "QPushButton { background-color: #0E1626; border: 1.5px solid #28395E; color: #CBD5E1; "
+            "QPushButton { background-color: #C9BDAA; border: 1.5px solid #BEB3A3; color: #34312E; "
             "font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 22px; }"
-            "QPushButton:hover { border: 1.5px solid #D4AF37; color: #D4AF37; background-color: #121C30; }"
+            "QPushButton:hover { border: 1.5px solid #B89555; color: #34312E; background-color: #DFD7C9; }"
         )
         self.btn_finish.clicked.connect(self._on_finish_clicked)
         h_bottom.addWidget(self.btn_finish)
@@ -1403,20 +1403,20 @@ class GuestReviewWidget(QWidget):
         num_slots = len(self.current_template.slots)
         num_photos = len(self.photos)
         is_full = num_photos >= num_slots
-        dot_color = "#10B981" if is_full else "#F59E0B"
+        dot_color = "#2E7D32" if is_full else "#B45309"
         text = f"Đã đủ {min(num_photos, num_slots)}/{num_slots} ảnh" if is_full else f"Có {num_photos}/{num_slots} ảnh"
         self.lbl_status_photos.setText(
             f"<span style='color: {dot_color}; font-size: 14px;'>●</span> <b>{text}</b>"
         )
-        self.lbl_status_photos.setStyleSheet("font-size: 12px; color: #CBD5E1;")
+        self.lbl_status_photos.setStyleSheet("font-size: 12px; color: #34312E;")
 
     def _update_category_buttons_style(self):
         for cat, btn in self.cat_buttons.items():
             if cat == self.current_category:
-                btn.setStyleSheet(f"background-color: {COLOR_GOLD}; color: #070A12; font-weight: bold; border-radius: 6px; padding: 0 10px; font-size: 11px;")
+                btn.setStyleSheet(f"background-color: {COLOR_GOLD}; color: #FFFFFF; font-weight: bold; border-radius: 6px; padding: 0 10px; font-size: 11px;")
             else:
-                btn.setStyleSheet("background-color: #070A12; color: #94A3B8; border: 1px solid #1E2D4A; border-radius: 6px; padding: 0 10px; font-size: 11px;"
-                                  "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; }")
+                btn.setStyleSheet("background-color: #E7DFD2; color: #777067; border: 1px solid #BEB3A3; border-radius: 6px; padding: 0 10px; font-size: 11px;"
+                                  "QPushButton:hover { border: 1px solid #B89555; color: #34312E; }")
 
     def _on_category_clicked(self, cat: str):
         self.current_category = cat

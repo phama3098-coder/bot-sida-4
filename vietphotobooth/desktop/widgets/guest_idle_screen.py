@@ -1,12 +1,12 @@
 """
 1998 TEAM — Photobooth Guest Idle Attract Screen (Màn Hình Chờ Khách)
-Thiết kế lại theo phong cách Premium Light Theme & Event Welcome:
-- Fullscreen touchscreen attract view đồng bộ Light Theme sang trọng.
+Thiết kế lại theo phong cách WARM MOCHA × CHAMPAGNE GOLD – PREMIUM STUDIO:
+- Fullscreen touchscreen attract view đồng bộ Warm Mocha cao cấp.
 - 1998 Studio Logo đặt trang trọng tại vị trí trung tâm.
 - Lời chào mừng và thông tin sự kiện động (Dynamic Event Metadata).
-- Nút "CHẠM ĐỂ BẮT ĐẦU" nổi bật, hoàn hảo ở chính giữa, tuyệt đối không bị cắt chữ.
+- Nút "CHẠM ĐỂ BẮT ĐẦU" vàng Champagne quý phái, hoàn hảo ở chính giữa, tuyệt đối không bị cắt chữ.
 - Nút Cài đặt quản trị viên (Admin button) 44×44px kín đáo ở góc trên với bảo mật PIN và thao tác bí mật 5 lần chạm góc.
-- Bố cục tối ưu, không bị choán chỗ bởi dải ảnh mẫu cồng kềnh.
+- Bố cục tối ưu, tinh giản, không bị choán chỗ bởi dải ảnh mẫu cồng kềnh.
 """
 
 import os
@@ -25,7 +25,8 @@ from vietphotobooth.desktop.icons import (
 )
 from vietphotobooth.desktop.styles import (
     THEME_BG_MAIN, THEME_BG_SECONDARY, THEME_SURFACE, THEME_BORDER,
-    THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY, THEME_TEXT_DISABLED, THEME_GOLD, THEME_BRAND_BLUE
+    THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY, THEME_TEXT_DISABLED,
+    THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_DARK, THEME_GOLD_PALE
 )
 from vietphotobooth.core.logger import get_logger
 
@@ -35,7 +36,7 @@ LOGO_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", 
 
 
 class GuestIdleScreen(QWidget):
-    """Màn hình chờ toàn màn hình chào đón khách chụp ảnh phong cách Premium Event Welcome."""
+    """Màn hình chờ toàn màn hình chào đón khách chụp ảnh phong cách Warm Mocha Studio Welcome."""
     start_requested = Signal()           # Khi khách chạm vào màn hình để bắt đầu
     admin_exit_requested = Signal()      # Khi quản trị viên mở khóa để thoát
     touch_to_start = start_requested     # Alias
@@ -58,11 +59,11 @@ class GuestIdleScreen(QWidget):
         self._init_ui()
 
     def _init_ui(self):
-        # Thiết kế nền Premium Light Theme gradient trang nhã
+        # Thiết kế nền Warm Mocha Studio ấm áp, dịu mắt
         self.setStyleSheet(f"""
             GuestIdleScreen {{
                 background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #F8FAFC, stop:0.4 #F1F5F9, stop:1 #EDF2F7);
+                    stop:0 {THEME_BG_MAIN}, stop:0.5 #E0D8CB, stop:1 {THEME_BG_MAIN});
             }}
         """)
 
@@ -70,14 +71,13 @@ class GuestIdleScreen(QWidget):
         main_layout.setContentsMargins(40, 24, 40, 32)
         main_layout.setSpacing(16)
 
-        # 1. TOP BAR: THÔNG TIN NGÀY / SỰ KIỆN & NÚT ADMIN KÍN ĐÁO (44x44px)
+        # 1. TOP BAR: THÔNG TIN THƯƠNG HIỆU & NÚT ADMIN KÍN ĐÁO (44x44px)
         top_bar = QHBoxLayout()
         top_bar.setContentsMargins(0, 0, 0, 0)
 
-        # Huy hiệu thương hiệu nhỏ bên trái
         self.lbl_top_brand = QLabel("✨ 1998 STUDIO PHÓNG SỰ CƯỚI")
         self.lbl_top_brand.setStyleSheet(
-            f"color: {THEME_GOLD}; font-size: 12px; font-weight: 800; letter-spacing: 2px;"
+            f"color: {THEME_GOLD_DARK}; font-size: 13px; font-weight: 800; letter-spacing: 2px;"
         )
         top_bar.addWidget(self.lbl_top_brand)
 
@@ -97,11 +97,11 @@ class GuestIdleScreen(QWidget):
                 border-radius: 22px;
             }}
             QPushButton:hover {{
-                background-color: #FEF9C3;
-                border: 2px solid {THEME_GOLD};
+                background-color: {THEME_BG_SECONDARY};
+                border: 1.5px solid {THEME_GOLD};
             }}
             QPushButton:pressed {{
-                background-color: #FEF08A;
+                background-color: #BAAEA0;
             }}
         """)
         self.btn_admin.setToolTip("Quản trị viên: Nhấn để mở khóa & thoát toàn màn hình")
@@ -112,14 +112,21 @@ class GuestIdleScreen(QWidget):
         main_layout.addStretch(1)
 
         # 2. KHU VỰC TRUNG TÂM HOÀN HẢO (HERO WELCOME CARD)
-        center_container = QWidget()
-        v_center = QVBoxLayout(center_container)
+        center_card = QFrame()
+        center_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME_SURFACE};
+                border: 1.5px solid {THEME_BORDER};
+                border-radius: 24px;
+            }}
+        """)
+        v_center = QVBoxLayout(center_card)
         v_center.setAlignment(Qt.AlignCenter)
-        v_center.setContentsMargins(20, 10, 20, 10)
-        v_center.setSpacing(16)
+        v_center.setContentsMargins(40, 28, 40, 32)
+        v_center.setSpacing(14)
 
         # Logo 1998 TEAM chuẩn hóa trong suốt
-        pix = get_brand_logo_tight_pixmap(height=92)
+        pix = get_brand_logo_tight_pixmap(height=84)
         if not pix.isNull():
             self.lbl_logo = QLabel()
             self.lbl_logo.setPixmap(pix)
@@ -129,7 +136,7 @@ class GuestIdleScreen(QWidget):
             v_center.addWidget(self.lbl_logo)
         else:
             self.lbl_logo_text = QLabel("1998 TEAM")
-            self.lbl_logo_text.setStyleSheet(f"font-size: 38px; font-weight: 900; color: {THEME_GOLD};")
+            self.lbl_logo_text.setStyleSheet(f"font-size: 36px; font-weight: 900; color: {THEME_GOLD};")
             self.lbl_logo_text.setAlignment(Qt.AlignCenter)
             v_center.addWidget(self.lbl_logo_text)
 
@@ -137,8 +144,8 @@ class GuestIdleScreen(QWidget):
         self.lbl_event_title = QLabel("CHÀO MỪNG QUÝ KHÁCH")
         self.lbl_event_title.setAlignment(Qt.AlignCenter)
         self.lbl_event_title.setStyleSheet(f"""
-            color: {THEME_BRAND_BLUE};
-            font-size: 24px;
+            color: {THEME_TEXT_PRIMARY};
+            font-size: 26px;
             font-weight: 800;
             letter-spacing: 2px;
         """)
@@ -156,42 +163,41 @@ class GuestIdleScreen(QWidget):
 
         self._refresh_event_metadata()
 
-        v_center.addSpacing(18)
+        v_center.addSpacing(16)
 
-        # 3. NÚT HERO KHỔNG LỒ "CHẠM ĐỂ BẮT ĐẦU" (HOÀN HẢO KHÔNG CẮT CHỮ)
+        # 3. NÚT HERO KHỔNG LỒ "CHẠM ĐỂ BẮT ĐẦU" VÀNG CHAMPAGNE (KHÔNG CẮT CHỮ)
         self.btn_touch_start = QPushButton()
         self.btn_touch_start.setCursor(Qt.PointingHandCursor)
-        self.btn_touch_start.setMinimumSize(440, 140)
+        self.btn_touch_start.setMinimumSize(440, 110)
         self.btn_touch_start.setMaximumWidth(520)
         self.btn_touch_start.setStyleSheet(f"""
             QPushButton {{
                 background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #1E40AF, stop:0.45 #1D4ED8, stop:1 #2563EB);
+                    stop:0 {THEME_GOLD_LIGHT}, stop:0.45 {THEME_GOLD}, stop:1 {THEME_GOLD_DARK});
                 color: #FFFFFF;
-                border: 3px solid {THEME_GOLD};
-                border-radius: 32px;
-                padding: 18px 32px;
+                border: 2px solid {THEME_GOLD_PALE};
+                border-radius: 28px;
+                padding: 16px 36px;
             }}
             QPushButton:hover {{
                 background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #1D4ED8, stop:0.45 #2563EB, stop:1 #3B82F6);
-                border: 3px solid #F5DE88;
+                    stop:0 #D9C293, stop:0.45 #C4A364, stop:1 #AF8E4E);
+                border: 2px solid #FFFFFF;
             }}
             QPushButton:pressed {{
-                background: #1E3A8A;
-                border: 3px solid #D4AF37;
+                background: {THEME_GOLD_DARK};
             }}
         """)
 
         touch_layout = QVBoxLayout(self.btn_touch_start)
         touch_layout.setAlignment(Qt.AlignCenter)
-        touch_layout.setContentsMargins(12, 12, 12, 12)
-        touch_layout.setSpacing(6)
+        touch_layout.setContentsMargins(10, 10, 10, 10)
+        touch_layout.setSpacing(4)
 
         lbl_touch_txt = QLabel("CHẠM ĐỂ BẮT ĐẦU")
         lbl_touch_txt.setAlignment(Qt.AlignCenter)
         lbl_touch_txt.setStyleSheet(
-            "font-size: 32px; font-weight: 900; color: #FFFFFF; letter-spacing: 2px; border: none; background: transparent;"
+            "font-size: 30px; font-weight: 900; color: #FFFFFF; letter-spacing: 2px; border: none; background: transparent;"
         )
         touch_layout.addWidget(lbl_touch_txt)
 
@@ -200,13 +206,13 @@ class GuestIdleScreen(QWidget):
         h_sub_icon.setSpacing(8)
 
         lbl_touch_icon = QLabel()
-        lbl_touch_icon.setPixmap(get_svg_pixmap("touch", 22, "#FDE68A"))
+        lbl_touch_icon.setPixmap(get_svg_pixmap("touch", 20, "#FFFFFF"))
         lbl_touch_icon.setStyleSheet("border: none; background: transparent;")
         h_sub_icon.addWidget(lbl_touch_icon)
 
         lbl_touch_hint = QLabel("CHẠM VÀO MÀN HÌNH ĐỂ CHỤP ẢNH NGAY")
         lbl_touch_hint.setStyleSheet(
-            "font-size: 13px; font-weight: 700; color: #FDE68A; letter-spacing: 1px; border: none; background: transparent;"
+            "font-size: 13px; font-weight: 700; color: #F0E7D8; letter-spacing: 1px; border: none; background: transparent;"
         )
         h_sub_icon.addWidget(lbl_touch_hint)
         touch_layout.addLayout(h_sub_icon)
@@ -214,20 +220,22 @@ class GuestIdleScreen(QWidget):
         self.btn_touch_start.clicked.connect(self._on_screen_tapped)
         v_center.addWidget(self.btn_touch_start, 0, Qt.AlignCenter)
 
-        v_center.addSpacing(12)
+        v_center.addSpacing(8)
 
         # Slogan thương hiệu phía dưới
         lbl_slogan = QLabel("✨ Trải nghiệm Photobooth lấy ảnh liền chuyên nghiệp • 1998 TEAM")
         lbl_slogan.setAlignment(Qt.AlignCenter)
         lbl_slogan.setStyleSheet(f"""
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: {THEME_TEXT_SECONDARY};
             letter-spacing: 0.5px;
+            border: none;
+            background: transparent;
         """)
         v_center.addWidget(lbl_slogan)
 
-        main_layout.addWidget(center_container, 0, Qt.AlignCenter)
+        main_layout.addWidget(center_card, 0, Qt.AlignCenter)
         main_layout.addStretch(1)
 
         # 4. BOTTOM BAR: FOOTER TINH TẾ

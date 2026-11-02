@@ -40,7 +40,7 @@ class QRSharingPage(QWidget):
         self.event_mgr = event_mgr
         self.config_mgr = config_mgr
 
-        self.setStyleSheet("background-color: #F3F4F6; color: #303746;")
+        self.setStyleSheet("background-color: #D8D0C3; color: #34312E;")
         self._current_token_obj = None
 
         self._init_ui()
@@ -57,11 +57,11 @@ class QRSharingPage(QWidget):
         v_title.setSpacing(2)
 
         lbl_title = QLabel("📲 <b>TRUNG TÂM CHIA SẺ MÃ QR & MẠNG NỘI BỘ (OFFLINE LAN)</b>")
-        lbl_title.setStyleSheet("color: #1E40AF; font-size: 16px; font-weight: 800;")
+        lbl_title.setStyleSheet("color: #34312E; font-size: 16px; font-weight: 800;")
         v_title.addWidget(lbl_title)
 
         lbl_sub = QLabel("Chia sẻ ảnh siêu tốc không cần Internet qua mạng Wi-Fi riêng biệt 1998 TEAM Photobooth")
-        lbl_sub.setStyleSheet("color: #64748B; font-size: 11px;")
+        lbl_sub.setStyleSheet("color: #777067; font-size: 11px;")
         v_title.addWidget(lbl_sub)
         h_head.addLayout(v_title)
         h_head.addStretch()
@@ -72,18 +72,18 @@ class QRSharingPage(QWidget):
         self.btn_open_browser.setCursor(Qt.PointingHandCursor)
         self.btn_open_browser.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
-                color: #303746;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
+                color: #34312E;
                 font-size: 12px;
                 font-weight: bold;
                 border-radius: 8px;
                 padding: 0 16px;
             }
             QPushButton:hover {
-                border-color: #D4AF37;
-                color: #1E40AF;
-                background-color: #FEF9C3;
+                border-color: #B89555;
+                color: #34312E;
+                background-color: #C9BDAA;
             }
         """)
         self.btn_open_browser.clicked.connect(self._open_in_browser)
@@ -98,8 +98,8 @@ class QRSharingPage(QWidget):
         card_wifi = QFrame()
         card_wifi.setStyleSheet("""
             QFrame {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 12px;
             }
         """)
@@ -108,7 +108,7 @@ class QRSharingPage(QWidget):
         l_wifi.setSpacing(12)
 
         lbl_wifi_head = QLabel("📶 <b>ĐIỂM PHÁT SÓNG WI-FI QUẦY PHOTOBOOTH</b>")
-        lbl_wifi_head.setStyleSheet("color: #1E40AF; font-size: 13px; font-weight: bold; border: none;")
+        lbl_wifi_head.setStyleSheet("color: #34312E; font-size: 13px; font-weight: bold; border: none;")
         l_wifi.addWidget(lbl_wifi_head)
 
         grid_w = QGridLayout()
@@ -128,9 +128,9 @@ class QRSharingPage(QWidget):
 
         for r, (k, v, is_hi) in enumerate(items):
             lk = QLabel(k)
-            lk.setStyleSheet("color: #64748B; font-size: 12px; border: none;")
+            lk.setStyleSheet("color: #777067; font-size: 12px; border: none;")
             lv = QLabel(v)
-            color = "#1E40AF" if is_hi else "#303746"
+            color = "#B89555" if is_hi else "#34312E"
             lv.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: {'bold' if is_hi else 'normal'}; border: none;")
             grid_w.addWidget(lk, r, 0)
             grid_w.addWidget(lv, r, 1)
@@ -140,12 +140,12 @@ class QRSharingPage(QWidget):
         # Checkbox cấu hình
         self.chk_auto_show_qr = QCheckBox("Tự động hiển thị mã QR trên màn hình sau khi chụp xong")
         self.chk_auto_show_qr.setChecked(True)
-        self.chk_auto_show_qr.setStyleSheet("color: #303746; font-size: 12px; border: none; margin-top: 10px;")
+        self.chk_auto_show_qr.setStyleSheet("color: #34312E; font-size: 12px; border: none; margin-top: 10px;")
         l_wifi.addWidget(self.chk_auto_show_qr)
 
         self.chk_print_qr = QCheckBox("In kèm mã QR góc nhỏ trên ảnh in dải")
         self.chk_print_qr.setChecked(False)
-        self.chk_print_qr.setStyleSheet("color: #303746; font-size: 12px; border: none;")
+        self.chk_print_qr.setStyleSheet("color: #34312E; font-size: 12px; border: none;")
         l_wifi.addWidget(self.chk_print_qr)
 
         l_wifi.addStretch()
@@ -155,8 +155,8 @@ class QRSharingPage(QWidget):
         card_qr = QFrame()
         card_qr.setStyleSheet("""
             QFrame {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
                 border-radius: 12px;
             }
         """)
@@ -165,7 +165,7 @@ class QRSharingPage(QWidget):
         l_qr.setSpacing(12)
 
         lbl_qr_head = QLabel("📱 <b>MÃ QR TẢI ẢNH (GUEST MOBILE PREVIEW)</b>")
-        lbl_qr_head.setStyleSheet("color: #1E40AF; font-size: 13px; font-weight: bold; border: none;")
+        lbl_qr_head.setStyleSheet("color: #34312E; font-size: 13px; font-weight: bold; border: none;")
         l_qr.addWidget(lbl_qr_head)
 
         # Khung hiển thị mã QR
@@ -174,7 +174,7 @@ class QRSharingPage(QWidget):
         self.lbl_qr_display.setFixedSize(220, 220)
         self.lbl_qr_display.setStyleSheet("""
             background-color: #FFFFFF;
-            border: 1.5px solid #D9DEE7;
+            border: 1.5px solid #BEB3A3;
             border-radius: 12px;
             padding: 8px;
         """)
@@ -182,7 +182,7 @@ class QRSharingPage(QWidget):
 
         self.lbl_url_display = QLabel("Đang tải đường dẫn chia sẻ...")
         self.lbl_url_display.setAlignment(Qt.AlignCenter)
-        self.lbl_url_display.setStyleSheet("color: #1E40AF; font-size: 12px; font-weight: bold; border: none;")
+        self.lbl_url_display.setStyleSheet("color: #B89555; font-size: 12px; font-weight: bold; border: none;")
         l_qr.addWidget(self.lbl_url_display)
 
         # Nút tạo lại mã
@@ -191,18 +191,18 @@ class QRSharingPage(QWidget):
         self.btn_gen_new.setCursor(Qt.PointingHandCursor)
         self.btn_gen_new.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                border: 1.5px solid #D9DEE7;
-                color: #303746;
+                background-color: #E7DFD2;
+                border: 1.5px solid #BEB3A3;
+                color: #34312E;
                 font-size: 11px;
                 font-weight: bold;
                 border-radius: 6px;
                 padding: 0 14px;
             }
             QPushButton:hover {
-                border-color: #D4AF37;
-                color: #1E40AF;
-                background-color: #FEF9C3;
+                border-color: #B89555;
+                color: #34312E;
+                background-color: #C9BDAA;
             }
         """)
         self.btn_gen_new.clicked.connect(self.generate_demo_qr)

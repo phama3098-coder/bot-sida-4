@@ -59,8 +59,8 @@ class DashboardPage(QWidget):
         self._setup_telemetry_timer()
 
     def _init_ui(self):
-        # Thiết lập nền sáng Premium Light Theme cho toàn trang Dashboard
-        self.setStyleSheet("DashboardPage { background-color: #F3F4F6; }")
+        # Thiết lập nền Warm Mocha Studio cho toàn trang Dashboard
+        self.setStyleSheet("DashboardPage { background-color: #D8D0C3; }")
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -72,22 +72,22 @@ class DashboardPage(QWidget):
         self.scroll_area.setFrameShape(QFrame.NoFrame)
         self.scroll_area.setStyleSheet("""
             QScrollArea {
-                background: #F3F4F6;
+                background: #D8D0C3;
                 border: none;
             }
             QScrollBar:vertical {
-                background: #F3F4F6;
+                background: #D8D0C3;
                 width: 8px;
                 margin: 0;
                 border-radius: 4px;
             }
             QScrollBar::handle:vertical {
-                background: #D9DEE7;
+                background: #BAAEA0;
                 min-height: 24px;
                 border-radius: 4px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #CBD5E1;
+                background: #B89555;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0;
@@ -112,7 +112,7 @@ class DashboardPage(QWidget):
             lbl_brand_logo.setPixmap(logo_pix)
         else:
             lbl_brand_logo.setText("1998 TEAM")
-            lbl_brand_logo.setStyleSheet("color: #D4AF37; font-weight: 800; font-size: 16px;")
+            lbl_brand_logo.setStyleSheet("color: #B89555; font-weight: 800; font-size: 16px;")
         lbl_brand_logo.setToolTip("1998 TEAM Photobooth")
         header_layout.addWidget(lbl_brand_logo)
 
@@ -120,9 +120,9 @@ class DashboardPage(QWidget):
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
         lbl_title = QLabel("BẢNG ĐIỀU KHIỂN VẬN HÀNH")
-        lbl_title.setStyleSheet("font-size: 22px; font-weight: 800; color: #1E40AF; letter-spacing: 0.5px;")
+        lbl_title.setStyleSheet("font-size: 22px; font-weight: 800; color: #34312E; letter-spacing: 0.5px;")
         lbl_sub = QLabel("Buồng lái tác nghiệp trung tâm 1998 TEAM — Giám sát sự kiện, thiết bị và hàng đợi")
-        lbl_sub.setStyleSheet("font-size: 12px; color: #64748B;")
+        lbl_sub.setStyleSheet("font-size: 12px; color: #777067;")
         title_col.addWidget(lbl_title)
         title_col.addWidget(lbl_sub)
         header_layout.addLayout(title_col)
@@ -133,10 +133,10 @@ class DashboardPage(QWidget):
         self.btn_start_kiosk.setFixedHeight(44)
         self.btn_start_kiosk.setCursor(Qt.PointingHandCursor)
         self.btn_start_kiosk.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #D4AF37, stop:1 #F5DE88); "
-            "color: #070A12; font-size: 13px; font-weight: 800; border-radius: 8px; padding: 0 20px; border: 1px solid #D4AF37; }"
-            "QPushButton:hover { background: #FEF9C3; }"
-            "QPushButton:pressed { background: #C5A059; }"
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #CDB07B, stop:1 #B89555); "
+            "color: #FFFFFF; font-size: 13px; font-weight: 800; border-radius: 8px; padding: 0 20px; border: 1px solid #8F7038; }"
+            "QPushButton:hover { background: #CDB07B; color: #34312E; }"
+            "QPushButton:pressed { background: #8F7038; }"
         )
         self.btn_start_kiosk.clicked.connect(self.start_kiosk_requested.emit)
         header_layout.addWidget(self.btn_start_kiosk)
@@ -149,8 +149,8 @@ class DashboardPage(QWidget):
         self.disclaimer_banner.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         self.disclaimer_banner.setMinimumHeight(44)
         self.disclaimer_banner.setStyleSheet(
-            "QFrame#disclaimer_banner { background-color: #FFFBEB; "
-            "border: 1.5px solid #FDE68A; border-radius: 8px; }"
+            "QFrame#disclaimer_banner { background-color: #E7DFD2; "
+            "border: 1.5px solid #BEB3A3; border-radius: 8px; }"
         )
         disclaimer_layout = QHBoxLayout(self.disclaimer_banner)
         disclaimer_layout.setContentsMargins(14, 8, 14, 8)
@@ -167,7 +167,7 @@ class DashboardPage(QWidget):
             "Camera engine thực tế tuân thủ driver Windows WPD và Nikon MAID3 SDK."
         )
         self.lbl_disclaimer_text.setObjectName("lbl_disclaimer_text")
-        self.lbl_disclaimer_text.setStyleSheet("font-size: 11.5px; color: #92400E; background: transparent; border: none;")
+        self.lbl_disclaimer_text.setStyleSheet("font-size: 11.5px; color: #777067; background: transparent; border: none;")
         self.lbl_disclaimer_text.setWordWrap(True)
         self.lbl_disclaimer_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
@@ -183,19 +183,19 @@ class DashboardPage(QWidget):
 
         # Card 1: Sự kiện hoạt động
         evt_name = self.event_mgr.current_event if self.event_mgr else "Đám Cưới Minh & Linh"
-        card1 = self._create_stat_card("📅", "#3B82F6", "SỰ KIỆN HOẠT ĐỘNG", evt_name, "📍 White Palace, TP.HCM", is_demo=False)
+        card1 = self._create_stat_card("📅", "#B89555", "SỰ KIỆN HOẠT ĐỘNG", evt_name, "📍 White Palace, TP.HCM", is_demo=False)
         stats_grid.addWidget(card1, 0, 0)
 
         # Card 2: Phiên đã chụp
-        card2 = self._create_stat_card("📸", "#10B981", "PHIÊN ĐÃ CHỤP", "64", "Hôm nay: +64 lượt khách", is_demo=True)
+        card2 = self._create_stat_card("📸", "#2E7D32", "PHIÊN ĐÃ CHỤP", "64", "Hôm nay: +64 lượt khách", is_demo=True)
         stats_grid.addWidget(card2, 0, 1)
 
         # Card 3: Bản in thành phẩm
-        card3 = self._create_stat_card("🖨️", "#F59E0B", "BẢN IN THÀNH PHẨM", "128", "100% bản in hoàn tất", is_demo=True)
+        card3 = self._create_stat_card("🖨️", "#B45309", "BẢN IN THÀNH PHẨM", "128", "100% bản in hoàn tất", is_demo=True)
         stats_grid.addWidget(card3, 0, 2)
 
         # Card 4: Giấy in còn lại
-        card4 = self._create_paper_stat_card("📜", "#EC4899", "GIẤY IN CÒN LẠI (DNP)", 486, 700)
+        card4 = self._create_paper_stat_card("📜", "#B89555", "GIẤY IN CÒN LẠI (DNP)", 486, 700)
         stats_grid.addWidget(card4, 0, 3)
 
         main_layout.addLayout(stats_grid)
@@ -207,7 +207,7 @@ class DashboardPage(QWidget):
         # --- CỘT TRÁI: Trạng thái phần cứng Concept C & Live View ---
         left_panel = QFrame()
         left_panel.setStyleSheet(
-            "QFrame { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; }"
+            "QFrame { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 12px; }"
         )
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(18, 16, 18, 16)
@@ -215,16 +215,16 @@ class DashboardPage(QWidget):
 
         panel_top = QHBoxLayout()
         lbl_hw_title = QLabel("⚡ TRẠNG THÁI PHẦN CỨNG (CONCEPT C MULTI-CHANNEL)")
-        lbl_hw_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #1E40AF; letter-spacing: 0.5px;")
+        lbl_hw_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #34312E; letter-spacing: 0.5px;")
         panel_top.addWidget(lbl_hw_title)
         panel_top.addStretch()
 
         btn_cycle = QPushButton("🔄 Thử Trạng Thái")
         btn_cycle.setCursor(Qt.PointingHandCursor)
         btn_cycle.setStyleSheet(
-            "QPushButton { background: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
+            "QPushButton { background: #E7DFD2; color: #34312E; border: 1.5px solid #BEB3A3; "
             "border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; }"
-            "QPushButton:hover { background: #F8FAFC; border-color: #D4AF37; color: #1E40AF; }"
+            "QPushButton:hover { background: #C9BDAA; border-color: #B89555; color: #34312E; }"
         )
         btn_cycle.clicked.connect(self._cycle_simulated_state)
         panel_top.addWidget(btn_cycle)
@@ -234,9 +234,9 @@ class DashboardPage(QWidget):
         self.status_row = QHBoxLayout()
         self.status_row.setSpacing(10)
 
-        self.pill_cam = self._create_status_pill("MÁY ẢNH (NIKON D780)", "Nikon D780 (92% Pin [MOCK])", "CONNECTED", "✓", "#10B981")
-        self.pill_prn = self._create_status_pill("MÁY IN NHIỆT (DNP)", "DNP DS-RX1HS (486 Giấy [SIM])", "READY", "✓", "#10B981")
-        self.pill_net = self._create_status_pill("MẠNG NỘI BỘ (LAN)", "192.168.4.1:8080 (4 Khách [SIM])", "ONLINE", "✓", "#3B82F6")
+        self.pill_cam = self._create_status_pill("MÁY ẢNH (NIKON D780)", "Nikon D780 (92% Pin [MOCK])", "CONNECTED", "✓", "#2E7D32")
+        self.pill_prn = self._create_status_pill("MÁY IN NHIỆT (DNP)", "DNP DS-RX1HS (486 Giấy [SIM])", "READY", "✓", "#2E7D32")
+        self.pill_net = self._create_status_pill("MẠNG NỘI BỘ (LAN)", "192.168.4.1:8080 (4 Khách [SIM])", "ONLINE", "✓", "#B89555")
 
         self.status_row.addWidget(self.pill_cam, 1)
         self.status_row.addWidget(self.pill_prn, 1)
@@ -282,9 +282,9 @@ class DashboardPage(QWidget):
         btn_open_studio = QPushButton("🔍 Mở Toàn Bộ Studio")
         btn_open_studio.setCursor(Qt.PointingHandCursor)
         btn_open_studio.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #D4AF37, stop:1 #F5DE88); color: #070A12; font-weight: 700; "
-            "border-radius: 6px; padding: 0 14px; height: 36px; font-size: 12px; border: 1px solid #D4AF37; }"
-            "QPushButton:hover { background: #FEF9C3; }"
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #CDB07B, stop:1 #B89555); color: #FFFFFF; font-weight: 700; "
+            "border-radius: 6px; padding: 0 14px; height: 36px; font-size: 12px; border: 1px solid #8F7038; }"
+            "QPushButton:hover { background: #CDB07B; color: #34312E; }"
         )
         btn_open_studio.clicked.connect(self.open_studio_requested.emit)
         toolbar.addWidget(btn_open_studio)
@@ -295,7 +295,7 @@ class DashboardPage(QWidget):
         # --- CỘT PHẢI: Khung ảnh đang dùng & Thao tác nhanh ---
         right_panel = QFrame()
         right_panel.setStyleSheet(
-            "QFrame { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 12px; }"
+            "QFrame { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 12px; }"
         )
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(18, 16, 18, 16)
@@ -303,16 +303,16 @@ class DashboardPage(QWidget):
 
         right_top = QHBoxLayout()
         lbl_tpl_title = QLabel("🎨 KHUNG ẢNH ĐANG ÁP DỤNG")
-        lbl_tpl_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #1E40AF; letter-spacing: 0.5px;")
+        lbl_tpl_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #34312E; letter-spacing: 0.5px;")
         right_top.addWidget(lbl_tpl_title)
         right_top.addStretch()
 
         btn_change_tpl = QPushButton("Thay Đổi Khung")
         btn_change_tpl.setCursor(Qt.PointingHandCursor)
         btn_change_tpl.setStyleSheet(
-            "QPushButton { background: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
+            "QPushButton { background: #E7DFD2; color: #34312E; border: 1.5px solid #BEB3A3; "
             "border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; }"
-            "QPushButton:hover { background: #F8FAFC; border-color: #D4AF37; color: #1E40AF; }"
+            "QPushButton:hover { background: #C9BDAA; border-color: #B89555; color: #34312E; }"
         )
         btn_change_tpl.clicked.connect(self.open_templates_requested.emit)
         right_top.addWidget(btn_change_tpl)
@@ -321,7 +321,7 @@ class DashboardPage(QWidget):
         # Card Template chi tiết với hình minh họa vector chuẩn hóa
         tpl_card = QFrame()
         tpl_card.setStyleSheet(
-            "QFrame { background-color: #F8FAFC; border: 1.5px solid #D9DEE7; border-radius: 8px; padding: 12px; }"
+            "QFrame { background-color: #C9BDAA; border: 1.5px solid #BEB3A3; border-radius: 8px; padding: 12px; }"
         )
         tpl_layout = QHBoxLayout(tpl_card)
         tpl_layout.setContentsMargins(10, 10, 10, 10)
@@ -337,9 +337,9 @@ class DashboardPage(QWidget):
         tpl_meta = QVBoxLayout()
         tpl_meta.setSpacing(6)
         lbl_m_title = QLabel("Hàn Quốc 4 Ô Dọc (Life4Cuts)")
-        lbl_m_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #303746;")
+        lbl_m_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #34312E;")
         lbl_m_desc = QLabel("Khung 4 ô chuẩn Hàn Quốc với 4 tư thế độc lập, hỗ trợ chụp lại từng ô con (Slot Retake).")
-        lbl_m_desc.setStyleSheet("font-size: 11px; color: #64748B; line-height: 1.3;")
+        lbl_m_desc.setStyleSheet("font-size: 11px; color: #777067; line-height: 1.3;")
         lbl_m_desc.setWordWrap(True)
 
         tags_layout = QHBoxLayout()
@@ -383,10 +383,10 @@ class DashboardPage(QWidget):
         btn_switch_kiosk.setFixedHeight(50)
         btn_switch_kiosk.setCursor(Qt.PointingHandCursor)
         btn_switch_kiosk.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #D4AF37, stop:1 #F5DE88); "
-            "color: #070A12; font-size: 13px; font-weight: 800; border-radius: 8px; border: 1px solid #D4AF37; letter-spacing: 0.5px; }"
-            "QPushButton:hover { background: #FEF9C3; }"
-            "QPushButton:pressed { background: #C5A059; }"
+            "QPushButton { background: #B89555; "
+            "color: #FFFFFF; font-size: 13px; font-weight: 800; border-radius: 8px; border: 1px solid #8F7038; letter-spacing: 0.5px; }"
+            "QPushButton:hover { background: #CDB07B; }"
+            "QPushButton:pressed { background: #8F7038; }"
         )
         btn_switch_kiosk.clicked.connect(self.start_kiosk_requested.emit)
         right_layout.addWidget(btn_switch_kiosk)
@@ -398,11 +398,11 @@ class DashboardPage(QWidget):
         outer_layout.addWidget(self.scroll_area)
 
     def _create_stat_card(self, icon: str, color_hex: str, label: str, value: str, meta: str, is_demo: bool = False) -> QFrame:
-        """Tạo Stat Card với chiều cao cố định 104px và cấu trúc căn chỉnh thống nhất phong cách Light Theme."""
+        """Tạo Stat Card với chiều cao cố định 104px và cấu trúc căn chỉnh thống nhất phong cách Warm Mocha."""
         card = QFrame()
         card.setFixedHeight(104)
         card.setStyleSheet(
-            "QFrame { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 10px; }"
+            "QFrame { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 10px; }"
         )
         layout = QHBoxLayout(card)
         layout.setContentsMargins(14, 12, 14, 12)
@@ -412,7 +412,7 @@ class DashboardPage(QWidget):
         icon_box = QFrame()
         icon_box.setFixedSize(42, 42)
         icon_box.setStyleSheet(
-            f"QFrame {{ background-color: {color_hex}15; border: 1px solid {color_hex}35; border-radius: 8px; }}"
+            f"QFrame {{ background-color: {color_hex}20; border: 1px solid {color_hex}40; border-radius: 8px; }}"
         )
         ib_layout = QVBoxLayout(icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
@@ -429,13 +429,13 @@ class DashboardPage(QWidget):
         lbl_tag = QHBoxLayout()
         lbl_tag.setSpacing(6)
         lbl_l = QLabel(label)
-        lbl_l.setStyleSheet("font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase;")
+        lbl_l.setStyleSheet("font-size: 11px; font-weight: 700; color: #777067; text-transform: uppercase;")
         lbl_tag.addWidget(lbl_l)
         if is_demo:
             pill = QLabel("DEMO")
             pill.setStyleSheet(
-                "background: rgba(245, 158, 11, 0.15); color: #B45309; "
-                "border: 1px solid rgba(245, 158, 11, 0.35); font-size: 9px; font-weight: 800; "
+                "background: rgba(184, 149, 85, 0.20); color: #8F7038; "
+                "border: 1px solid rgba(184, 149, 85, 0.50); font-size: 9px; font-weight: 800; "
                 "padding: 1px 4px; border-radius: 3px;"
             )
             lbl_tag.addWidget(pill)
@@ -443,11 +443,11 @@ class DashboardPage(QWidget):
         text_col.addLayout(lbl_tag)
 
         lbl_v = QLabel(value)
-        lbl_v.setStyleSheet("font-size: 20px; font-weight: 800; color: #1E40AF;")
+        lbl_v.setStyleSheet("font-size: 20px; font-weight: 800; color: #34312E;")
         text_col.addWidget(lbl_v)
 
         lbl_m = QLabel(meta)
-        lbl_m.setStyleSheet("font-size: 11px; color: #64748B;")
+        lbl_m.setStyleSheet("font-size: 11px; color: #777067;")
         text_col.addWidget(lbl_m)
 
         layout.addLayout(text_col)
@@ -458,7 +458,7 @@ class DashboardPage(QWidget):
         card = QFrame()
         card.setFixedHeight(104)
         card.setStyleSheet(
-            "QFrame { background-color: #FFFFFF; border: 1.5px solid #D9DEE7; border-radius: 10px; }"
+            "QFrame { background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 10px; }"
         )
         layout = QHBoxLayout(card)
         layout.setContentsMargins(14, 12, 14, 12)
@@ -467,7 +467,7 @@ class DashboardPage(QWidget):
         icon_box = QFrame()
         icon_box.setFixedSize(42, 42)
         icon_box.setStyleSheet(
-            f"QFrame {{ background-color: {color_hex}15; border: 1px solid {color_hex}35; border-radius: 8px; }}"
+            f"QFrame {{ background-color: {color_hex}20; border: 1px solid {color_hex}40; border-radius: 8px; }}"
         )
         ib_layout = QVBoxLayout(icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
@@ -484,12 +484,12 @@ class DashboardPage(QWidget):
         lbl_tag = QHBoxLayout()
         lbl_tag.setSpacing(6)
         lbl_l = QLabel(label)
-        lbl_l.setStyleSheet("font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase;")
+        lbl_l.setStyleSheet("font-size: 11px; font-weight: 700; color: #777067; text-transform: uppercase;")
         lbl_tag.addWidget(lbl_l)
         pill = QLabel("SIMULATED")
         pill.setStyleSheet(
-            "background: rgba(245, 158, 11, 0.15); color: #B45309; "
-            "border: 1px solid rgba(245, 158, 11, 0.35); font-size: 9px; font-weight: 800; "
+            "background: rgba(184, 149, 85, 0.20); color: #8F7038; "
+            "border: 1px solid rgba(184, 149, 85, 0.50); font-size: 9px; font-weight: 800; "
             "padding: 1px 4px; border-radius: 3px;"
         )
         lbl_tag.addWidget(pill)
@@ -498,12 +498,12 @@ class DashboardPage(QWidget):
 
         val_row = QHBoxLayout()
         val_row.setSpacing(4)
-        lbl_v = QLabel(f"{remaining} <span style='font-size: 12px; font-weight: 400; color: #64748B;'>/ {total}</span>")
-        lbl_v.setStyleSheet("font-size: 20px; font-weight: 800; color: #1E40AF;")
+        lbl_v = QLabel(f"{remaining} <span style='font-size: 12px; font-weight: 400; color: #777067;'>/ {total}</span>")
+        lbl_v.setStyleSheet("font-size: 20px; font-weight: 800; color: #34312E;")
         val_row.addWidget(lbl_v)
         pct = int(remaining / total * 100)
         lbl_pct = QLabel(f"({pct}%)")
-        lbl_pct.setStyleSheet("font-size: 12px; font-weight: 700; color: #EC4899;")
+        lbl_pct.setStyleSheet("font-size: 12px; font-weight: 700; color: #B89555;")
         val_row.addWidget(lbl_pct)
         val_row.addStretch()
         text_col.addLayout(val_row)
@@ -514,24 +514,24 @@ class DashboardPage(QWidget):
         bar.setTextVisible(False)
         bar.setFixedHeight(4)
         bar.setStyleSheet(
-            "QProgressBar { background-color: #E2E8F0; border-radius: 2px; } "
-            "QProgressBar::chunk { background-color: #EC4899; border-radius: 2px; }"
+            "QProgressBar { background-color: #C9BDAA; border-radius: 2px; } "
+            "QProgressBar::chunk { background-color: #B89555; border-radius: 2px; }"
         )
         text_col.addWidget(bar)
 
         lbl_m = QLabel("Dung lượng cuộn nạp chính [SIMULATED]")
-        lbl_m.setStyleSheet("font-size: 11px; color: #64748B;")
+        lbl_m.setStyleSheet("font-size: 11px; color: #777067;")
         text_col.addWidget(lbl_m)
 
         layout.addLayout(text_col)
         return card
 
     def _create_status_pill(self, title: str, subtitle: str, state_text: str, icon: str, color_hex: str) -> QFrame:
-        """Tạo Pill trạng thái phần sang trọng, đồng nhất chiều cao 56px."""
+        """Tạo Pill trạng thái phần sang trọng Warm Mocha, đồng nhất chiều cao 56px."""
         pill = QFrame()
         pill.setFixedHeight(56)
         pill.setStyleSheet(
-            f"QFrame {{ background: #F8FAFC; border: 1.5px solid {color_hex}60; border-radius: 8px; }}"
+            f"QFrame {{ background: #E7DFD2; border: 1.5px solid {color_hex}60; border-radius: 8px; }}"
         )
         layout = QHBoxLayout(pill)
         layout.setContentsMargins(10, 6, 10, 6)
@@ -541,9 +541,9 @@ class DashboardPage(QWidget):
         text_col.setContentsMargins(0, 0, 0, 0)
         text_col.setSpacing(1)
         lbl_t = QLabel(title)
-        lbl_t.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748B;")
+        lbl_t.setStyleSheet("font-size: 10px; font-weight: 700; color: #777067;")
         lbl_s = QLabel(subtitle)
-        lbl_s.setStyleSheet("font-size: 11px; font-weight: 600; color: #303746;")
+        lbl_s.setStyleSheet("font-size: 11px; font-weight: 600; color: #34312E;")
         text_col.addWidget(lbl_t)
         text_col.addWidget(lbl_s)
         layout.addLayout(text_col, 1)
@@ -558,7 +558,7 @@ class DashboardPage(QWidget):
         return pill
 
     def _create_template_thumbnail_pixmap(self, width: int = 90, height: int = 130) -> QPixmap:
-        """Tạo hình thumbnail vector sắc nét cho khung ảnh dải 4 ô phong cách Photobooth."""
+        """Tạo hình thumbnail vector sắc nét cho khung ảnh dải 4 ô phong cách Photobooth Warm Mocha."""
         pix = QPixmap(width, height)
         pix.fill(Qt.transparent)
 
@@ -566,8 +566,8 @@ class DashboardPage(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
 
         # Nền giấy khung photostrip cao cấp
-        painter.setPen(QPen(QColor("#D9DEE7"), 1.5))
-        painter.setBrush(QBrush(QColor("#FFFFFF")))
+        painter.setPen(QPen(QColor("#BEB3A3"), 1.5))
+        painter.setBrush(QBrush(QColor("#E7DFD2")))
         painter.drawRoundedRect(QRectF(1, 1, width - 2, height - 2), 6, 6)
 
         # 4 ô ảnh nhỏ
@@ -578,15 +578,15 @@ class DashboardPage(QWidget):
 
         for i in range(4):
             y = 7 + i * 26
-            painter.setPen(QPen(QColor("#CBD5E1"), 1))
-            painter.setBrush(QBrush(QColor("#F1F5F9")))
+            painter.setPen(QPen(QColor("#BEB3A3"), 1))
+            painter.setBrush(QBrush(QColor("#C9BDAA")))
             painter.drawRoundedRect(QRectF(x, y, slot_w, slot_h), 3, 3)
 
-            painter.setPen(QPen(QColor("#1E40AF")))
+            painter.setPen(QPen(QColor("#34312E")))
             painter.drawText(QRectF(x, y, slot_w, slot_h), Qt.AlignCenter, f"Ô #{i+1}")
 
         # Chữ ký thương hiệu chân khung
-        painter.setPen(QPen(QColor("#D4AF37")))
+        painter.setPen(QPen(QColor("#B89555")))
         painter.setFont(QFont("Arial", 6, QFont.Bold))
         painter.drawText(QRectF(0, height - 16, width, 12), Qt.AlignCenter, "1998 TEAM")
 
@@ -595,10 +595,10 @@ class DashboardPage(QWidget):
 
     def _action_btn_style(self) -> str:
         return (
-            "QPushButton { background: #FFFFFF; color: #303746; border: 1.5px solid #D9DEE7; "
+            "QPushButton { background: #E7DFD2; color: #34312E; border: 1.5px solid #BEB3A3; "
             "border-radius: 6px; padding: 0 14px; height: 36px; font-size: 12px; font-weight: 600; }"
-            "QPushButton:hover { background: #FEF9C3; color: #1E40AF; border-color: #D4AF37; }"
-            "QPushButton:pressed { background: #E2E8F0; }"
+            "QPushButton:hover { background: #C9BDAA; color: #34312E; border-color: #B89555; }"
+            "QPushButton:pressed { background: #BEB3A3; }"
         )
 
     def _setup_telemetry_timer(self):
@@ -635,7 +635,7 @@ class DashboardPage(QWidget):
         sub, st, ic, col = states[self._simulated_step]
         # Cập nhật pill máy ảnh
         self.pill_cam.setStyleSheet(
-            f"QFrame {{ background: #0F172A; border: 1px solid {col}40; border-radius: 8px; }}"
+            f"QFrame {{ background: #E7DFD2; border: 1.5px solid {col}60; border-radius: 8px; }}"
         )
 
     def _on_test_capture(self):

@@ -43,9 +43,9 @@ class CameraLiveViewport(QWidget):
         self._detected_faces: List[Any] = []
         self._last_detected_seq_id: int = 0
         self._message_text: str = "CHƯA CÓ TÍN HIỆU HÌNH ẢNH\nVui lòng kiểm tra cáp USB hoặc chọn lại nguồn camera."
-        self._message_color: QColor = QColor("#64748B")
-        self._border_color: QColor = QColor("#334155")
-        self._bg_color: QColor = QColor("#03050A")
+        self._message_color: QColor = QColor("#777067")
+        self._border_color: QColor = QColor("#2A2D33")
+        self._bg_color: QColor = QColor("#17191C")
         self._flash_active: bool = False
         self._resize_callbacks: List[Callable[[], None]] = []
 

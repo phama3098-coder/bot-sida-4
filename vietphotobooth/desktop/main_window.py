@@ -137,11 +137,11 @@ class MainWindow(QMainWindow):
         self.brand_layout.addWidget(self.lbl_logo)
 
         self.lbl_title = QLabel("<b>1998 TEAM</b>")
-        self.lbl_title.setStyleSheet("color: #1E40AF; font-size: 14px; font-weight: 800; letter-spacing: 0.5px;")
+        self.lbl_title.setStyleSheet("color: #34312E; font-size: 14px; font-weight: 800; letter-spacing: 0.5px;")
         self.brand_layout.addWidget(self.lbl_title)
 
         self.lbl_ver = QLabel(f"v{__version__}")
-        self.lbl_ver.setStyleSheet("color: #64748B; font-size: 10px; font-weight: bold; padding-top: 2px;")
+        self.lbl_ver.setStyleSheet("color: #777067; font-size: 10px; font-weight: bold; padding-top: 2px;")
         self.lbl_ver.setToolTip(f"Phiên bản: {get_version_string()}")
         self.brand_layout.addWidget(self.lbl_ver)
 
@@ -149,9 +149,9 @@ class MainWindow(QMainWindow):
         self.btn_dashboard = QPushButton("📊 Dashboard")
         self.btn_dashboard.setCursor(Qt.PointingHandCursor)
         self.btn_dashboard.setStyleSheet(
-            "QPushButton { background: #FFFFFF; color: #1E40AF; font-weight: 700; font-size: 11px; "
-            "border: 1.5px solid #D9DEE7; border-radius: 6px; padding: 2px 10px; margin-left: 4px; }"
-            "QPushButton:hover { background: #EFF6FF; border: 1.5px solid #3B82F6; color: #1E40AF; }"
+            "QPushButton { background: #E7DFD2; color: #34312E; font-weight: 700; font-size: 11px; "
+            "border: 1.5px solid #BEB3A3; border-radius: 6px; padding: 2px 10px; margin-left: 4px; }"
+            "QPushButton:hover { background: #C9BDAA; border: 1.5px solid #B89555; color: #34312E; }"
         )
         self.btn_dashboard.clicked.connect(self.show_dashboard)
         self.brand_layout.addWidget(self.btn_dashboard)

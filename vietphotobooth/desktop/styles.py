@@ -1,56 +1,60 @@
 """
-1998 TEAM — Photobooth Global Design System & Light Theme Stylesheet
-Chuyển đổi toàn diện sang phong cách Premium Light Theme sang trọng, tinh tế.
+1998 TEAM — Photobooth Global Design System & Warm Mocha Stylesheet
+Phong cách thiết kế chính thức: WARM MOCHA × CHAMPAGNE GOLD – PREMIUM STUDIO
 Design Tokens:
-- Main Background: #F3F4F6
-- Secondary Background: #F8FAFC
-- Card / Surface: #FFFFFF
-- Input Background: #FFFFFF
-- Border: #D9DEE7
-- Primary Text: #303746
-- Secondary Text: #64748B
-- Disabled Text: #94A3B8
-- Brand Accents: Champagne Gold (#D4AF37) & Brand Blue (#1E40AF)
+- Main Background: #D8D0C3
+- Surface (Panel / Card): #E7DFD2
+- Secondary Surface: #C9BDAA
+- Primary Text: #34312E
+- Secondary Text: #777067
+- Champagne Gold (CTA & Accents): #B89555
+- Live View Canvas: #17191C
+- Border: #BEB3A3
 """
 
 # =========================================================================
-# 1. CENTRALIZED DESIGN TOKENS
+# 1. CENTRALIZED DESIGN TOKENS (WARM MOCHA x CHAMPAGNE GOLD)
 # =========================================================================
-THEME_BG_MAIN = "#F3F4F6"
-THEME_BG_SECONDARY = "#F8FAFC"
-THEME_SURFACE = "#FFFFFF"
-THEME_INPUT_BG = "#FFFFFF"
-THEME_BORDER = "#D9DEE7"
-THEME_BORDER_LIGHT = "#E2E8F0"
-THEME_TEXT_PRIMARY = "#303746"
-THEME_TEXT_SECONDARY = "#64748B"
-THEME_TEXT_DISABLED = "#94A3B8"
+THEME_BG_MAIN = "#D8D0C3"
+THEME_SURFACE = "#E7DFD2"
+THEME_BG_SECONDARY = "#C9BDAA"
+THEME_INPUT_BG = "#EFE8DC"
+THEME_BORDER = "#BEB3A3"
+THEME_BORDER_LIGHT = "#C9BDAA"
+THEME_TEXT_PRIMARY = "#34312E"
+THEME_TEXT_SECONDARY = "#777067"
+THEME_TEXT_DISABLED = "#9E9689"
 
 # Brand Identity Colors (1998 TEAM & 1998 Studio Phóng Sự Cưới)
-THEME_GOLD = "#D4AF37"
-THEME_GOLD_LIGHT = "#F5DE88"
-THEME_GOLD_PALE = "#FDF4DC"
-THEME_GOLD_DARK = "#997A15"
-THEME_BRAND_BLUE = "#1E40AF"
-THEME_BRAND_BLUE_LIGHT = "#3B82F6"
-THEME_BRAND_BLUE_PALE = "#EFF6FF"
+THEME_GOLD = "#B89555"
+THEME_GOLD_LIGHT = "#CDB07B"
+THEME_GOLD_PALE = "#F0E7D8"
+THEME_GOLD_DARK = "#8F7038"
+
+# Warm Studio Accents (Replacing harsh cold blues with deep mocha charcoal)
+THEME_BRAND_BLUE = "#34312E"
+THEME_BRAND_BLUE_LIGHT = "#5C5449"
+THEME_BRAND_BLUE_PALE = "#E7DFD2"
+
+# Live View Contrast Background
+LIVE_VIEW_BG = "#17191C"
 
 # Semantic Colors
-THEME_SUCCESS = "#10B981"
-THEME_SUCCESS_BG = "#ECFDF5"
-THEME_SUCCESS_BORDER = "#A7F3D0"
-THEME_WARNING = "#D97706"
-THEME_WARNING_BG = "#FFFBEB"
-THEME_WARNING_BORDER = "#FDE68A"
-THEME_DANGER = "#DC2626"
-THEME_DANGER_BG = "#FEF2F2"
-THEME_DANGER_BORDER = "#FECACA"
+THEME_SUCCESS = "#2E7D32"
+THEME_SUCCESS_BG = "#E2EFE2"
+THEME_SUCCESS_BORDER = "#A5D6A7"
+THEME_WARNING = "#B45309"
+THEME_WARNING_BG = "#FEF3C7"
+THEME_WARNING_BORDER = "#FCD34D"
+THEME_DANGER = "#C53030"
+THEME_DANGER_BG = "#FDE8E8"
+THEME_DANGER_BORDER = "#FCA5A5"
 
 # =========================================================================
-# 2. GLOBAL LIGHT THEME STYLESHEET (KIOSK_STYLE)
+# 2. GLOBAL WARM MOCHA STYLESHEET (KIOSK_STYLE)
 # =========================================================================
 KIOSK_STYLE = f"""
-/* === Giao Diện Toàn Cục 1998 TEAM Photobooth (Premium Light Theme) === */
+/* === Giao Diện Toàn Cục 1998 TEAM Photobooth (Warm Mocha x Champagne Gold) === */
 QWidget {{
     background-color: {THEME_BG_MAIN};
     color: {THEME_TEXT_PRIMARY};
@@ -81,15 +85,15 @@ QTabBar::tab {{
 }}
 
 QTabBar::tab:selected {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27);
-    color: #070A12;
-    border: 1.5px solid {THEME_GOLD_PALE};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD});
+    color: #FFFFFF;
+    border: 1.5px solid {THEME_GOLD_DARK};
     font-weight: 800;
 }}
 
 QTabBar::tab:hover:!selected {{
     background: {THEME_BG_SECONDARY};
-    color: {THEME_BRAND_BLUE};
+    color: {THEME_TEXT_PRIMARY};
     border: 1.5px solid {THEME_GOLD};
 }}
 
@@ -126,57 +130,58 @@ QPushButton {{
 QPushButton:hover {{
     background-color: {THEME_BG_SECONDARY};
     border: 1.5px solid {THEME_GOLD};
-    color: {THEME_GOLD_DARK};
+    color: {THEME_TEXT_PRIMARY};
 }}
 
 QPushButton:pressed {{
-    background-color: #E2E8F0;
+    background-color: #BAAEA0;
 }}
 
 QPushButton:disabled {{
-    background-color: #F1F5F9;
+    background-color: #D5CDC0;
     color: {THEME_TEXT_DISABLED};
-    border: 1px solid #E2E8F0;
+    border: 1px solid #C4B9AA;
 }}
 
 /* NÚT BẮT ĐẦU CHỤP KHỔNG LỒ - VÀNG CHAMPAGNE QUÝ PHÁI */
 QPushButton#btn_big_capture {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F7E7CE, stop:0.35 #E5C158, stop:1 #C59B27);
-    color: #070A12;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:0.45 {THEME_GOLD}, stop:1 {THEME_GOLD_DARK});
+    color: #FFFFFF;
     font-size: 22px;
     font-weight: 900;
     letter-spacing: 1px;
-    border: 2px solid #FFF8E7;
+    border: 2px solid {THEME_GOLD_PALE};
     border-radius: 31px;
     min-height: 60px;
     padding: 10px 36px;
 }}
 
 QPushButton#btn_big_capture:hover {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:0.35 #F0D278, stop:1 #D4AF37);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #D9C293, stop:0.45 #C4A364, stop:1 #AF8E4E);
     border: 2px solid #FFFFFF;
 }}
 
 QPushButton#btn_big_capture:pressed {{
-    background: #C59B27;
+    background: {THEME_GOLD_DARK};
 }}
 
 QPushButton#btn_big_capture:disabled {{
-    background: #CBD5E1;
-    color: #64748B;
-    border: 1px solid #94A3B8;
+    background: #C9BDAA;
+    color: {THEME_TEXT_SECONDARY};
+    border: 1px solid {THEME_BORDER};
 }}
 
 /* Nút Vàng Champagne Hành Động Chính */
 QPushButton#btn_champagne {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5DE88, stop:0.4 #E5C158, stop:1 #C59B27);
-    color: #070A12;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD});
+    color: #FFFFFF;
     font-weight: 800;
-    border: 1px solid #FFF8E7;
+    border: 1px solid {THEME_GOLD_DARK};
 }}
 
 QPushButton#btn_champagne:hover {{
-    background: #E5C158;
+    background: {THEME_GOLD_LIGHT};
+    color: {THEME_TEXT_PRIMARY};
 }}
 
 QPushButton#btn_secondary {{
@@ -198,19 +203,19 @@ QPushButton#btn_danger {{
 }}
 
 QPushButton#btn_danger:hover {{
-    background-color: #FEE2E2;
+    background-color: #FCDCDC;
     border: 1.5px solid {THEME_DANGER};
 }}
 
 QPushButton#btn_success {{
     background-color: {THEME_SUCCESS_BG};
-    color: #047857;
+    color: {THEME_SUCCESS};
     border: 1.5px solid {THEME_SUCCESS_BORDER};
     font-weight: 700;
 }}
 
 QPushButton#btn_success:hover {{
-    background-color: #D1FAE5;
+    background-color: #C8E6C9;
     border: 1.5px solid {THEME_SUCCESS};
 }}
 
@@ -229,7 +234,7 @@ QGroupBox {{
     margin-top: 24px;
     font-weight: 700;
     font-size: 14px;
-    color: {THEME_BRAND_BLUE};
+    color: {THEME_TEXT_PRIMARY};
     padding-top: 18px;
 }}
 
@@ -239,7 +244,7 @@ QGroupBox::title {{
     left: 14px;
     padding: 0 8px;
     background-color: {THEME_SURFACE};
-    color: {THEME_BRAND_BLUE};
+    color: {THEME_TEXT_PRIMARY};
 }}
 
 /* === Ô Nhập Liệu & Danh Sách Lựa Chọn (Inputs & Selects) === */
@@ -255,13 +260,13 @@ QLineEdit, QSpinBox, QComboBox {{
 
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
     border: 2px solid {THEME_GOLD};
-    background-color: #FFFFFF;
+    background-color: #F8F3EB;
 }}
 
 QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {{
-    background-color: #F1F5F9;
+    background-color: #D5CDC0;
     color: {THEME_TEXT_DISABLED};
-    border: 1px solid #E2E8F0;
+    border: 1px solid #C4B9AA;
 }}
 
 QComboBox::drop-down {{
@@ -272,8 +277,8 @@ QComboBox::drop-down {{
 QComboBox QAbstractItemView {{
     background-color: {THEME_SURFACE};
     color: {THEME_TEXT_PRIMARY};
-    selection-background-color: #FEF3C7;
-    selection-color: #92400E;
+    selection-background-color: {THEME_BG_SECONDARY};
+    selection-color: {THEME_TEXT_PRIMARY};
     border: 1.5px solid {THEME_BORDER};
     outline: none;
     padding: 4px;
@@ -309,7 +314,7 @@ QCheckBox::indicator:checked {{
 QSlider::groove:horizontal {{
     border: none;
     height: 6px;
-    background: #E2E8F0;
+    background: {THEME_BORDER};
     border-radius: 3px;
 }}
 
@@ -319,7 +324,7 @@ QSlider::sub-page:horizontal {{
 }}
 
 QSlider::handle:horizontal {{
-    background: #FFFFFF;
+    background: {THEME_SURFACE};
     border: 2px solid {THEME_GOLD};
     width: 20px;
     margin-top: -7px;
@@ -342,8 +347,8 @@ QTableWidget {{
 }}
 
 QTableWidget::item:selected {{
-    background-color: #FEF3C7;
-    color: #92400E;
+    background-color: {THEME_GOLD_PALE};
+    color: {THEME_TEXT_PRIMARY};
 }}
 
 QHeaderView::section {{
@@ -366,7 +371,7 @@ QScrollBar:vertical {{
 }}
 
 QScrollBar::handle:vertical {{
-    background: #CBD5E1;
+    background: #BAAEA0;
     min-height: 24px;
     border-radius: 4px;
 }}
@@ -388,7 +393,7 @@ QScrollBar:horizontal {{
 }}
 
 QScrollBar::handle:horizontal {{
-    background: #CBD5E1;
+    background: #BAAEA0;
     min-width: 24px;
     border-radius: 4px;
 }}
@@ -421,21 +426,21 @@ QMenu::item {{
 }}
 
 QMenu::item:selected {{
-    background-color: #FEF3C7;
-    color: #92400E;
+    background-color: {THEME_GOLD_PALE};
+    color: {THEME_TEXT_PRIMARY};
 }}
 
 QToolTip {{
-    background-color: #1E293B;
-    color: #F8FAFC;
-    border: 1px solid #334155;
+    background-color: #34312E;
+    color: #F0E7D8;
+    border: 1px solid #777067;
     border-radius: 6px;
     padding: 4px 8px;
     font-size: 12px;
 }}
 
 QProgressBar {{
-    background-color: #E2E8F0;
+    background-color: {THEME_BG_SECONDARY};
     border: 1px solid {THEME_BORDER};
     border-radius: 8px;
     text-align: center;
@@ -444,7 +449,7 @@ QProgressBar {{
 }}
 
 QProgressBar::chunk {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #10B981, stop:1 #34D399);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {THEME_GOLD}, stop:1 {THEME_GOLD_LIGHT});
     border-radius: 7px;
 }}
 
