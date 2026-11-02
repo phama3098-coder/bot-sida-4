@@ -35,6 +35,9 @@ from vietphotobooth.desktop.widgets.camera_page import CameraPage
 from vietphotobooth.desktop.widgets.printing_page import PrintingPage
 from vietphotobooth.desktop.widgets.events_page import EventsPage
 from vietphotobooth.desktop.widgets.settings_page import SettingsPage
+from vietphotobooth.desktop.widgets.dashboard_page import DashboardPage
+from vietphotobooth.desktop.widgets.devices_page import DevicesPage
+from vietphotobooth.desktop.widgets.qr_sharing_page import QRSharingPage
 from vietphotobooth.desktop.icons import (
     get_svg_icon, MorphIconButton, COLOR_GOLD, COLOR_GREEN,
     get_brand_logo_pixmap, get_brand_logo_svg_path
@@ -142,6 +145,17 @@ class MainWindow(QMainWindow):
         self.lbl_ver.setToolTip(f"Phiên bản: {get_version_string()}")
         self.brand_layout.addWidget(self.lbl_ver)
 
+        # Nút chuyển nhanh sang Buồng Lái Vận Hành (Dashboard) v2.0
+        self.btn_dashboard = QPushButton("📊 Dashboard")
+        self.btn_dashboard.setCursor(Qt.PointingHandCursor)
+        self.btn_dashboard.setStyleSheet(
+            "QPushButton { background: #1E293B; color: #D4AF37; font-weight: 700; font-size: 11px; "
+            "border: 1px solid #D4AF37; border-radius: 4px; padding: 2px 8px; margin-left: 4px; }"
+            "QPushButton:hover { background: #D4AF37; color: #070A12; }"
+        )
+        self.btn_dashboard.clicked.connect(self.show_dashboard)
+        self.brand_layout.addWidget(self.btn_dashboard)
+
         self.tabs.setCornerWidget(self.brand_widget, Qt.TopLeftCorner)
 
         # 1. Chụp ảnh (Kiosk Photobooth)
@@ -232,7 +246,10 @@ class MainWindow(QMainWindow):
             if not has_update_event:
                 QTimer.singleShot(2500, self._start_auto_update_check)
 
-        # Stack chính: Index 0 là Giao diện Tabs vận hành, Index 1 là Màn hình chờ dành cho khách
+        # Stack chính v2.0:
+        # Index 0: Giao diện Tabs vận hành chi tiết (bảo toàn 100% 6 tabs của baseline)
+        # Index 1: Màn hình chờ dành cho khách (Guest Idle Screen)
+        # Index 2: Buồng Lái Vận Hành trung tâm Concept A (Operator Dashboard)
         self.window_stack = QStackedWidget()
         self.window_stack.addWidget(self.tabs)  # Index 0
 
@@ -240,6 +257,39 @@ class MainWindow(QMainWindow):
         self.idle_screen.touch_to_start.connect(self._on_idle_screen_touched)
         self.idle_screen.admin_requested.connect(self._on_idle_admin_requested)
         self.window_stack.addWidget(self.idle_screen)  # Index 1
+
+        self.dashboard_page = DashboardPage(
+            event_mgr=self.event_mgr,
+            camera_mgr=self.camera_mgr,
+            print_mgr=self.print_mgr,
+            config_mgr=self.config_mgr,
+            parent=self
+        )
+        self.dashboard_page.start_kiosk_requested.connect(self.start_kiosk_mode)
+        self.dashboard_page.open_studio_requested.connect(lambda: self.switch_to_tab(2))
+        self.dashboard_page.open_templates_requested.connect(lambda: self.switch_to_tab(1))
+        self.dashboard_page.open_printing_requested.connect(lambda: self.switch_to_tab(3))
+        self.dashboard_page.open_events_requested.connect(lambda: self.switch_to_tab(4))
+        self.dashboard_page.open_devices_requested.connect(self.show_devices)
+        self.dashboard_page.open_qr_requested.connect(self.show_qr_sharing)
+        self.window_stack.addWidget(self.dashboard_page)  # Index 2
+
+        self.devices_page = DevicesPage(
+            camera_mgr=self.camera_mgr,
+            print_mgr=self.print_mgr,
+            config_mgr=self.config_mgr,
+            token_mgr=self.token_mgr,
+            parent=self
+        )
+        self.window_stack.addWidget(self.devices_page)  # Index 3
+
+        self.qr_page = QRSharingPage(
+            token_mgr=self.token_mgr,
+            event_mgr=self.event_mgr,
+            config_mgr=self.config_mgr,
+            parent=self
+        )
+        self.window_stack.addWidget(self.qr_page)  # Index 4
 
         main_layout.addWidget(self.window_stack)
 
@@ -429,12 +479,38 @@ class MainWindow(QMainWindow):
 
     def switch_to_tab(self, target_index: int):
         """Chuyển tab theo yêu cầu từ các trang con (kiểm tra quyền quản trị)."""
+        if self.window_stack.currentIndex() != 0:
+            self.window_stack.setCurrentIndex(0)
         if target_index in self.PROTECTED_TABS:
             if not self.auth_mgr.is_authenticated():
                 if not self.auth_mgr.prompt_pin_dialog(self, f"Mở Khóa Tab: {self.tabs.tabText(target_index)}"):
                     return
         self._prev_tab_index = target_index
         self.tabs.setCurrentIndex(target_index)
+
+    def show_dashboard(self):
+        """Chuyển sang Buồng Lái Vận Hành (Operator Dashboard) trung tâm v2.0."""
+        self.window_stack.setCurrentIndex(2)
+
+    def show_devices(self):
+        """Chuyển sang Bảng Giám Sát Thiết Bị & Cảm Biến Đa Kênh v2.0."""
+        if not self.auth_mgr.is_authenticated():
+            if not self.auth_mgr.prompt_pin_dialog(self, "Mở Khóa Giám Sát Thiết Bị"):
+                return
+        self.window_stack.setCurrentIndex(3)
+        if hasattr(self, "devices_page"):
+            self.devices_page.refresh_telemetry()
+
+    def show_qr_sharing(self):
+        """Chuyển sang Trung Tâm Chia Sẻ QR & Mạng LAN v2.0."""
+        self.window_stack.setCurrentIndex(4)
+
+    def start_kiosk_mode(self):
+        """Bắt đầu Kiosk Mode từ Dashboard hoặc phím F11."""
+        self.window_stack.setCurrentIndex(0)
+        self.switch_to_tab(0)
+        if not self.isFullScreen():
+            self.toggle_fullscreen()
 
     def toggle_fullscreen(self):
         """Bật/tắt chế độ toàn màn hình Kiosk Mode."""
@@ -586,6 +662,8 @@ class MainWindow(QMainWindow):
             self.kiosk_page.stop_live_view()
         if hasattr(self, "camera_page"):
             self.camera_page.close()
+        if hasattr(self, "devices_page") and hasattr(self.devices_page, "_poll_timer") and self.devices_page._poll_timer.isActive():
+            self.devices_page._poll_timer.stop()
         if hasattr(self, "sync_mgr"):
             self.sync_mgr.close()
         if hasattr(self, "camera_mgr"):

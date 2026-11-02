@@ -600,6 +600,7 @@ class PhotoThumbnailCard(QFrame):
     slot_clicked = Signal(int)             # Alias tương thích ngược
     change_photo_requested = Signal(int)   # Alias tương thích ngược
     crop_requested = Signal(int)
+    retake_slot_requested = Signal(int)
 
     def __init__(
         self,
@@ -615,7 +616,7 @@ class PhotoThumbnailCard(QFrame):
         self.assigned_slots = assigned_slots or []
         self.is_selected = is_selected
 
-        self.setFixedSize(118, 102)
+        self.setFixedSize(136, 102)
         self.setCursor(Qt.PointingHandCursor)
 
         self._init_ui()
@@ -656,7 +657,7 @@ class PhotoThumbnailCard(QFrame):
         self._refresh_thumb()
         layout.addWidget(self.lbl_thumb, 1, Qt.AlignCenter)
 
-        # Footer card: Nút Cắt ảnh
+        # Footer card: Nút Cắt ảnh và Nút Chụp lại ô
         h_bot = QHBoxLayout()
         h_bot.setContentsMargins(0, 0, 0, 0)
         h_bot.setSpacing(4)
@@ -667,11 +668,23 @@ class PhotoThumbnailCard(QFrame):
         self.btn_crop.setCursor(Qt.PointingHandCursor)
         self.btn_crop.setStyleSheet(
             "QPushButton { background-color: #142036; border: 1px solid #28395E; color: #CBD5E1; "
-            "border-radius: 4px; font-size: 10px; font-weight: bold; padding: 0 6px; }"
+            "border-radius: 4px; font-size: 10px; font-weight: bold; padding: 0 5px; }"
             "QPushButton:hover { border: 1px solid #D4AF37; color: #D4AF37; background-color: #1A2844; }"
         )
         self.btn_crop.clicked.connect(lambda: self.crop_requested.emit(self.photo_idx))
         h_bot.addWidget(self.btn_crop)
+
+        self.btn_retake = QPushButton("Chụp lại")
+        self.btn_retake.setIcon(get_svg_icon("camera", 11, COLOR_GOLD))
+        self.btn_retake.setFixedHeight(22)
+        self.btn_retake.setCursor(Qt.PointingHandCursor)
+        self.btn_retake.setStyleSheet(
+            "QPushButton { background-color: #1A2844; border: 1px solid #D4AF37; color: #F5DE88; "
+            "border-radius: 4px; font-size: 10px; font-weight: bold; padding: 0 5px; }"
+            "QPushButton:hover { background-color: #243B66; color: #FFFFFF; border-color: #FFF8E7; }"
+        )
+        self.btn_retake.clicked.connect(lambda: self.retake_slot_requested.emit(self.photo_idx))
+        h_bot.addWidget(self.btn_retake)
         h_bot.addStretch()
         layout.addLayout(h_bot)
 
@@ -847,6 +860,7 @@ class GuestReviewWidget(QWidget):
     Trang Hoàn Thiện Ảnh sau khi chụp chuẩn 1998 TEAM Photobooth (Tích hợp nội bộ trong cửa sổ chính).
     """
     retake_requested = Signal()
+    retake_slot_requested = Signal(int)     # v2.0.0 Chụp lại riêng một ô
     finish_requested = Signal()
     photo_saved = Signal(str)         # Đường dẫn file đã lưu
     print_completed = Signal(str)     # Đường dẫn file sau khi in
@@ -1179,6 +1193,18 @@ class GuestReviewWidget(QWidget):
         btn_crop.clicked.connect(self._open_crop_dialog_for_selected_slot)
         bar_a_bot.addWidget(btn_crop)
 
+        self.btn_retake_slot = QPushButton("Chụp lại ô này")
+        self.btn_retake_slot.setIcon(get_svg_icon("camera", 14, COLOR_GOLD))
+        self.btn_retake_slot.setFixedHeight(32)
+        self.btn_retake_slot.setCursor(Qt.PointingHandCursor)
+        self.btn_retake_slot.setStyleSheet(
+            "QPushButton { background-color: #1A2844; border: 1.5px solid #D4AF37; color: #F5DE88; "
+            "border-radius: 6px; padding: 0 14px; font-size: 11px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #243B66; color: #FFFFFF; border-color: #FFF8E7; }"
+        )
+        self.btn_retake_slot.clicked.connect(self._on_retake_selected_slot)
+        bar_a_bot.addWidget(self.btn_retake_slot)
+
         l_a.addLayout(bar_a_bot)
         content_split.addWidget(container_a, 55)
 
@@ -1500,6 +1526,7 @@ class GuestReviewWidget(QWidget):
             )
             card.photo_clicked.connect(self._on_photo_thumbnail_clicked)
             card.crop_requested.connect(self._on_photo_crop_requested)
+            card.retake_slot_requested.connect(self.retake_slot_requested.emit)
 
             self.photo_cards.append(card)
             self.slot_cards.append(card)
@@ -1631,6 +1658,14 @@ class GuestReviewWidget(QWidget):
         self.canvas.update_preview()
         self._update_photo_cards_assigned_slots()
         self._push_history()
+
+    def _on_retake_selected_slot(self):
+        """Khách bấm 'Chụp lại ô này' cho ô hoặc ảnh đang được chọn."""
+        if self.current_template and 0 <= self.selected_slot_index < len(self.current_template.slots):
+            slot = self.current_template.slots[self.selected_slot_index]
+            self.retake_slot_requested.emit(slot.photo_index)
+        elif self.photos:
+            self.retake_slot_requested.emit(self.selected_photo_index)
 
     # =========================================================================
     # HÀNH ĐỘNG FOOTER: LƯU ẢNH, IN THỬ, TIẾN HÀNH IN, QUAY LẠI
@@ -1817,6 +1852,7 @@ class GuestReviewDialog(QDialog):
     Lớp bọc QDialog kế thừa toàn bộ tính năng của GuestReviewWidget cho tương thích ngược.
     """
     retake_requested = Signal()
+    retake_slot_requested = Signal(int)     # v2.0.0 Chụp lại riêng một ô
 
     def __init__(
         self,
@@ -1851,6 +1887,7 @@ class GuestReviewDialog(QDialog):
         layout.addWidget(self.review_widget)
 
         self.review_widget.retake_requested.connect(self._on_retake)
+        self.review_widget.retake_slot_requested.connect(self.retake_slot_requested.emit)
         self.review_widget.finish_requested.connect(self.accept)
         self.review_widget.print_completed.connect(lambda _: self.accept())
 

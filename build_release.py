@@ -29,6 +29,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from vietphotobooth.version import (
     __version__, __build__, __release_date__, __app_name__, __publisher__
 )
+try:
+    from vietphotobooth.version import __channel__
+except ImportError:
+    __channel__ = ""
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -66,13 +70,16 @@ def main():
     print("=" * 72)
     print(f"• Phiên bản:      v{__version__}")
     print(f"• Build Number:   {__build__}")
+    if __channel__:
+        print(f"• Release Channel:{__channel__}")
     print(f"• Ngày phát hành: {__release_date__}")
     print(f"• Nhà phát triển: {__publisher__}")
     print(f"• Thư mục gốc:    {PROJECT_ROOT}")
     print("-" * 72)
 
     # 1. Xác định quy tắc đặt tên file bộ cài
-    output_base_filename = f"1998-TEAM-Setup-v{__version__}-Build{__build__}"
+    channel_suffix = f"-{__channel__}" if __channel__ else ""
+    output_base_filename = f"1998-TEAM-Setup-v{__version__}-Build{__build__}{channel_suffix}"
     expected_exe_name = f"{output_base_filename}.exe"
     dist_installer_dir = PROJECT_ROOT / "dist_installer"
     dist_installer_dir.mkdir(parents=True, exist_ok=True)
@@ -140,8 +147,8 @@ def main():
     sha256_file = dist_installer_dir / f"{expected_exe_name}.sha256"
     sha256_file.write_text(f"{sha256_hash} *{expected_exe_name}\n", encoding="utf-8")
 
-    # Tạo thêm bản sao với tên thân thiện: 1998-TEAM-Photobooth-Setup-v{__version__}.exe
-    alt_exe_name = f"1998-TEAM-Photobooth-Setup-v{__version__}.exe"
+    # Tạo thêm bản sao với tên thân thiện: 1998-TEAM-Photobooth-Setup-v{__version__}[-channel].exe
+    alt_exe_name = f"1998-TEAM-Photobooth-Setup-v{__version__}{channel_suffix}.exe"
     alt_installer_path = dist_installer_dir / alt_exe_name
     shutil.copy2(target_installer_path, alt_installer_path)
     alt_sha256_file = dist_installer_dir / f"{alt_exe_name}.sha256"

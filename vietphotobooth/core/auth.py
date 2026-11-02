@@ -128,18 +128,27 @@ class AdminAuthManager(QObject):
             self.refresh_session()
             return True
 
-        pin, ok = QInputDialog.getText(
-            parent,
-            title,
-            "Nhập mã PIN quản trị (Mặc định: 1234):",
-            QLineEdit.Password
-        )
-        if not ok or not pin:
-            return False
+        # Sử dụng TouchPinDialog chuyên nghiệp chuẩn v2.0
+        try:
+            from vietphotobooth.desktop.widgets.touch_pin_dialog import TouchPinDialog
+            from PySide6.QtWidgets import QDialog
+            dlg = TouchPinDialog(auth_mgr=self, title=title, parent=parent)
+            res = dlg.exec()
+            return bool(res == QDialog.Accepted and self.is_authenticated())
+        except Exception as e:
+            logger.warning(f"Fallback sang QInputDialog do: {e}")
+            pin, ok = QInputDialog.getText(
+                parent,
+                title,
+                "Nhập mã PIN quản trị (Mặc định: 1234):",
+                QLineEdit.Password
+            )
+            if not ok or not pin:
+                return False
 
-        if self.authenticate(pin):
-            return True
-        else:
-            if parent:
-                QMessageBox.critical(parent, "Lỗi Xác Thực", "Mã PIN không chính xác! Thao tác bị từ chối.")
-            return False
+            if self.authenticate(pin):
+                return True
+            else:
+                if parent:
+                    QMessageBox.critical(parent, "Lỗi Xác Thực", "Mã PIN không chính xác! Thao tác bị từ chối.")
+                return False

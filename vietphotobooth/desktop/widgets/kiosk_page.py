@@ -479,6 +479,7 @@ class KioskPage(QWidget):
         self._af_watchdog_timer = QTimer(self)
         self._af_watchdog_timer.setSingleShot(True)
         self._af_watchdog_timer.timeout.connect(self._on_af_timeout)
+        self._retake_slot_index: Optional[int] = None
 
         # Bộ điều khiển âm thanh phòng chụp Studio (Voice cues, countdown beeps, mechanical shutter)
         self.sound_controller = SoundController(config_mgr=self.config_mgr, parent=self)
@@ -1064,6 +1065,7 @@ class KioskPage(QWidget):
             parent=self
         )
         self.review_widget.retake_requested.connect(self._on_review_retake)
+        self.review_widget.retake_slot_requested.connect(self._on_review_retake_slot)
         self.review_widget.finish_requested.connect(self._on_review_finish)
         self.review_widget.photo_saved.connect(self._on_review_photo_saved)
         self.review_widget.print_completed.connect(self._on_review_print_completed)
@@ -1590,7 +1592,10 @@ class KioskPage(QWidget):
             "background: rgba(13,21,39,0.92); border: 1.5px solid #D4AF37; "
             "padding: 8px 24px; border-radius: 18px;"
         )
-        self.lbl_status_badge.setText(f"Chuẩn bị! Ảnh {self.current_shot_index} / {self.total_shots_needed}")
+        if getattr(self, "_retake_slot_index", None) is not None:
+            self.lbl_status_badge.setText(f"📸 Đang chụp lại Ô số {self._retake_slot_index + 1}!")
+        else:
+            self.lbl_status_badge.setText(f"Chuẩn bị! Ảnh {self.current_shot_index} / {self.total_shots_needed}")
         self._reposition_viewport_overlays()
         self.lbl_status_badge.show()
 
@@ -1871,6 +1876,20 @@ class KioskPage(QWidget):
             # 2. Xử lý Smart Beauty Panel sau mỗi ảnh
             final_img, final_path = self._prompt_smart_beauty(target_path, captured_img)
 
+            if getattr(self, "_retake_slot_index", None) is not None:
+                r_idx = self._retake_slot_index
+                if 0 <= r_idx < len(self.captured_originals):
+                    self.captured_originals[r_idx] = final_img
+                    self.captured_paths[r_idx] = final_path
+                else:
+                    self.captured_originals.append(final_img)
+                    self.captured_paths.append(final_path)
+                self._retake_slot_index = None
+                logger.info(f"Đã cập nhật riêng ô #{r_idx + 1}, bảo toàn 100% các ô còn lại.")
+                self.lbl_status_badge.setText(f"✨ Đã cập nhật ảnh ô #{r_idx + 1}!")
+                QTimer.singleShot(600, self._enter_review_state)
+                return
+
             self.captured_originals.append(final_img)
             self.captured_paths.append(final_path)
             logger.info(f"Đã xác thực và ghi nhận ảnh {self.current_shot_index}/{self.total_shots_needed} trên đĩa: {final_path}")
@@ -1902,6 +1921,13 @@ class KioskPage(QWidget):
                 self.camera_mgr.cancel_autofocus()
             except Exception:
                 pass
+
+        if getattr(self, "_retake_slot_index", None) is not None:
+            self._retake_slot_index = None
+            logger.warning("Hủy chụp lại ô do lỗi máy ảnh, khôi phục lại màn hình review.")
+            self._enter_review_state()
+            QMessageBox.warning(self, "Lỗi Kết Nối Máy Ảnh", err_msg)
+            return
         self.current_state = "IDLE"
         self.lbl_countdown.hide()
         self.lbl_status_badge.hide()
@@ -2282,6 +2308,30 @@ class KioskPage(QWidget):
         """Khách chọn Chụp Lại: quay về màn hình chụp và bắt đầu lượt mới."""
         logger.info("Khách chọn Chụp Lại: quay về màn hình chụp.")
         self._reset_to_idle()
+
+    def _on_review_retake_slot(self, slot_idx: int):
+        """Khách chọn 'Chụp lại ô này' cho ô số slot_idx (0-indexed)."""
+        logger.info(f"Khách yêu cầu chụp lại riêng ô số {slot_idx + 1}.")
+        self.retake_single_slot(slot_idx)
+
+    def retake_single_slot(self, slot_idx: int):
+        """Khởi động chụp lại riêng ô slot_idx (bảo toàn 100% các ô khác)."""
+        if not self.camera_mgr.is_connected() and self.camera_mgr.current_backend_name != "simulator":
+            QMessageBox.warning(self, "Máy Ảnh", "Chưa kết nối máy ảnh! Vui lòng kiểm tra lại cáp kết nối.")
+            return
+
+        if not (0 <= slot_idx < len(self.captured_originals)):
+            logger.warning(f"Chỉ số slot {slot_idx} không hợp lệ để chụp lại.")
+            return
+
+        self._retake_slot_index = slot_idx
+        self.current_state = "COUNTDOWN"
+        self.current_shot_index = slot_idx + 1
+
+        # Chuyển stack về Viewfinder và bắt đầu đếm ngược cho riêng ô này
+        self.kiosk_stack.setCurrentIndex(0)
+        self.start_live_view()
+        self._start_single_shot_countdown()
 
     def _on_review_finish(self):
         """Khách bấm Hoàn Tất: quay về màn hình chụp chuẩn bị cho lượt mới."""
