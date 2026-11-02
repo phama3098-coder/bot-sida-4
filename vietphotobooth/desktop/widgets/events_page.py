@@ -28,6 +28,7 @@ from vietphotobooth.sharing.token_manager import TokenManager
 from vietphotobooth.cloud import SyncManager, SyncStatus
 from vietphotobooth.core.logger import get_logger
 from vietphotobooth.desktop.icons import get_svg_icon, COLOR_GOLD, COLOR_GREEN, COLOR_RED, COLOR_SLATE, COLOR_NAVY
+from vietphotobooth.desktop.widgets.session_lightbox_dialog import SessionLightboxDialog
 
 logger = get_logger()
 
@@ -385,7 +386,18 @@ class EventsPage(QWidget):
         self.lbl_gallery_event_title.setStyleSheet("color: #F8FAFC; font-weight: 700; font-size: 14px;")
         bar_gal.addWidget(self.lbl_gallery_event_title)
 
+        self.lbl_storage_stats = QLabel("")
+        self.lbl_storage_stats.setStyleSheet("color: #94A3B8; font-size: 12px; padding-left: 8px;")
+        bar_gal.addWidget(self.lbl_storage_stats)
+
         bar_gal.addStretch(1)
+
+        btn_preview = QPushButton(" Xem Trước Lượt Chụp")
+        btn_preview.setIcon(get_svg_icon("camera", size=15, color=COLOR_GOLD))
+        btn_preview.setObjectName("btn_secondary")
+        btn_preview.setCursor(Qt.PointingHandCursor)
+        btn_preview.clicked.connect(lambda: self._preview_session_selected())
+        bar_gal.addWidget(btn_preview)
 
         btn_reprint = QPushButton(" In Lại Lượt Đang Chọn")
         btn_reprint.setIcon(get_svg_icon("printer", size=15, color=COLOR_GOLD))
@@ -403,12 +415,41 @@ class EventsPage(QWidget):
 
         l_gal.addLayout(bar_gal)
 
+        # Search / Filter Bar for Sessions
+        bar_filter_gal = QHBoxLayout()
+        self.txt_search_session = QLineEdit()
+        self.txt_search_session.setPlaceholderText("Tìm kiếm lượt chụp theo mã hoặc ngày...")
+        self.txt_search_session.addAction(get_svg_icon("search", size=14, color=COLOR_SLATE), QLineEdit.LeadingPosition)
+        self.txt_search_session.setStyleSheet("""
+            QLineEdit {
+                background-color: #070A12;
+                border: 1px solid #223354;
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: #F8FAFC;
+                font-size: 12px;
+                max-width: 320px;
+            }
+            QLineEdit:focus {
+                border-color: #D4AF37;
+            }
+        """)
+        self.txt_search_session.textChanged.connect(lambda: self._refresh_gallery())
+        bar_filter_gal.addWidget(self.txt_search_session)
+
+        bar_filter_gal.addStretch(1)
+        l_gal.addLayout(bar_filter_gal)
+
         # Sessions Table
         self.table_sessions = QTableWidget(0, 5)
         self.table_sessions.setHorizontalHeaderLabels([
-            "Mã Lượt Chụp", "Ảnh Thành Phẩm", "Thời Gian", "Đồng Bộ Google Drive", "Thao Tác"
+            "Mã Lượt Chụp", "Ảnh Thành Phẩm", "Thời Gian", "Đồng Bộ Cloud", "Thao Tác"
         ])
-        self.table_sessions.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_sessions.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table_sessions.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table_sessions.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table_sessions.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.table_sessions.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.table_sessions.setSelectionBehavior(QTableWidget.SelectRows)
         self.table_sessions.setSelectionMode(QTableWidget.SingleSelection)
         self.table_sessions.setAlternatingRowColors(True)
@@ -441,7 +482,7 @@ class EventsPage(QWidget):
                 border-bottom: 2px solid #223354;
             }
         """)
-        self.table_sessions.doubleClicked.connect(lambda idx: self._show_qr_selected())
+        self.table_sessions.doubleClicked.connect(lambda idx: self._preview_session_selected())
         l_gal.addWidget(self.table_sessions)
 
         layout.addWidget(grp_gallery)
@@ -735,18 +776,39 @@ class EventsPage(QWidget):
 
         self.table_sessions.setRowCount(0)
         if not os.path.exists(final_dir):
+            if hasattr(self, "lbl_storage_stats"):
+                self.lbl_storage_stats.setText("• 0 lượt chụp")
             return
 
         files = [f for f in os.listdir(final_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+        total_sessions = len(files)
+
+        # Cập nhật thông tin dung lượng đĩa và cảnh báo
+        disk_info = self.event_mgr.check_disk_space(2.0)
+        free_gb = disk_info.get("free_gb", 0.0)
+        warning = disk_info.get("is_low", False)
+        disk_str = f"• {total_sessions} lượt chụp • Trống {free_gb} GB"
+        if warning:
+            disk_str += " ⚠️ (Dung lượng thấp!)"
+        if hasattr(self, "lbl_storage_stats"):
+            self.lbl_storage_stats.setText(disk_str)
+
+        # Bộ lọc tìm kiếm lượt chụp
+        q = ""
+        if hasattr(self, "txt_search_session"):
+            q = self.txt_search_session.text().strip().lower()
 
         for f in reversed(files):
-            row = self.table_sessions.rowCount()
-            self.table_sessions.insertRow(row)
-
             sess_id = f.replace("_final.jpg", "").replace("_final.png", "")
             fpath = os.path.join(final_dir, f)
             mtime = os.path.getmtime(fpath)
             time_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M:%S")
+
+            if q and (q not in sess_id.lower() and q not in time_str.lower() and q not in f.lower()):
+                continue
+
+            row = self.table_sessions.rowCount()
+            self.table_sessions.insertRow(row)
 
             cloud_status_text = "Chỉ lưu máy"
             cloud_color = "#94A3B8"
@@ -780,7 +842,122 @@ class EventsPage(QWidget):
                 item_cloud.setForeground(Qt.GlobalColor.lightGray)
             self.table_sessions.setItem(row, 3, item_cloud)
 
-            self.table_sessions.setItem(row, 4, QTableWidgetItem("Sẵn sàng in / quét QR"))
+            # Cột Thao Tác nhanh: Xem, In, QR
+            act_w = QWidget()
+            h_act = QHBoxLayout(act_w)
+            h_act.setContentsMargins(4, 2, 4, 2)
+            h_act.setSpacing(6)
+
+            btn_v = QPushButton("Xem")
+            btn_v.setCursor(Qt.PointingHandCursor)
+            btn_v.setToolTip("Xem chi tiết ảnh lượt chụp (Lightbox)")
+            btn_v.setStyleSheet("""
+                QPushButton {
+                    background-color: #10192C;
+                    border: 1px solid #223354;
+                    color: #D8BE6B;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    border-color: #D8BE6B;
+                    background-color: #1A2844;
+                }
+            """)
+            btn_v.clicked.connect(lambda _, r=row: self._preview_session_selected(r))
+            h_act.addWidget(btn_v)
+
+            btn_p = QPushButton("In")
+            btn_p.setCursor(Qt.PointingHandCursor)
+            btn_p.setToolTip("Gửi lệnh in lại ảnh thành phẩm")
+            btn_p.setStyleSheet("""
+                QPushButton {
+                    background-color: #10192C;
+                    border: 1px solid #223354;
+                    color: #F8FAFC;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    border-color: #F8FAFC;
+                    background-color: #1A2844;
+                }
+            """)
+            btn_p.clicked.connect(lambda _, fp=fpath, fn=f: self._reprint_file(fp, fn))
+            h_act.addWidget(btn_p)
+
+            btn_q = QPushButton("QR")
+            btn_q.setCursor(Qt.PointingHandCursor)
+            btn_q.setToolTip("Xem lại mã QR chia sẻ trực tuyến & LAN")
+            btn_q.setStyleSheet("""
+                QPushButton {
+                    background-color: #10192C;
+                    border: 1px solid #223354;
+                    color: #38BDF8;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    border-color: #38BDF8;
+                    background-color: #1A2844;
+                }
+            """)
+            btn_q.clicked.connect(lambda _, s=sess_id, fp=fpath: self._show_qr_for_session(s, fp))
+            h_act.addWidget(btn_q)
+
+            self.table_sessions.setCellWidget(row, 4, act_w)
+
+    def _preview_session_selected(self, row: Optional[int] = None):
+        """Mở cửa sổ xem trước (Photo Lightbox) chi tiết cho lượt chụp đang chọn."""
+        target_row = row if row is not None else self.table_sessions.currentRow()
+        if target_row < 0:
+            QMessageBox.warning(self, "Thông Báo", "Vui lòng chọn một lượt chụp trong bảng để xem trước.")
+            return
+
+        sess_item = self.table_sessions.item(target_row, 0)
+        if not sess_item:
+            return
+        sess_id = sess_item.text().strip()
+        target_name = self.selected_event_name or self.event_mgr.get_active_event_name()
+
+        dlg = SessionLightboxDialog(
+            session_id=sess_id,
+            event_name=target_name,
+            event_mgr=self.event_mgr,
+            print_mgr=self.print_mgr,
+            token_mgr=self.token_mgr,
+            sync_mgr=self.sync_mgr,
+            parent=self
+        )
+        dlg.exec()
+
+    def _reprint_file(self, fpath: str, fname: str):
+        if os.path.exists(fpath):
+            self.print_mgr.print_image(fpath, copies=1)
+            QMessageBox.information(self, "In Lại", f"Đã gửi lệnh in lại lượt: {fname}")
+
+    def _show_qr_for_session(self, sess_id: str, fpath: str):
+        fname = os.path.basename(fpath)
+        target_name = self.selected_event_name or self.event_mgr.get_active_event_name()
+
+        # LAN URL
+        token_info = self.token_mgr.create_token(target_name, sess_id)
+        lan_url = self.token_mgr.get_sharing_url(token_info.token)
+
+        # Google Drive URL
+        gdrive_url = None
+        if self.sync_mgr:
+            info = self.sync_mgr.get_file_info(fpath)
+            if info and info.get("status") == SyncStatus.SYNCED:
+                gdrive_url = info.get("web_link")
+
+        self._open_qr_dialog_ui(sess_id, fpath, target_name, lan_url, gdrive_url)
 
     def _reprint_selected(self):
         row = self.table_sessions.currentRow()
@@ -792,10 +969,7 @@ class EventsPage(QWidget):
         target_name = self.selected_event_name or self.event_mgr.get_active_event_name()
         dirs = self.event_mgr.get_event_dirs(target_name)
         fpath = os.path.join(dirs["final"], fname)
-
-        if os.path.exists(fpath):
-            self.print_mgr.print_image(fpath, copies=1)
-            QMessageBox.information(self, "In Lại", f"Đã gửi lệnh in lại lượt: {fname}")
+        self._reprint_file(fpath, fname)
 
     def _show_qr_selected(self):
         row = self.table_sessions.currentRow()
@@ -808,17 +982,9 @@ class EventsPage(QWidget):
         target_name = self.selected_event_name or self.event_mgr.get_active_event_name()
         dirs = self.event_mgr.get_event_dirs(target_name)
         fpath = os.path.join(dirs["final"], fname)
+        self._show_qr_for_session(sess_id, fpath)
 
-        # LAN URL
-        token_info = self.token_mgr.create_token(target_name, sess_id)
-        lan_url = self.token_mgr.get_sharing_url(token_info.token)
-
-        # Google Drive URL
-        gdrive_url = None
-        if self.sync_mgr:
-            info = self.sync_mgr.get_file_info(fpath)
-            if info and info.get("status") == SyncStatus.SYNCED:
-                gdrive_url = info.get("web_link")
+    def _open_qr_dialog_ui(self, sess_id: str, fpath: str, target_name: str, lan_url: str, gdrive_url: Optional[str]):
 
         # QR Modal Dialog
         dlg = QDialog(self)

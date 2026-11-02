@@ -10,6 +10,7 @@ Matches exact design of Panel 3:
 """
 
 import os
+import time
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QSizePolicy, QGraphicsDropShadowEffect
@@ -226,8 +227,26 @@ class GuestIdleScreen(QWidget):
         return frame
 
     def mousePressEvent(self, event):
-        """Khách chạm vào bất kỳ đâu trên màn hình đều kích hoạt bắt đầu chụp."""
+        """Khách chạm vào màn hình bắt đầu chụp; Quản trị viên gõ nhanh góc trên để mở khóa bí mật."""
         if event.button() == Qt.LeftButton:
+            pos = event.position() if hasattr(event, "position") else event.pos()
+            x = pos.x()
+            y = pos.y()
+            w = self.width()
+
+            # Thao tác bí mật: gõ 5 lần trong vòng 3 giây ở góc trên (trái hoặc phải)
+            now = time.time()
+            if (x > w - 120 and y < 120) or (x < 120 and y < 120):
+                if not hasattr(self, "_secret_tap_history"):
+                    self._secret_tap_history = []
+                self._secret_tap_history = [t for t in self._secret_tap_history if now - t < 3.0]
+                self._secret_tap_history.append(now)
+                if len(self._secret_tap_history) >= 5:
+                    self._secret_tap_history.clear()
+                    logger.info("Phát hiện thao tác bí mật 5 lần chạm góc — Kích hoạt xác thực mã PIN thoát Kiosk.")
+                    self._on_admin_clicked()
+                    return
+
             self._on_screen_tapped()
         super().mousePressEvent(event)
 

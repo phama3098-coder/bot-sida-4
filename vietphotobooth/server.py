@@ -353,6 +353,43 @@ def create_app() -> FastAPI:
             media_type="image/jpeg"
         )
 
+    @app.get("/download/{token}/all")
+    async def download_all_session_photos(token: str):
+        """Khách tải toàn bộ gói ảnh (ảnh thành phẩm + tất cả ảnh gốc) dưới dạng file ZIP."""
+        share_obj = token_mgr.get_token(token)
+        if not share_obj:
+            raise HTTPException(status_code=403, detail="Đường dẫn không hợp lệ hoặc đã hết hạn.")
+
+        files_to_zip = []
+        if os.path.exists(share_obj.file_path):
+            files_to_zip.append(share_obj.file_path)
+
+        base_name = os.path.basename(share_obj.file_path)
+        sess_prefix = base_name.split("_final")[0] if "_final" in base_name else os.path.splitext(base_name)[0]
+
+        event_path = event_mgr.get_event_path(share_obj.event_name)
+        orig_session_dir = os.path.join(event_path, "Originals", sess_prefix)
+        if os.path.exists(orig_session_dir):
+            for f in sorted(os.listdir(orig_session_dir)):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    files_to_zip.append(os.path.join(orig_session_dir, f))
+
+        import zipfile
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for fpath in set(files_to_zip):
+                if os.path.exists(fpath):
+                    arcname = os.path.basename(fpath)
+                    zf.write(fpath, arcname)
+
+        zip_buffer.seek(0)
+        share_obj.download_count += 1
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename=1998Photobooth_{sess_prefix}_all.zip"}
+        )
+
     # ==========================
     # API CẤU HÌNH & XÁC THỰC
     # ==========================

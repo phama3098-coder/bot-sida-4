@@ -2261,6 +2261,53 @@ class KioskPage(QWidget):
 
         dlg.exec()
 
+    def recover_session(self, session_id: str, event_name: Optional[str] = None) -> bool:
+        """
+        Khôi phục phiên chụp chưa hoàn tất hoặc cần ghép lại ảnh từ các tệp gốc trên đĩa.
+        Bảo toàn 100% ảnh gốc đã chụp, ngăn ngừa mất ảnh khi xảy ra sự cố nguồn điện hoặc lỗi ứng dụng.
+        """
+        active_event = event_name or getattr(self, "current_event", None) or self.event_mgr.get_active_event_name()
+        dirs = self.event_mgr.get_event_dirs(active_event)
+        sess_dir = os.path.join(dirs["originals"], session_id)
+
+        if not os.path.exists(sess_dir):
+            logger.warning(f"[Session Recovery] Thư mục phiên không tồn tại: {sess_dir}")
+            return False
+
+        photo_files = []
+        for f in sorted(os.listdir(sess_dir)):
+            if f.lower().startswith("photo_") and f.lower().endswith((".jpg", ".jpeg", ".png")):
+                if "_original" in f or "_beauty" in f:
+                    continue
+                photo_files.append(os.path.join(sess_dir, f))
+
+        if not photo_files:
+            logger.warning(f"[Session Recovery] Không tìm thấy ảnh hợp lệ trong {sess_dir}")
+            return False
+
+        loaded_imgs = []
+        loaded_paths = []
+        for p in photo_files:
+            try:
+                im = Image.open(p)
+                im.load()
+                loaded_imgs.append(im.copy())
+                loaded_paths.append(p)
+                im.close()
+            except Exception as e:
+                logger.error(f"[Session Recovery] Không thể đọc ảnh {p}: {e}")
+
+        if not loaded_imgs:
+            return False
+
+        self.current_session_id = session_id
+        self.session_dir = sess_dir
+        self.captured_originals = loaded_imgs
+        self.captured_paths = loaded_paths
+        logger.info(f"[Session Recovery] Đã khôi phục thành công {len(loaded_imgs)} ảnh của phiên {session_id}.")
+        self._enter_review_state()
+        return True
+
     def _retake_session(self):
         confirm = QMessageBox.question(self, "Chụp Lại", "Bạn có chắc muốn bỏ lượt chụp này và chụp lại từ đầu?", QMessageBox.Yes | QMessageBox.No)
         if confirm == QMessageBox.Yes:

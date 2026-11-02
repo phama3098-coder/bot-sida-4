@@ -67,10 +67,10 @@ class DashboardPage(QWidget):
         outer_layout.setSpacing(0)
 
         # QScrollArea để đảm bảo đáp ứng mượt mà trên cả 1920x1080 và 1600x900
-        scroll_area = QScrollArea(self)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("""
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.scroll_area.setStyleSheet("""
             QScrollArea {
                 background: transparent;
                 border: none;
@@ -385,8 +385,8 @@ class DashboardPage(QWidget):
         split_layout.addWidget(right_panel, 2)
         main_layout.addLayout(split_layout)
 
-        scroll_area.setWidget(content_widget)
-        outer_layout.addWidget(scroll_area)
+        self.scroll_area.setWidget(content_widget)
+        outer_layout.addWidget(self.scroll_area)
 
     def _create_stat_card(self, icon: str, color_hex: str, label: str, value: str, meta: str, is_demo: bool = False) -> QFrame:
         """Tạo Stat Card với chiều cao cố định 104px và cấu trúc căn chỉnh thống nhất."""

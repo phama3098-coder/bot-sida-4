@@ -639,7 +639,7 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(5, "Cài Đặt")
         else:
             self.lbl_title.setText("<b>1998 TEAM</b> — Photobooth")
-            self.brand_widget.setMaximumWidth(260)
+            self.brand_widget.setMaximumWidth(250)
             self.tabs.setTabText(0, "Chụp Ảnh")
             self.tabs.setTabText(1, "Khung Ảnh")
             self.tabs.setTabText(2, "Máy Ảnh")
