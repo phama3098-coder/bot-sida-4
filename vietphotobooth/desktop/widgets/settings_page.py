@@ -34,6 +34,7 @@ class SettingsPage(QWidget):
     """Trang cấu hình hệ thống, bảo mật mã PIN, vận hành Kiosk và Đồng bộ Google Drive."""
 
     toggle_fullscreen_requested = Signal()
+    audio_settings_changed = Signal()
 
     def __init__(
         self,
@@ -180,6 +181,13 @@ class SettingsPage(QWidget):
         r_aud_sub.addWidget(self.chk_audio_shutter)
         r_aud_sub.addStretch()
         l_audio.addLayout(r_aud_sub)
+
+        # Kết nối sự kiện thay đổi tức thời để Live Sync sang SoundController
+        self.chk_audio_enabled.toggled.connect(self._on_audio_control_changed)
+        self.spin_audio_volume.valueChanged.connect(self._on_audio_control_changed)
+        self.chk_audio_voice.toggled.connect(self._on_audio_control_changed)
+        self.chk_audio_tick.toggled.connect(self._on_audio_control_changed)
+        self.chk_audio_shutter.toggled.connect(self._on_audio_control_changed)
 
         layout.addWidget(grp_audio)
 
@@ -442,9 +450,19 @@ class SettingsPage(QWidget):
             self.sync_mgr.auth.client_secret = self.txt_client_secret.text().strip()
 
         self.config_mgr.save()
+        self.audio_settings_changed.emit()
         self._update_gdrive_ui_status()
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QMessageBox.information(self, "Thành Công", "Đã lưu thành công các thiết lập hệ thống và đám mây!")
+
+    def _on_audio_control_changed(self):
+        """Đồng bộ ngay lập tức các thay đổi âm thanh với ConfigManager và phát tín hiệu Live Sync."""
+        self.config_mgr.set("audio.enabled", self.chk_audio_enabled.isChecked())
+        self.config_mgr.set("audio.volume", self.spin_audio_volume.value() / 100.0)
+        self.config_mgr.set("audio.voice_enabled", self.chk_audio_voice.isChecked())
+        self.config_mgr.set("audio.tick_enabled", self.chk_audio_tick.isChecked())
+        self.config_mgr.set("audio.shutter_enabled", self.chk_audio_shutter.isChecked())
+        self.audio_settings_changed.emit()
 
     def _test_audio_playback(self):
         """Phát thử âm thanh theo cài đặt hiện tại để kiểm tra loa và âm lượng."""

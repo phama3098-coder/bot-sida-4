@@ -8,7 +8,7 @@ import time
 import io
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Callable
 
 from vietphotobooth.camera.backends.base import CameraBackendBase
 from vietphotobooth.camera.models import (
@@ -152,9 +152,14 @@ class SimulatorBackend(CameraBackendBase):
         if self._status == ConnectionState.LIVE_VIEW_ACTIVE:
             self._status = ConnectionState.CONNECTED
 
-    def capture_photo(self) -> Optional[Image.Image]:
+    def capture_photo(self, on_capture_start: Optional[Callable[[], None]] = None) -> Optional[Image.Image]:
         if not self._connected:
             return None
+        if on_capture_start:
+            try:
+                on_capture_start()
+            except Exception:
+                pass
         rgb = self._generate_simulator_frame(2400, 1600)
         return Image.fromarray(rgb)
 

@@ -6,6 +6,7 @@ Guarantees non-blocking GUI execution and zero-crash fault tolerance if audio ha
 """
 
 import os
+import time
 from typing import Optional, Dict
 from PySide6.QtCore import QObject, QUrl
 from PySide6.QtMultimedia import QSoundEffect
@@ -22,6 +23,9 @@ class SoundController(QObject):
     """
     Bộ điều khiển âm thanh phòng Studio Photobooth:
     - Quản lý hiệu ứng âm thanh đếm ngược, giọng nói tiếng Việt và âm thanh chụp.
+    - Quản lý Capture Transaction ID, đảm bảo phát chính xác duy nhất một lần (Exactly Once)
+      cho mỗi giao dịch chụp hợp lệ và triệt tiêu toàn bộ callback trễ/trùng lặp.
+    - Theo dõi trạng thái QSoundEffect (Loading, Ready, Error) an toàn.
     - Chạy hoàn toàn bất đồng bộ trên Qt Multimedia loop, không làm giật hay chặn GUI.
     - Bảo vệ an toàn tuyệt đối: không bao giờ gây crash ứng dụng nếu máy tính không có loa,
       driver âm thanh bị lỗi hoặc file âm thanh bị thiếu.
@@ -38,10 +42,17 @@ class SoundController(QObject):
         self.voice_enabled: bool = True
         self.shutter_enabled: bool = True
 
+        # Theo dõi trạng thái từng effect (READY, LOADING, ERROR, NULL)
+        self._sound_status: Dict[str, str] = {}
+
+        # Quản lý giao dịch màn trập (Transaction ID -> timestamp đã phát)
+        self._shutter_transactions: Dict[str, float] = {}
+        self._current_active_transaction: Optional[str] = None
+
         if self.config_mgr:
             self.load_settings()
 
-        # Cache các đối tượng QSoundEffect theo sound_key
+        # Cache các đối tượng QSoundEffect theo sound_key (Tái sử dụng, không tạo mới liên tục)
         self._effects: Dict[str, QSoundEffect] = {}
         self._load_all_effects()
 
@@ -57,6 +68,17 @@ class SoundController(QObject):
             self.shutter_enabled = bool(self.config_mgr.get("audio.shutter_enabled", True))
         except Exception as e:
             logger.debug(f"[SoundController] Lỗi khi đọc cấu hình âm thanh: {e}")
+
+    def sync_with_config(self, config_mgr=None) -> None:
+        """Đồng bộ thời gian thực (Live Sync) cấu hình từ ConfigManager."""
+        if config_mgr:
+            self.config_mgr = config_mgr
+        self.load_settings()
+        for effect in self._effects.values():
+            try:
+                effect.setVolume(self.volume)
+            except Exception:
+                pass
 
     def save_settings(self) -> None:
         """Lưu cấu hình âm thanh vào ConfigManager."""
@@ -77,22 +99,66 @@ class SoundController(QObject):
         for key in (SOUND_TICK, SOUND_VOICE, SOUND_SHUTTER):
             self._load_effect(key)
 
+    def _on_effect_status_changed(self, key: str, effect: QSoundEffect) -> None:
+        """Xử lý sự kiện thay đổi trạng thái của QSoundEffect (Ready, Loading, Error)."""
+        try:
+            status = effect.status()
+            if status == QSoundEffect.Status.Ready:
+                self._sound_status[key] = "READY"
+                logger.debug(f"[SoundController] Hiệu ứng âm thanh '{key}' đã sẵn sàng (READY).")
+            elif status == QSoundEffect.Status.Loading:
+                self._sound_status[key] = "LOADING"
+            elif status == QSoundEffect.Status.Error:
+                self._sound_status[key] = "ERROR"
+                logger.warning(f"[SoundController] Lỗi phần cứng hoặc codec âm thanh khi nạp '{key}' (ERROR).")
+            elif status == QSoundEffect.Status.Null:
+                self._sound_status[key] = "NULL"
+        except Exception as e:
+            logger.debug(f"[SoundController] Lỗi kiểm tra trạng thái effect '{key}': {e}")
+
     def _load_effect(self, key: str) -> Optional[QSoundEffect]:
-        """Khởi tạo và nạp một tệp âm thanh cụ thể với cơ chế phòng ngừa lỗi."""
+        """Khởi tạo và nạp một tệp âm thanh cụ thể với cơ chế phòng ngừa lỗi và theo dõi trạng thái."""
         try:
             path = get_sound_file_path(key)
             if not os.path.exists(path):
                 logger.debug(f"[SoundController] File âm thanh '{key}' không tồn tại tại: {path}")
+                self._sound_status[key] = "ERROR"
                 return None
 
             effect = QSoundEffect(self)
+            effect.statusChanged.connect(lambda k=key, eff=effect: self._on_effect_status_changed(k, eff))
             effect.setSource(QUrl.fromLocalFile(path))
             effect.setVolume(self.volume)
             self._effects[key] = effect
+            # Cập nhật trạng thái tức thời
+            self._on_effect_status_changed(key, effect)
             return effect
         except Exception as e:
             logger.debug(f"[SoundController] Không thể khởi tạo QSoundEffect cho '{key}': {e}")
+            self._sound_status[key] = "ERROR"
             return None
+
+    def get_effect_status(self, key: str) -> str:
+        """Lấy trạng thái hiện tại của hiệu ứng âm thanh (READY, LOADING, ERROR, NULL)."""
+        if key not in self._effects:
+            return self._sound_status.get(key, "NULL")
+        effect = self._effects[key]
+        try:
+            st = effect.status()
+            if st == QSoundEffect.Status.Ready:
+                return "READY"
+            elif st == QSoundEffect.Status.Loading:
+                return "LOADING"
+            elif st == QSoundEffect.Status.Error:
+                return "ERROR"
+            else:
+                return "NULL"
+        except Exception:
+            return self._sound_status.get(key, "ERROR")
+
+    def is_effect_ready(self, key: str) -> bool:
+        """Kiểm tra hiệu ứng âm thanh đã sẵn sàng phát hay chưa."""
+        return self.get_effect_status(key) == "READY"
 
     def set_volume(self, volume: float) -> None:
         """Thiết lập mức âm lượng (0.0 đến 1.0)."""
@@ -130,6 +196,14 @@ class SoundController(QObject):
                 effect = self._load_effect(sound_key)
 
             if effect is not None:
+                # Kiểm tra trạng thái lỗi của driver âm thanh
+                try:
+                    if effect.status() == QSoundEffect.Status.Error:
+                        logger.warning(f"[SoundController] Bỏ qua phát '{sound_key}' do driver báo lỗi (ERROR).")
+                        return False
+                except Exception:
+                    pass
+
                 # Nếu đang phát dở thì dừng và phát lại từ đầu
                 if effect.isPlaying():
                     effect.stop()
@@ -153,6 +227,58 @@ class SoundController(QObject):
         """Phát âm thanh màn trập cơ học khi máy ảnh chụp."""
         return self.play_sound(SOUND_SHUTTER)
 
+    # -------------------------------------------------------------------------
+    # Quản lý âm thanh màn trập theo Capture Transaction ID (Exactly Once)
+    # -------------------------------------------------------------------------
+    def start_transaction(self, tx_id: str) -> None:
+        """Đăng ký bắt đầu một transaction chụp ảnh mới."""
+        self._current_active_transaction = tx_id
+
+    def is_transaction_played(self, tx_id: str) -> bool:
+        """Kiểm tra transaction đã phát âm thanh màn trập hay chưa."""
+        return bool(tx_id and tx_id in self._shutter_transactions)
+
+    def play_shutter_for_transaction(self, tx_id: str) -> bool:
+        """
+        Phát âm thanh màn trập gắn chặt với Capture Transaction ID:
+        - Đảm bảo phát DUY NHẤT một lần cho mỗi transaction ID (Exactly Once).
+        - Triệt tiêu các tín hiệu callback trễ hoặc trùng lặp.
+        - Trả về True nếu âm thanh được kích hoạt thành công, False nếu bị bỏ qua hoặc lỗi.
+        """
+        if not tx_id or not isinstance(tx_id, str):
+            logger.warning("[SoundController] Giao dịch chụp không hợp lệ (tx_id rỗng).")
+            return False
+
+        if tx_id in self._shutter_transactions:
+            logger.debug(f"[SoundController] Bỏ qua âm thanh màn trập trùng lặp cho transaction '{tx_id}'.")
+            return False
+
+        # Đánh dấu transaction đã được xử lý âm thanh màn trập
+        self._shutter_transactions[tx_id] = time.time()
+
+        if not self.enabled or not self.shutter_enabled:
+            return False
+
+        return self.play_shutter()
+
+    def reset_transaction(self, tx_id: str) -> None:
+        """Xóa trạng thái đã phát của một transaction để cho phép retry (nếu cần)."""
+        if tx_id:
+            self._shutter_transactions.pop(tx_id, None)
+
+    def cancel_transaction(self, tx_id: str) -> None:
+        """Hủy transaction hiện tại và lập tức dừng toàn bộ âm thanh."""
+        if self._current_active_transaction == tx_id:
+            self._current_active_transaction = None
+        self.stop_all()
+
+    def cleanup_transactions(self, max_age_seconds: float = 3600.0) -> None:
+        """Dọn dẹp các transaction cũ trong bộ nhớ đệm để tránh rò rỉ RAM."""
+        now = time.time()
+        expired = [k for k, v in self._shutter_transactions.items() if now - v > max_age_seconds]
+        for k in expired:
+            self._shutter_transactions.pop(k, None)
+
     def stop_all(self) -> None:
         """Dừng toàn bộ hiệu ứng âm thanh đang phát."""
         for effect in list(self._effects.values()):
@@ -171,3 +297,7 @@ class SoundController(QObject):
             except Exception:
                 pass
         self._effects.clear()
+        self._sound_status.clear()
+        self._shutter_transactions.clear()
+        self._current_active_transaction = None
+

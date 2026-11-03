@@ -210,11 +210,32 @@ class TestStudioAudioSystem:
             assert kiosk.countdown_remaining == 3
             kiosk.sound_controller.play_voice_prompt.assert_called()
 
-            # 4. Khi chụp ảnh -> gọi play_shutter
+            # 4. Khi capture bị từ chối / lỗi -> KHÔNG phát âm thanh màn trập (Bảo vệ âm thanh theo kiến trúc mới)
+            kiosk.sound_controller.play_shutter = MagicMock(return_value=True)
+            kiosk.sound_controller.play_shutter_for_transaction = MagicMock(return_value=True)
             with patch.object(cam_mgr, "capture_photo", return_value=(False, None)), \
                  patch("PySide6.QtWidgets.QMessageBox.warning"):
                 kiosk._execute_photo_capture("dummy_path.jpg")
-                kiosk.sound_controller.play_shutter.assert_called_once()
+                kiosk.sound_controller.play_shutter.assert_not_called()
+                kiosk.sound_controller.play_shutter_for_transaction.assert_not_called()
+
+            # 5. Khi camera chấp nhận lệnh chụp (on_capture_start) -> gọi play_shutter_for_transaction duy nhất 1 lần
+            def mock_capture_photo(save_path, on_capture_start=None, **kwargs):
+                if on_capture_start:
+                    on_capture_start()
+                from PIL import Image
+                return True, Image.new("RGB", (100, 100), (255, 255, 255))
+
+            kiosk.sound_controller.play_shutter_for_transaction.reset_mock()
+            with patch.object(cam_mgr, "capture_photo", side_effect=mock_capture_photo), \
+                 patch("PIL.Image.Image.save"), \
+                 patch("os.path.exists", return_value=True), \
+                 patch("os.path.getsize", return_value=5000), \
+                 patch("PIL.Image.open") as mock_open:
+                mock_im = MagicMock()
+                mock_open.return_value.__enter__.return_value = mock_im
+                kiosk._execute_photo_capture("dummy_path.jpg", tx_id="test_tx_001")
+                kiosk.sound_controller.play_shutter_for_transaction.assert_called_once_with("test_tx_001")
         finally:
             if kiosk is not None:
                 kiosk.cleanup()

@@ -6,7 +6,7 @@ Direct USB controller for Nikon D780 implementing high-performance Live View and
 import time
 import ctypes
 import threading
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Callable
 import logging
 
 from vietphotobooth.camera.backends.nikon_maid.maid_types import (
@@ -927,7 +927,12 @@ class NikonSession:
     # STILL CAPTURE
     # --------------------------------------------------------------------------
 
-    def capture_photo(self, timeout_sec: float = 12.0, autofocus_first: bool = False) -> Optional[bytes]:
+    def capture_photo(
+        self,
+        timeout_sec: float = 12.0,
+        autofocus_first: bool = False,
+        on_capture_start: Optional[Callable[[], None]] = None
+    ) -> Optional[bytes]:
         """
         Kích hoạt màn trập, nhận luồng dữ liệu gốc và trả về ảnh JPEG nguyên bản.
         Hỗ trợ tự động xử lý chế độ Mup (Mirror Up) / 2-step release và tùy chọn lấy nét trước khi bấm máy.
@@ -970,6 +975,13 @@ class NikonSession:
                 on_cap_complete,
                 0
             )
+
+            # Mốc capture-start thành công: kích hoạt âm thanh màn trập ngay khi camera chấp nhận lệnh
+            if on_capture_start and ret in (NkMAIDResult.SUCCESS, NkMAIDResult.WAITING_2ND_RELEASE, 0):
+                try:
+                    on_capture_start()
+                except Exception as ex:
+                    logger.debug(f"[NikonSession] Ngoại lệ khi gọi on_capture_start callback: {ex}")
 
             time.sleep(0.3)
             self.pump_async()

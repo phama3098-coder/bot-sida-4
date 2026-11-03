@@ -207,6 +207,7 @@ class MainWindow(QMainWindow):
             update_mgr=self.update_mgr
         )
         self.settings_page.toggle_fullscreen_requested.connect(self.toggle_fullscreen)
+        self.settings_page.audio_settings_changed.connect(self._on_audio_settings_changed)
         self.tabs.addTab(self.settings_page, get_svg_icon("settings", 16, COLOR_GOLD), "Cài Đặt")
         self.tabs.setTabToolTip(5, "Cài đặt hệ thống, bảo mật & Google Drive")
 
@@ -478,6 +479,11 @@ class MainWindow(QMainWindow):
                 self.kiosk_page.start_live_view()
             else:
                 self.kiosk_page.stop_live_view()
+
+    def _on_audio_settings_changed(self):
+        """Đồng bộ thời gian thực các thay đổi cấu hình âm thanh với SoundController của Kiosk."""
+        if hasattr(self, "kiosk_page") and hasattr(self.kiosk_page, "sound_controller") and self.kiosk_page.sound_controller:
+            self.kiosk_page.sound_controller.sync_with_config(self.config_mgr)
 
     def switch_to_tab(self, target_index: int):
         """Chuyển tab theo yêu cầu từ các trang con (kiểm tra quyền quản trị)."""

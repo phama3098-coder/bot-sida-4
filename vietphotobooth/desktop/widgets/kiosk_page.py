@@ -1581,6 +1581,10 @@ class KioskPage(QWidget):
         w, h = info.get("actual_resolution", (0, 0))
 
         if not is_conn:
+            if hasattr(self, "countdown_timer") and self.countdown_timer.isActive():
+                self._abort_capture_due_to_disconnect(
+                    "Mất kết nối máy ảnh trong quá trình đếm ngược chuẩn bị chụp!\n\nVui lòng kiểm tra lại cáp kết nối USB."
+                )
             self.lbl_cam_dot.setText("🔴")
             self.lbl_cam_status_text.setText("Chưa kết nối máy ảnh")
             self.lbl_cam_status_text.setStyleSheet("color: #C53030; font-size: 14px; font-weight: 700; border: none; background: transparent;")
@@ -1672,12 +1676,17 @@ class KioskPage(QWidget):
         self._reposition_viewport_overlays()
         self.lbl_status_badge.show()
 
+        # Đặt lại cờ chống phát lặp giọng nói đếm ngược cho lượt này
+        self._voice_prompt_played = False
+
         # Hiệu ứng âm thanh đếm ngược studio
         if hasattr(self, "sound_controller") and self.sound_controller:
             if self.countdown_remaining == 3:
-                # Nếu đếm ngược 3 giây: ưu tiên giọng nói tiếng Việt studio "Ba, hai, một. Cười lên nào!"
-                if not self.sound_controller.play_voice_prompt():
-                    self.sound_controller.play_tick()
+                # Nếu đếm ngược 3 giây: ưu tiên giọng nói tiếng Việt studio "Ba, hai, một. Cười lên nào!" duy nhất 1 lần
+                if not self._voice_prompt_played:
+                    self._voice_prompt_played = True
+                    if not self.sound_controller.play_voice_prompt():
+                        self.sound_controller.play_tick()
             elif self.countdown_remaining > 3:
                 self.sound_controller.play_tick()
 
@@ -1689,7 +1698,11 @@ class KioskPage(QWidget):
             self.lbl_countdown.setText(str(self.countdown_remaining))
             if hasattr(self, "sound_controller") and self.sound_controller:
                 if self.countdown_remaining == 3:
-                    if not self.sound_controller.play_voice_prompt():
+                    if not getattr(self, "_voice_prompt_played", False):
+                        self._voice_prompt_played = True
+                        if not self.sound_controller.play_voice_prompt():
+                            self.sound_controller.play_tick()
+                    else:
                         self.sound_controller.play_tick()
                 elif self.countdown_remaining > 3:
                     self.sound_controller.play_tick()
@@ -1702,6 +1715,21 @@ class KioskPage(QWidget):
             self.countdown_timer.stop()
             self.lbl_countdown.hide()
             self._trigger_shot()
+
+    def cancel_countdown(self):
+        """Hủy tiến trình đếm ngược chụp ảnh hiện tại và dừng toàn bộ âm thanh ngay lập tức."""
+        if hasattr(self, 'countdown_timer') and self.countdown_timer.isActive():
+            self.countdown_timer.stop()
+        if hasattr(self, 'sound_controller') and self.sound_controller:
+            self.sound_controller.stop_all()
+        self._active_capture_tx = None
+        self._active_capture_tx_id = None
+        self._voice_prompt_played = False
+        self.lbl_countdown.hide()
+        self.lbl_status_badge.hide()
+        self.current_state = "IDLE"
+        self.btn_start.setEnabled(True)
+        self.btn_start.show()
 
     def _prompt_smart_beauty(self, target_path: str, captured_img: Image.Image) -> Tuple[Image.Image, str]:
         """Hiển thị SmartBeautyDialog sau khi chụp và trả về (final_img, final_path)."""
@@ -1803,8 +1831,11 @@ class KioskPage(QWidget):
         self.lbl_viewport.trigger_flash(120)
 
         self._capture_transaction_id = getattr(self, "_capture_transaction_id", 0) + 1
-        tx_id = self._capture_transaction_id
+        tx_id = f"tx_shot_{self.current_shot_index}_{self._capture_transaction_id}_{int(time.time()*1000)}"
         self._active_capture_tx = tx_id
+        self._active_capture_tx_id = tx_id
+        if hasattr(self, "sound_controller") and self.sound_controller:
+            self.sound_controller.start_transaction(tx_id)
 
         if not self.current_session_id:
             active_event = self.event_mgr.get_active_event_name()
@@ -1886,6 +1917,7 @@ class KioskPage(QWidget):
                     self._execute_photo_capture(target_path)
         else:
             self._active_capture_tx = None
+            self._is_af_in_flight = False
             self._execute_photo_capture(target_path)
 
     def _on_af_timeout(self):
@@ -1914,10 +1946,32 @@ class KioskPage(QWidget):
         if target_path:
             self._execute_photo_capture(target_path)
 
-    def _execute_photo_capture(self, target_path: str):
+    def _execute_photo_capture(self, target_path: str, *args, **kwargs):
+        tx_id = kwargs.get("tx_id") or getattr(self, "_active_capture_tx_id", None) or f"tx_shot_{self.current_shot_index}_{int(time.time()*1000)}"
+        self._active_capture_tx_id = tx_id
+
+        # Đăng ký transaction với SoundController
         if hasattr(self, "sound_controller") and self.sound_controller:
-            self.sound_controller.play_shutter()
-        success, captured_img = self.camera_mgr.capture_photo(target_path)
+            self.sound_controller.start_transaction(tx_id)
+
+        # Callback on_capture_start: Kích hoạt âm thanh màn trập ngay khi camera chấp nhận lệnh chụp (CAP_START)
+        def _on_capture_start():
+            if not shiboken6.isValid(self):
+                return
+            # Chỉ phát âm thanh nếu transaction vẫn còn hiệu lực và chưa bị hủy (cancel/disconnect)
+            if getattr(self, "_active_capture_tx_id", None) != tx_id:
+                logger.warning(
+                    f"[Capture Audio] Bỏ qua âm thanh màn trập vì transaction '{tx_id}' không còn active "
+                    f"(active: '{getattr(self, '_active_capture_tx_id', None)}')."
+                )
+                return
+            if hasattr(self, "sound_controller") and self.sound_controller:
+                self.sound_controller.play_shutter_for_transaction(tx_id)
+
+        success, captured_img = self.camera_mgr.capture_photo(
+            target_path,
+            on_capture_start=_on_capture_start
+        )
         valid_file = False
         if success and captured_img:
             if not os.path.exists(target_path):
@@ -1937,14 +1991,19 @@ class KioskPage(QWidget):
                     valid_file = False
 
         if valid_file:
+            # Giải phóng active transaction sau khi chụp xong thành công
+            self._active_capture_tx = None
+            self._active_capture_tx_id = None
+
             # 1. Bảo tồn ảnh gốc nguyên bản trên đĩa
-            orig_backup_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}_original.jpg")
-            if not os.path.exists(orig_backup_path):
-                try:
-                    import shutil
-                    shutil.copy2(target_path, orig_backup_path)
-                except Exception as e:
-                    logger.warning(f"Lỗi sao lưu ảnh gốc: {e}")
+            if getattr(self, "session_dir", None):
+                orig_backup_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}_original.jpg")
+                if not os.path.exists(orig_backup_path):
+                    try:
+                        import shutil
+                        shutil.copy2(target_path, orig_backup_path)
+                    except Exception as e:
+                        logger.warning(f"Lỗi sao lưu ảnh gốc: {e}")
 
             # 2. Xử lý Smart Beauty Panel sau mỗi ảnh
             final_img, final_path = self._prompt_smart_beauty(target_path, captured_img)
@@ -1985,15 +2044,18 @@ class KioskPage(QWidget):
     def _abort_capture_due_to_disconnect(self, err_msg: str):
         """Hủy tiến trình chụp ảnh an toàn khi máy ảnh mất kết nối hoặc rút cáp USB."""
         self.countdown_timer.stop()
+        if hasattr(self, "sound_controller") and self.sound_controller:
+            self.sound_controller.stop_all()
+        self._active_capture_tx = None
+        self._active_capture_tx_id = None
+        self._voice_prompt_played = False
         if hasattr(self, "_af_watchdog_timer") and self._af_watchdog_timer.isActive():
             self._af_watchdog_timer.stop()
-        if getattr(self, '_active_capture_tx', None) is not None or getattr(self, '_is_af_in_flight', False):
-            self._active_capture_tx = None
-            self._is_af_in_flight = False
-            try:
-                self.camera_mgr.cancel_autofocus()
-            except Exception:
-                pass
+        self._is_af_in_flight = False
+        try:
+            self.camera_mgr.cancel_autofocus()
+        except Exception:
+            pass
 
         if getattr(self, "_retake_slot_index", None) is not None:
             self._retake_slot_index = None

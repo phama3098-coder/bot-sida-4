@@ -647,7 +647,7 @@ class CameraConnectionManager:
     # -------------------------------------------------------------------------
     # Chụp ảnh tĩnh chất lượng cao (Capture Flow)
     # -------------------------------------------------------------------------
-    def capture(self, autofocus_first: bool = False) -> Optional[Image.Image]:
+    def capture(self, autofocus_first: bool = False, on_capture_start: Optional[Callable[[], None]] = None) -> Optional[Image.Image]:
         """Chụp một ảnh độ phân giải cao."""
         with self._lock:
             try:
@@ -655,13 +655,25 @@ class CameraConnectionManager:
                     logger.warning("Camera chưa kết nối, thử kết nối lại...")
                     self._backend.connect(self._current_device_id)
 
+                if not self.is_connected():
+                    logger.error("Camera không thể kết nối để chụp ảnh.")
+                    return None
+
                 if hasattr(self._backend, "capture_photo"):
                     import inspect
                     sig = inspect.signature(self._backend.capture_photo)
+                    kwargs = {}
                     if "autofocus_first" in sig.parameters:
-                        img = self._backend.capture_photo(autofocus_first=autofocus_first)
-                    else:
-                        img = self._backend.capture_photo()
+                        kwargs["autofocus_first"] = autofocus_first
+                    if "on_capture_start" in sig.parameters:
+                        kwargs["on_capture_start"] = on_capture_start
+                    elif on_capture_start:
+                        try:
+                            on_capture_start()
+                        except Exception:
+                            pass
+
+                    img = self._backend.capture_photo(**kwargs)
                 else:
                     img = None
 
@@ -672,9 +684,14 @@ class CameraConnectionManager:
                 logger.error(f"Lỗi ngoại lệ khi chụp ảnh qua backend {self._current_backend_type}: {e}")
                 return None
 
-    def capture_photo(self, save_path: Optional[str] = None, autofocus_first: bool = False) -> Tuple[bool, Optional[Image.Image]]:
+    def capture_photo(
+        self,
+        save_path: Optional[str] = None,
+        autofocus_first: bool = False,
+        on_capture_start: Optional[Callable[[], None]] = None
+    ) -> Tuple[bool, Optional[Image.Image]]:
         """Chụp ảnh và lưu an toàn vào đĩa (kiểm tra tính toàn vẹn của tệp)."""
-        img = self.capture(autofocus_first=autofocus_first)
+        img = self.capture(autofocus_first=autofocus_first, on_capture_start=on_capture_start)
         if img:
             if save_path:
                 try:

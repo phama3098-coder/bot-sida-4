@@ -215,24 +215,50 @@ class FrameGalleryPage(QWidget):
         main_layout.setContentsMargins(20, 16, 20, 16)
         main_layout.setSpacing(14)
 
-        # 1. HEADER KHU VỰC CHỌN KHUNG ẢNH
+        # 1. HEADER KHU VỰC CHỌN KHUNG ẢNH (Unified Header Cluster, không border tiêu đề/mô tả/icon)
         h_head = QHBoxLayout()
-        h_head.setSpacing(12)
+        h_head.setContentsMargins(0, 0, 0, 0)
+        h_head.setSpacing(16)
+
+        # Cụm Icon + Tiêu đề + Mô tả thống nhất thành 1 khối không border/nền thừa
+        self.header_cluster = QWidget()
+        self.header_cluster.setObjectName("frame_gallery_header_cluster")
+        self.header_cluster.setStyleSheet("background: transparent; border: none; padding: 0px; margin: 0px;")
+        cluster_layout = QHBoxLayout(self.header_cluster)
+        cluster_layout.setContentsMargins(0, 0, 0, 0)
+        cluster_layout.setSpacing(12)
+        cluster_layout.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
 
         icon_lbl = QLabel()
+        icon_lbl.setObjectName("frame_gallery_header_icon")
         icon_lbl.setPixmap(get_svg_pixmap("frame", 28, THEME_GOLD))
-        h_head.addWidget(icon_lbl)
+        icon_lbl.setStyleSheet("background: transparent; border: none; padding: 0px; margin: 0px;")
+        cluster_layout.addWidget(icon_lbl)
 
         v_titles = QVBoxLayout()
+        v_titles.setContentsMargins(0, 0, 0, 0)
         v_titles.setSpacing(2)
+        v_titles.setAlignment(Qt.AlignVCenter)
+
         lbl_title = QLabel("CHỌN KHUNG ẢNH")
-        lbl_title.setStyleSheet(f"font-size: 20px; font-weight: 900; color: {THEME_TEXT_PRIMARY}; letter-spacing: 0.5px;")
+        lbl_title.setObjectName("frame_gallery_title")
+        lbl_title.setStyleSheet(
+            f"font-size: 20px; font-weight: 900; color: {THEME_TEXT_PRIMARY}; letter-spacing: 0.5px; "
+            f"background: transparent; border: none; padding: 0px; margin: 0px;"
+        )
+
         lbl_sub = QLabel("Nhấn vào khung bất kỳ để chọn và bắt đầu lượt chụp mới")
-        lbl_sub.setStyleSheet(f"font-size: 13px; color: {THEME_TEXT_SECONDARY};")
+        lbl_sub.setObjectName("frame_gallery_subtitle")
+        lbl_sub.setStyleSheet(
+            f"font-size: 13px; color: {THEME_TEXT_SECONDARY}; "
+            f"background: transparent; border: none; padding: 0px; margin: 0px;"
+        )
+
         v_titles.addWidget(lbl_title)
         v_titles.addWidget(lbl_sub)
-        h_head.addLayout(v_titles)
+        cluster_layout.addLayout(v_titles)
 
+        h_head.addWidget(self.header_cluster)
         h_head.addStretch()
 
         # Nút chuyển sang trình thiết kế khung dành cho Quản trị viên

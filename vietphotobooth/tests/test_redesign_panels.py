@@ -94,6 +94,7 @@ def test_printing_page_redesign_and_dual_routing(qapp):
     assert pm.paper_count == initial_paper + 100
 
     pp.close()
+    pm.stop()
 
 
 # =========================================================================
@@ -154,3 +155,4 @@ def test_events_page_redesign_and_management(qapp, tmp_path):
     assert em.get_active_event_name() != test_evt_name
 
     ep.close()
+    pm.stop()

@@ -283,7 +283,7 @@ class NikonD780Backend(CameraBackendBase):
 
         return diag
 
-    def capture_photo(self, autofocus_first: bool = False) -> Optional[Image.Image]:
+    def capture_photo(self, autofocus_first: bool = False, on_capture_start: Optional[Callable[[], None]] = None) -> Optional[Image.Image]:
         """Chụp ảnh tĩnh độ phân giải cao (6048 x 4024) và trả về PIL Image."""
         if self._worker is None or self._status not in (ConnectionState.CONNECTED, ConnectionState.LIVE_VIEW_ACTIVE):
             self._last_error = CameraError(
@@ -293,7 +293,7 @@ class NikonD780Backend(CameraBackendBase):
             return None
 
         try:
-            image = self._worker.capture(timeout_sec=12.0, autofocus_first=autofocus_first)
+            image = self._worker.capture(timeout_sec=12.0, autofocus_first=autofocus_first, on_capture_start=on_capture_start)
             if image is None:
                 self._last_error = CameraError(
                     code="NIKON_CAPTURE_FAILED",

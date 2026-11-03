@@ -129,7 +129,12 @@ class NikonCameraWorker:
         with self._frame_lock:
             return self._latest_frame
 
-    def capture(self, timeout_sec: float = 12.0, autofocus_first: bool = False) -> Optional[Image.Image]:
+    def capture(
+        self,
+        timeout_sec: float = 12.0,
+        autofocus_first: bool = False,
+        on_capture_start: Optional[Callable[[], None]] = None
+    ) -> Optional[Image.Image]:
         """
         Thực hiện chụp ảnh tĩnh trên worker và trả về đối tượng PIL Image.
         """
@@ -137,7 +142,13 @@ class NikonCameraWorker:
         self._live_view_enabled = False
 
         try:
-            raw_jpeg = self._session.capture_photo(timeout_sec=timeout_sec, autofocus_first=autofocus_first)
+            kwargs = {
+                "timeout_sec": timeout_sec,
+                "autofocus_first": autofocus_first,
+            }
+            if on_capture_start is not None:
+                kwargs["on_capture_start"] = on_capture_start
+            raw_jpeg = self._session.capture_photo(**kwargs)
             if not raw_jpeg:
                 return None
 
