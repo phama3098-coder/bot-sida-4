@@ -327,15 +327,19 @@ class CameraConnectionManager:
 
                 self._notify_frame(frame)
 
-                # Duy trì tốc độ ổn định theo khả năng tối đa của backend (Nikon MAID: ~38 FPS / 26ms, backend khác: ~30 FPS / 33ms)
-                target_interval = 0.026 if self._current_backend_type == "nikon_maid" else 0.033
-                elapsed = time.perf_counter() - t_start
-                sleep_s = max(0.002, target_interval - elapsed)
-                time.sleep(sleep_s)
+                # Duy trì tốc độ ổn định theo khả năng tối đa của backend
+                if self._current_backend_type == "nikon_maid":
+                    # Nikon MAID: Thu nhận frame theo tốc độ tự nhiên của camera (không ép sleep nhân tạo)
+                    pass
+                else:
+                    target_interval = 0.033
+                    elapsed = time.perf_counter() - t_start
+                    sleep_s = max(0.002, target_interval - elapsed)
+                    time.sleep(sleep_s)
             else:
                 with self._frame_lock:
                     self._latest_frame = None
-                time.sleep(0.06)
+                time.sleep(0.02 if self._current_backend_type == "nikon_maid" else 0.06)
 
         logger.info("LiveView Streamer loop đã dừng an toàn.")
 
@@ -667,13 +671,16 @@ class CameraConnectionManager:
                         kwargs["autofocus_first"] = autofocus_first
                     if "on_capture_start" in sig.parameters:
                         kwargs["on_capture_start"] = on_capture_start
-                    elif on_capture_start:
+
+                    img = self._backend.capture_photo(**kwargs)
+
+                    # Fallback cho backend cũ không có tham số on_capture_start:
+                    # Tuyệt đối không phát âm thanh trước khi có bằng chứng backend chụp thành công
+                    if "on_capture_start" not in sig.parameters and on_capture_start and img is not None:
                         try:
                             on_capture_start()
                         except Exception:
                             pass
-
-                    img = self._backend.capture_photo(**kwargs)
                 else:
                     img = None
 
@@ -836,6 +843,10 @@ class CameraConnectionManager:
     def register_frame_callback(self, cb: Callable[[FrameData], None]) -> None:
         if cb not in self._on_frame_callbacks:
             self._on_frame_callbacks.append(cb)
+
+    def unregister_frame_callback(self, cb: Callable[[FrameData], None]) -> None:
+        if cb in self._on_frame_callbacks:
+            self._on_frame_callbacks.remove(cb)
 
     def register_error_callback(self, cb: Callable[[CameraError], None]) -> None:
         if cb not in self._on_error_callbacks:

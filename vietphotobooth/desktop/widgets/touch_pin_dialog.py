@@ -42,8 +42,8 @@ class TouchPinDialog(QDialog):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setStyleSheet("""
             QDialog {
-                background-color: #E7DFD2;
-                border: 2px solid #BEB3A3;
+                background-color: #D9D5CC;
+                border: 2px solid #AAA69D;
                 border-radius: 16px;
             }
         """)
@@ -63,12 +63,12 @@ class TouchPinDialog(QDialog):
         # Header: Icon Khóa & Tiêu đề
         self.lbl_title = QLabel(f"🔒 <b>{title_text.upper()}</b>")
         self.lbl_title.setAlignment(Qt.AlignCenter)
-        self.lbl_title.setStyleSheet("color: #34312E; font-size: 15px; font-weight: 800; border: none;")
+        self.lbl_title.setStyleSheet("color: #353631; font-size: 15px; font-weight: 800; border: none;")
         layout.addWidget(self.lbl_title)
 
         self.lbl_subtitle = QLabel("Vui lòng nhập mã PIN quản trị (Mặc định: 1234)")
         self.lbl_subtitle.setAlignment(Qt.AlignCenter)
-        self.lbl_subtitle.setStyleSheet("color: #777067; font-size: 11px; border: none;")
+        self.lbl_subtitle.setStyleSheet("color: #716F68; font-size: 11px; border: none;")
         layout.addWidget(self.lbl_subtitle)
 
         # 4 chấm chỉ báo PIN (PIN Indicator Dots)
@@ -82,7 +82,7 @@ class TouchPinDialog(QDialog):
             dot = QLabel()
             dot.setFixedSize(18, 18)
             dot.setStyleSheet(
-                "border: 2px solid #BEB3A3; background-color: #C9BDAA; border-radius: 9px;"
+                "border: 2px solid #AAA69D; background-color: #B9B5AB; border-radius: 9px;"
             )
             self.dot_labels.append(dot)
             h_dots.addWidget(dot)
@@ -117,39 +117,39 @@ class TouchPinDialog(QDialog):
             if text in ("Xóa", "⌫"):
                 btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #C9BDAA;
-                        border: 1.5px solid #BEB3A3;
-                        color: #777067;
+                        background-color: #B9B5AB;
+                        border: 1.5px solid #AAA69D;
+                        color: #716F68;
                         font-size: 14px;
                         font-weight: bold;
                         border-radius: 10px;
                     }
                     QPushButton:hover {
-                        background-color: #BEB3A3;
-                        border-color: #B89555;
-                        color: #34312E;
+                        background-color: #AAA69D;
+                        border-color: #AD905B;
+                        color: #353631;
                     }
                     QPushButton:pressed {
-                        background-color: #B89555;
+                        background-color: #AD905B;
                     }
                 """)
             else:
                 btn.setStyleSheet("""
                     QPushButton {
                         background-color: #EFE8DC;
-                        border: 1.5px solid #BEB3A3;
-                        color: #34312E;
+                        border: 1.5px solid #AAA69D;
+                        color: #353631;
                         font-size: 20px;
                         font-weight: 800;
                         border-radius: 10px;
                     }
                     QPushButton:hover {
-                        background-color: #C9BDAA;
-                        border-color: #B89555;
-                        color: #34312E;
+                        background-color: #B9B5AB;
+                        border-color: #AD905B;
+                        color: #353631;
                     }
                     QPushButton:pressed {
-                        background-color: #BEB3A3;
+                        background-color: #AAA69D;
                     }
                 """)
             btn.clicked.connect(lambda _, val=text: self._on_keypad_clicked(val))
@@ -166,8 +166,8 @@ class TouchPinDialog(QDialog):
         self.btn_cancel.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
-                border: 1.5px solid #BEB3A3;
-                color: #777067;
+                border: 1.5px solid #AAA69D;
+                color: #716F68;
                 font-size: 12px;
                 font-weight: 600;
                 border-radius: 6px;
@@ -194,11 +194,11 @@ class TouchPinDialog(QDialog):
                 )
             elif i < length:
                 dot.setStyleSheet(
-                    "border: 2px solid #8F7038; background-color: #B89555; border-radius: 9px;"
+                    "border: 2px solid #8A703F; background-color: #AD905B; border-radius: 9px;"
                 )
             else:
                 dot.setStyleSheet(
-                    "border: 2px solid #BEB3A3; background-color: #C9BDAA; border-radius: 9px;"
+                    "border: 2px solid #AAA69D; background-color: #B9B5AB; border-radius: 9px;"
                 )
 
     def _on_keypad_clicked(self, val: str):

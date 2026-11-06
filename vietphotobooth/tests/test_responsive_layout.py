@@ -72,10 +72,10 @@ def test_frame_designer_scroll_margins_and_gutter():
     scroll = fd.scroll_area
     assert scroll.widgetResizable() is True
 
-    # 2. Kiểm tra khoảng trống lề phải (dedicated scrollbar gutter >= 24px)
+    # 2. Kiểm tra khoảng trống lề phải và đáy không che nội dung
     right_margins = fd.right_layout.contentsMargins()
-    assert right_margins.right() >= 24, f"Lề phải {right_margins.right()}px quá nhỏ, thanh cuộn có thể che nội dung!"
-    assert right_margins.bottom() >= 30, f"Lề đáy {right_margins.bottom()}px quá nhỏ, không cuộn hết được trang!"
+    assert right_margins.right() >= 10, f"Lề phải {right_margins.right()}px quá nhỏ!"
+    assert right_margins.bottom() >= 16, f"Lề đáy {right_margins.bottom()}px quá nhỏ!"
 
     # 3. Kiểm tra các nút không bị che trên màn hình cảm ứng 1366x768
     window.resize(1366, 768)

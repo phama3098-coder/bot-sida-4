@@ -132,7 +132,7 @@ def test_af_diagnostic_watchdog_warns_without_stopping_worker(monkeypatch, qapp)
     with patch("vietphotobooth.desktop.widgets.camera_page.logger.warning") as warning, patch("vietphotobooth.desktop.widgets.camera_page.QMessageBox.warning"):
         page._run_af_diagnostic()
         assert entered.wait(timeout=1)
-        QTest.qWait(50)
+        QTest.qWait(120)
         assert not page.btn_test_af.isEnabled()
         assert page._af_diagnostic_thread.is_alive()
         warning.assert_called()

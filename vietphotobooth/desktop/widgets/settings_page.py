@@ -306,18 +306,18 @@ class SettingsPage(QWidget):
 
         brand_info = QVBoxLayout()
         lbl_app_name = QLabel("<b>1998 TEAM — Photobooth</b>")
-        lbl_app_name.setStyleSheet("color: #B89555; font-size: 18px; font-weight: bold;")
+        lbl_app_name.setStyleSheet("color: #AD905B; font-size: 18px; font-weight: bold;")
         brand_info.addWidget(lbl_app_name)
         brand_info.addWidget(QLabel("Đơn vị sở hữu: <b>1998 Studio phóng sự cưới</b>"))
 
         lbl_ver_badge = QLabel(
             f"Phiên bản đang sử dụng: <b style='color:#059669;'>v{get_version_string()}</b> • Phát hành: <b>{__release_date__}</b>"
         )
-        lbl_ver_badge.setStyleSheet("font-size: 13px; color: #34312E;")
+        lbl_ver_badge.setStyleSheet("font-size: 13px; color: #353631;")
         brand_info.addWidget(lbl_ver_badge)
 
-        self.lbl_server_ver = QLabel("Phiên bản mới nhất trên máy chủ: <b style='color:#777067;'>Chưa kiểm tra</b>")
-        self.lbl_server_ver.setStyleSheet("font-size: 13px; color: #777067;")
+        self.lbl_server_ver = QLabel("Phiên bản mới nhất trên máy chủ: <b style='color:#716F68;'>Chưa kiểm tra</b>")
+        self.lbl_server_ver.setStyleSheet("font-size: 13px; color: #716F68;")
         brand_info.addWidget(self.lbl_server_ver)
 
         brand_info.addWidget(QLabel(f"Nền tảng: <b>{platform.system()} {platform.release()} (64-bit)</b> • Python {platform.python_version()} • PySide6"))
@@ -328,7 +328,7 @@ class SettingsPage(QWidget):
         # Phân cách mỏng
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("color: #BEB3A3;")
+        line.setStyleSheet("color: #AAA69D;")
         l_sys.addWidget(line)
 
         # Cấu hình kiểm tra cập nhật
@@ -342,7 +342,7 @@ class SettingsPage(QWidget):
         l_sys.addLayout(r_up1)
 
         lbl_up_hint = QLabel("💡 <i>Nguồn cập nhật mặc định: GitHub Release chính thức (phama3098-coder/bot-sida-4). Hỗ trợ GitHub Releases API hoặc file JSON manifest.</i>")
-        lbl_up_hint.setStyleSheet("color: #777067; font-size: 11px;")
+        lbl_up_hint.setStyleSheet("color: #716F68; font-size: 11px;")
         l_sys.addWidget(lbl_up_hint)
 
         r_up2 = QHBoxLayout()
@@ -358,7 +358,7 @@ class SettingsPage(QWidget):
         l_sys.addLayout(r_up2)
 
         self.lbl_update_status = QLabel("Trạng thái: Sẵn sàng kiểm tra phiên bản mới.")
-        self.lbl_update_status.setStyleSheet("color: #777067; font-size: 12px; font-style: italic;")
+        self.lbl_update_status.setStyleSheet("color: #716F68; font-size: 12px; font-style: italic;")
         l_sys.addWidget(self.lbl_update_status)
 
         layout.addWidget(grp_sys)
@@ -511,9 +511,9 @@ class SettingsPage(QWidget):
                 self._update_dlg.update_requested.connect(self._start_download_flow)
                 self._update_dlg.show()
             elif manifest:
-                self.lbl_server_ver.setText(f"Phiên bản mới nhất trên máy chủ: <b style='color:#B89555;'>v{manifest.version} (Build {manifest.build})</b>")
+                self.lbl_server_ver.setText(f"Phiên bản mới nhất trên máy chủ: <b style='color:#AD905B;'>v{manifest.version} (Build {manifest.build})</b>")
                 self.lbl_update_status.setText(f"✅ {msg}")
-                self.lbl_update_status.setStyleSheet("color: #B89555; font-weight: bold; font-size: 12px;")
+                self.lbl_update_status.setStyleSheet("color: #AD905B; font-weight: bold; font-size: 12px;")
             else:
                 self.lbl_server_ver.setText("Phiên bản mới nhất trên máy chủ: <b style='color:#EF4444;'>Không thể lấy thông tin</b>")
                 self.lbl_update_status.setText(f"⚠️ {msg}")
@@ -532,7 +532,7 @@ class SettingsPage(QWidget):
         """Cập nhật giao diện trạng thái kết nối Google Drive."""
         if not self.sync_mgr:
             self.lbl_gdrive_status.setText("Trạng thái: Module đồng bộ chưa khởi chạy.")
-            self.lbl_gdrive_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #777067;")
+            self.lbl_gdrive_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #716F68;")
             return
 
         auth = self.sync_mgr.auth

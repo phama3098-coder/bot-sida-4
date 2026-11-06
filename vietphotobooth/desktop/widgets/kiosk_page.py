@@ -18,6 +18,8 @@ Tái thiết kế chính xác theo bố cục mục tiêu:
 
 import os
 import time
+import math
+import threading
 from typing import Optional, List, Dict, Tuple
 from PIL import Image
 import numpy as np
@@ -28,7 +30,7 @@ from PySide6.QtWidgets import (
     QFrame, QSizePolicy, QDialog, QSpinBox, QMessageBox,
     QCheckBox, QTabWidget, QLineEdit, QStackedWidget
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QSize, QThread
+from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize, QThread
 from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QIntValidator
 
 from vietphotobooth.camera.manager import CameraManager
@@ -165,11 +167,14 @@ class TouchNumberPadDialog(QDialog):
 
 class CameraLiveViewWorker(QThread):
     """
-    Luồng chạy ngầm đọc khung hình Live View liên tục từ camera.
-    Tách biệt hoàn toàn I/O camera và giải mã hình ảnh khỏi luồng GUI chính,
-    đảm bảo giao diện 1998 TEAM mượt mà tuyệt đối ở 30+ FPS không bao giờ giật lag.
+    Bộ điều phối hiển thị Live View hướng sự kiện (Event-Driven Paced Push):
+    - Đăng ký nhận frame trực tiếp từ CameraManager (Direct Push, O(1)).
+    - Coalescing / Latest-Frame-Wins: Luôn hiển thị frame mới nhất, không tích tụ hàng đợi.
+    - Giới hạn tốc độ hiển thị ở tối đa 30 FPS (chu kỳ 33.33ms).
+    - Loại bỏ hoàn toàn vòng lặp polling và sleep ép buộc, giải phóng CPU.
     """
-    frame_ready = Signal(object)  # np.ndarray RGB
+    frame_ready = Signal(object)  # np.ndarray RGB phát sang UI thread
+    _push_signal = Signal()       # Signal nội bộ để điều phối delivery trên Qt event loop
 
     def __init__(self, camera_mgr: CameraManager, parent=None):
         super().__init__(parent)
@@ -179,44 +184,130 @@ class CameraLiveViewWorker(QThread):
         self._first_frame_logged = False
         self._last_error_log_time = 0.0
 
+        # Pacing & Coalescing (30 FPS cap = 33.33ms interval)
+        self._target_interval = 1.0 / 30.0
+        self._last_emit_time = 0.0
+        self._buffer_lock = threading.Lock()
+        self._latest_rgb: Optional[np.ndarray] = None
+        self._has_pending = False
+        self._stop_event = threading.Event()
+
+        # Dedicated high-precision deadline timer for frame pacing (Qt.PreciseTimer)
+        self._deadline_timer = QTimer(self)
+        self._deadline_timer.setTimerType(Qt.PreciseTimer)
+        self._deadline_timer.setSingleShot(True)
+        self._deadline_timer.timeout.connect(self._on_deadline)
+
+        self._push_signal.connect(self._deliver_coalesced_frame, Qt.QueuedConnection)
+        if hasattr(self.camera_mgr, "register_frame_callback"):
+            self.camera_mgr.register_frame_callback(self._on_direct_frame)
+
+    def _on_direct_frame(self, frame_data) -> None:
+        """Callback nhận frame trực tiếp từ background acquisition thread."""
+        if not self._running or self._paused or not self.camera_mgr.is_connected():
+            return
+        if frame_data is None or not getattr(frame_data, "has_rgb", False):
+            return
+
+        rgb = frame_data.rgb
+        if rgb is None or getattr(rgb, "size", 0) == 0:
+            return
+
+        with self._buffer_lock:
+            self._latest_rgb = rgb
+            if not self._has_pending:
+                self._has_pending = True
+                self._push_signal.emit()
+
+    @Slot()
+    def _deliver_coalesced_frame(self) -> None:
+        """Xử lý delivery trên UI thread với pacing 30 FPS và latest-frame-wins."""
+        if not self._running or self._paused:
+            with self._buffer_lock:
+                self._has_pending = False
+            return
+
+        # Kiểm tra nếu UI đang bận render frame trước (Single-frame drop)
+        parent_widget = self.parent()
+        if parent_widget and getattr(parent_widget, "_is_rendering_frame", False):
+            if not self._deadline_timer.isActive():
+                self._deadline_timer.start(5)
+            return
+
+        now = time.perf_counter()
+        elapsed = now - self._last_emit_time
+
+        if elapsed >= self._target_interval:
+            self._do_emit(now)
+        elif not self._deadline_timer.isActive():
+            rem = self._target_interval - elapsed
+            delay_ms = max(1, math.ceil(rem * 1000.0))
+            self._deadline_timer.start(delay_ms)
+
+    @Slot()
+    def _on_deadline(self) -> None:
+        """Kích hoạt khi đến hạn chót (deadline) để hiển thị frame mới nhất."""
+        if not self._running or self._paused:
+            with self._buffer_lock:
+                self._has_pending = False
+            return
+
+        parent_widget = self.parent()
+        if parent_widget and getattr(parent_widget, "_is_rendering_frame", False):
+            self._deadline_timer.start(5)
+            return
+
+        now = time.perf_counter()
+        elapsed = now - self._last_emit_time
+
+        if elapsed >= self._target_interval:
+            self._do_emit(now)
+        else:
+            rem = self._target_interval - elapsed
+            delay_ms = max(1, math.ceil(rem * 1000.0))
+            self._deadline_timer.start(delay_ms)
+
+    def _do_emit(self, now: float) -> None:
+        """Phát khung hình mới nhất sang UI thread và cập nhật mốc thời gian emit."""
+        self._deadline_timer.stop()
+        with self._buffer_lock:
+            frame_rgb = self._latest_rgb
+            self._has_pending = False
+
+        if frame_rgb is not None and self._running and not self._paused:
+            self._last_emit_time = now
+            if not self._first_frame_logged:
+                logger.info(f"CameraLiveViewWorker nhận khung hình đầu tiên ({frame_rgb.shape[1]}x{frame_rgb.shape[0]}).")
+                self._first_frame_logged = True
+            self.frame_ready.emit(frame_rgb)
+
     def run(self):
-        logger.info("CameraLiveViewWorker bắt đầu hoạt động.")
-        while self._running:
-            if self._paused or not self.camera_mgr.is_connected():
-                time.sleep(0.08)
-                continue
-
-            try:
-                # A4: Kiểm tra nếu UI đang vẽ frame trước thì bỏ qua frame cũ (Single-frame drop)
-                parent_widget = self.parent()
-                if parent_widget and getattr(parent_widget, "_is_rendering_frame", False):
-                    time.sleep(0.01)
-                    continue
-
-                # Đọc trực tiếp RGB non-blocking từ camera_mgr
-                frame_rgb = self.camera_mgr.get_liveview_rgb()
-                if frame_rgb is not None and frame_rgb.size > 0:
-                    if not self._first_frame_logged:
-                        logger.info(f"CameraLiveViewWorker nhận khung hình đầu tiên ({frame_rgb.shape[1]}x{frame_rgb.shape[0]}).")
-                        self._first_frame_logged = True
-                    self.frame_ready.emit(frame_rgb)
-            except Exception as e:
-                now = time.time()
-                if now - self._last_error_log_time > 5.0:
-                    logger.debug(f"Liveview worker capture error: {e}")
-                    self._last_error_log_time = now
-
-            time.sleep(0.033)  # ~30 FPS
+        """Worker thread chỉ duy trì trạng thái chạy (idle wait) mà không cần polling."""
+        logger.info("CameraLiveViewWorker bắt đầu hoạt động (Event-driven Direct Push).")
+        self._stop_event.wait()
         logger.info("CameraLiveViewWorker đã dừng.")
 
     def pause(self):
         self._paused = True
+        self._deadline_timer.stop()
+        with self._buffer_lock:
+            self._latest_rgb = None
+            self._has_pending = False
+        self._last_emit_time = 0.0
 
     def resume(self):
         self._paused = False
+        self._last_emit_time = 0.0
 
     def stop(self):
         self._running = False
+        self._deadline_timer.stop()
+        if hasattr(self.camera_mgr, "unregister_frame_callback"):
+            self.camera_mgr.unregister_frame_callback(self._on_direct_frame)
+        with self._buffer_lock:
+            self._latest_rgb = None
+            self._has_pending = False
+        self._stop_event.set()
         self.wait(1000)
 
 
@@ -1526,9 +1617,14 @@ class KioskPage(QWidget):
         if frame_shape and frame_shape[0] > 0 and frame_shape[1] > 0:
             self._latest_frame_shape = frame_shape
         elif not getattr(self, "_latest_frame_shape", None) and hasattr(self, "lbl_viewport"):
-            cur_pix = getattr(self.lbl_viewport, "_current_pixmap", None)
-            if cur_pix and cur_pix.width() > 0:
-                self._latest_frame_shape = (cur_pix.width(), cur_pix.height())
+            if hasattr(self.lbl_viewport, "get_source_dimensions"):
+                src_w, src_h = self.lbl_viewport.get_source_dimensions()
+                if src_w > 0 and src_h > 0:
+                    self._latest_frame_shape = (src_w, src_h)
+            else:
+                cur_pix = getattr(self.lbl_viewport, "_current_pixmap", None)
+                if cur_pix and cur_pix.width() > 0:
+                    self._latest_frame_shape = (cur_pix.width(), cur_pix.height())
         self._latest_detection_time = time.time()
 
         if hasattr(self, "_face_eye_af_controller") and self._face_eye_af_controller and self._face_eye_af_controller.is_enabled:
@@ -1676,44 +1772,44 @@ class KioskPage(QWidget):
         self._reposition_viewport_overlays()
         self.lbl_status_badge.show()
 
-        # Đặt lại cờ chống phát lặp giọng nói đếm ngược cho lượt này
-        self._voice_prompt_played = False
+        # Tạo mới Countdown Transaction ID độc nhất cho lượt này
+        cd_tx_id = f"cd_tx_{self.current_shot_index}_{int(time.time()*1000)}"
+        self._active_countdown_tx_id = cd_tx_id
 
-        # Hiệu ứng âm thanh đếm ngược studio
         if hasattr(self, "sound_controller") and self.sound_controller:
-            if self.countdown_remaining == 3:
-                # Nếu đếm ngược 3 giây: ưu tiên giọng nói tiếng Việt studio "Ba, hai, một. Cười lên nào!" duy nhất 1 lần
-                if not self._voice_prompt_played:
-                    self._voice_prompt_played = True
-                    if not self.sound_controller.play_voice_prompt():
-                        self.sound_controller.play_tick()
-            elif self.countdown_remaining > 3:
-                self.sound_controller.play_tick()
+            self.sound_controller.start_countdown_transaction(cd_tx_id)
+
+        # Đặt lại tracking mốc âm thanh
+        self._voice_prompt_played = False
+        self._countdown_audio_played = set()
+
+        # Phát âm thanh tương ứng đồng bộ với số hiển thị trên UI tại mốc bắt đầu
+        self._play_countdown_audio(self.countdown_remaining, tx_id=cd_tx_id)
 
         self.countdown_timer.start(1000)
+
+    def _play_countdown_audio(self, number: int, tx_id: Optional[str] = None):
+        """
+        Phát âm thanh tương ứng đồng bộ động với số đếm ngược hiển thị trên UI (10, 5, 4, 3, 2, 1...).
+        Mapping trực tiếp giá trị number -> file âm thanh tương ứng mà không hardcode.
+        """
+        if not hasattr(self, "sound_controller") or not self.sound_controller:
+            return
+
+        active_tx = tx_id or getattr(self, "_active_countdown_tx_id", None)
+        self.sound_controller.play_countdown_step(number, tx_id=active_tx)
 
     def _on_countdown_tick(self):
         self.countdown_remaining -= 1
         if self.countdown_remaining > 0:
             self.lbl_countdown.setText(str(self.countdown_remaining))
-            if hasattr(self, "sound_controller") and self.sound_controller:
-                if self.countdown_remaining == 3:
-                    if not getattr(self, "_voice_prompt_played", False):
-                        self._voice_prompt_played = True
-                        if not self.sound_controller.play_voice_prompt():
-                            self.sound_controller.play_tick()
-                    else:
-                        self.sound_controller.play_tick()
-                elif self.countdown_remaining > 3:
-                    self.sound_controller.play_tick()
-                else:
-                    if not self.sound_controller.voice_enabled:
-                        self.sound_controller.play_tick()
-        elif self.countdown_remaining == 0:
-            self.lbl_countdown.setText("📸")
+            self._reposition_viewport_overlays()
+            self._play_countdown_audio(self.countdown_remaining, tx_id=getattr(self, "_active_countdown_tx_id", None))
         else:
+            # Hết thời gian đếm ngược: Dừng timer ngay lập tức và chuyển sang trạng thái chụp
             self.countdown_timer.stop()
-            self.lbl_countdown.hide()
+            self.lbl_countdown.setText("📸")
+            self._reposition_viewport_overlays()
             self._trigger_shot()
 
     def cancel_countdown(self):
@@ -1722,9 +1818,15 @@ class KioskPage(QWidget):
             self.countdown_timer.stop()
         if hasattr(self, 'sound_controller') and self.sound_controller:
             self.sound_controller.stop_all()
+            if getattr(self, "_active_capture_tx_id", None):
+                self.sound_controller.cancel_transaction(self._active_capture_tx_id)
+            if getattr(self, "_active_countdown_tx_id", None):
+                self.sound_controller.cancel_countdown_transaction(self._active_countdown_tx_id)
         self._active_capture_tx = None
         self._active_capture_tx_id = None
+        self._active_countdown_tx_id = None
         self._voice_prompt_played = False
+        self._countdown_audio_played = set()
         self.lbl_countdown.hide()
         self.lbl_status_badge.hide()
         self.current_state = "IDLE"
@@ -1914,11 +2016,11 @@ class KioskPage(QWidget):
                     self._active_capture_tx = None
                     self._af_watchdog_timer.stop()
                     self._is_af_in_flight = False
-                    self._execute_photo_capture(target_path)
+                    self._execute_photo_capture(target_path, tx_id=tx_id)
         else:
             self._active_capture_tx = None
             self._is_af_in_flight = False
-            self._execute_photo_capture(target_path)
+            self._execute_photo_capture(target_path, tx_id=tx_id)
 
     def _on_af_timeout(self):
         """Fallback an toàn khi autofocus quá thời gian chờ (2.2s). Chụp ngay mà không làm gián đoạn phiên."""
@@ -1991,6 +2093,9 @@ class KioskPage(QWidget):
                     valid_file = False
 
         if valid_file:
+            # Ẩn nhãn countdown sau khi chụp xong thành công
+            if hasattr(self, "lbl_countdown"):
+                self.lbl_countdown.hide()
             # Giải phóng active transaction sau khi chụp xong thành công
             self._active_capture_tx = None
             self._active_capture_tx_id = None

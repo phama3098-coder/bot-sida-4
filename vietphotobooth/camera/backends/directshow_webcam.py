@@ -238,10 +238,17 @@ class DirectShowWebcamBackend(CameraBackendBase):
         if self._status == ConnectionState.LIVE_VIEW_ACTIVE:
             self._status = ConnectionState.CONNECTED
 
-    def capture_photo(self) -> Optional[Image.Image]:
-        """Chụp ảnh chất lượng cao từ webcam."""
+    def capture_photo(self, on_capture_start: Optional[Any] = None) -> Optional[Image.Image]:
+        """Chụp ảnh chất lượng cao từ webcam DirectShow (kích hoạt callback bắt đầu chụp khi phần cứng sẵn sàng)."""
         if self._cap is None or not self._cap.isOpened():
             return None
+
+        # Thiết bị phần cứng đã xác nhận sẵn sàng thu nhận khung hình chụp
+        if on_capture_start:
+            try:
+                on_capture_start()
+            except Exception as ex:
+                logger.debug(f"[DirectShowWebcam] Ngoại lệ khi gọi on_capture_start callback: {ex}")
 
         try:
             # Xả 2 frame đệm để lấy khung hình mới nhất

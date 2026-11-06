@@ -168,7 +168,7 @@ QPushButton#btn_big_capture:pressed {{
 }}
 
 QPushButton#btn_big_capture:disabled {{
-    background: #C9BDAA;
+    background: {THEME_BG_SECONDARY};
     color: {THEME_TEXT_SECONDARY};
     border: 1px solid {THEME_BORDER};
 }}

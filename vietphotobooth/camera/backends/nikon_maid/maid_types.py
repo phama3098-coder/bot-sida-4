@@ -196,6 +196,7 @@ class NkMAIDAFModeAtLiveView(IntEnum):
 class NkMAIDResult(IntEnum):
     # Success
     NO_ERROR = 0
+    SUCCESS = 0
     PENDING = 1
     WAITING_2ND_RELEASE = 168
 

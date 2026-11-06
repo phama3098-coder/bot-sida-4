@@ -13,7 +13,7 @@ from typing import Optional, List, Tuple
 from PIL import Image, ImageDraw
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QComboBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QGridLayout, QLabel, QPushButton, QComboBox,
     QSpinBox, QLineEdit, QCheckBox, QScrollArea, QFileDialog, QMessageBox,
     QGroupBox, QInputDialog, QSizePolicy, QColorDialog, QDialog, QFormLayout,
     QRadioButton, QButtonGroup, QTextEdit, QFrame, QSlider
@@ -29,6 +29,48 @@ from vietphotobooth.processing.image_processor import get_face_detector
 from vietphotobooth.core.logger import get_logger
 
 logger = get_logger()
+
+
+class ResponsiveRow(QWidget):
+    """A control row that stacks its existing widgets when its width is tight."""
+
+    def __init__(self, object_name: str, stack_below: int = 440, parent=None):
+        super().__init__(parent)
+        self.setObjectName(object_name)
+        self._stack_below = stack_below
+        self._horizontal_stretches = []
+        self.row_layout = QBoxLayout(QBoxLayout.LeftToRight, self)
+        self.row_layout.setContentsMargins(0, 0, 0, 0)
+        self.row_layout.setSpacing(6)
+
+    def addWidget(self, widget, stretch: int = 0):
+        self.row_layout.addWidget(widget, stretch)
+        self._horizontal_stretches.append(stretch)
+
+    def addLayout(self, layout, stretch: int = 0):
+        self.row_layout.addLayout(layout, stretch)
+        self._horizontal_stretches.append(stretch)
+
+    def _set_direction(self, direction):
+        self.row_layout.setDirection(direction)
+        for index, stretch in enumerate(self._horizontal_stretches):
+            self.row_layout.setStretch(
+                index,
+                stretch if direction == QBoxLayout.LeftToRight else 0,
+            )
+        # The row's minimum size hint changes after its children reflow. Notify
+        # QScrollArea and the ancestor layouts so they recalculate panel width.
+        self.updateGeometry()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        direction = (
+            QBoxLayout.TopToBottom
+            if event.size().width() < self._stack_below
+            else QBoxLayout.LeftToRight
+        )
+        if self.row_layout.direction() != direction:
+            self._set_direction(direction)
 
 
 class ImportFrameDialog(QDialog):
@@ -820,6 +862,7 @@ class FrameDesignerPage(QWidget):
 
     def _init_ui(self):
         main_layout = QHBoxLayout(self)
+        self.main_layout = main_layout
         main_layout.setContentsMargins(14, 12, 14, 12)
         main_layout.setSpacing(14)
 
@@ -963,25 +1006,27 @@ class FrameDesignerPage(QWidget):
 
         # ==============================================================
         # CỘT PHẢI: BẢNG ĐIỀU KHIỂN BỐ CỤC (CUỘN ĐỘC LẬP & TRỰC QUAN)
-        # SỬA TRIỆT ĐỂ LỖI THANH CUỘN CHE NỘI DUNG:
-        # - Chừa lề phải 26px cho thanh cuộn.
-        # - Lề dưới 40px cho phép cuộn đến tận đáy.
-        # - Thanh cuộn nằm riêng biệt, không che lấp bất kỳ nút/trường nào.
+        # Nội dung cuộn dọc; các hàng điều khiển tự xếp dọc khi panel hẹp.
         # ==============================================================
         scroll = QScrollArea()
         self.scroll_area = scroll
         scroll.setWidgetResizable(True)
-        scroll.setMinimumWidth(340)
-        scroll.setMaximumWidth(480)
+        scroll.setMinimumWidth(0)
+        scroll.setMaximumWidth(560)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         scroll_content = QWidget()
+        # The content has a wider natural size hint in its horizontal state.
+        # Let the scroll area constrain it to the viewport while its rows reflow;
+        # otherwise the stale hint can leave controls painted beyond the panel.
+        scroll_content.setMinimumWidth(0)
+        scroll_content.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         right_layout = QVBoxLayout(scroll_content)
         self.right_layout = right_layout
-        right_layout.setContentsMargins(10, 10, 26, 40)
+        right_layout.setContentsMargins(10, 10, 10, 16)
         right_layout.setSpacing(14)
 
         # --------------------------------------------------------------
@@ -993,6 +1038,7 @@ class FrameDesignerPage(QWidget):
 
         form_props = QFormLayout()
         form_props.setSpacing(8)
+        form_props.setRowWrapPolicy(QFormLayout.WrapLongRows)
 
         self.txt_name = QLineEdit()
         form_props.addRow("Tên Khung:", self.txt_name)
@@ -1006,7 +1052,7 @@ class FrameDesignerPage(QWidget):
         self.combo_type.currentIndexChanged.connect(self._on_type_changed)
         form_props.addRow("Khổ In Ấn:", self.combo_type)
 
-        r_color = QHBoxLayout()
+        r_color = ResponsiveRow("background_color_row")
         self.btn_bg_color = QPushButton("#FFFFFF")
         self.btn_bg_color.setObjectName("btn_secondary")
         self.btn_bg_color.clicked.connect(self._choose_bg_color)
@@ -1026,7 +1072,7 @@ class FrameDesignerPage(QWidget):
         self.txt_def_text.setPlaceholderText("VD: 1998 TEAM • Studio Phóng Sự Cưới")
         l_props.addWidget(self.txt_def_text)
 
-        def_font_row = QHBoxLayout()
+        def_font_row = ResponsiveRow("default_font_row", stack_below=470)
         self.combo_def_font = QComboBox()
         self.combo_def_font.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         # Nạp danh sách font từ FontRegistry
@@ -1052,9 +1098,9 @@ class FrameDesignerPage(QWidget):
         self.btn_def_italic.setFixedWidth(32)
         self.btn_def_italic.setStyleSheet("font-style: italic;")
         def_font_row.addWidget(self.btn_def_italic)
-        l_props.addLayout(def_font_row)
+        l_props.addWidget(def_font_row)
 
-        def_style_row = QHBoxLayout()
+        def_style_row = ResponsiveRow("default_style_row", stack_below=470)
         def_style_row.addWidget(QLabel("Màu:"))
         self.btn_def_color = QPushButton("#D4AF37")
         self.btn_def_color.setObjectName("btn_secondary")
@@ -1067,7 +1113,7 @@ class FrameDesignerPage(QWidget):
         self.spin_def_margin.setValue(40)
         self.spin_def_margin.setSuffix(" px")
         def_style_row.addWidget(self.spin_def_margin)
-        l_props.addLayout(def_style_row)
+        l_props.addWidget(def_style_row)
 
         btn_apply_def = QPushButton("Áp Dụng Cho Lớp Chữ Đang Chọn")
         btn_apply_def.setObjectName("btn_secondary")
@@ -1100,7 +1146,7 @@ class FrameDesignerPage(QWidget):
         l_fit.setSpacing(10)
 
         # Selector chọn ô ảnh
-        slot_sel_layout = QHBoxLayout()
+        slot_sel_layout = ResponsiveRow("slot_selector_row", stack_below=470)
         slot_sel_layout.addWidget(QLabel("<b>Ô Ảnh:</b>"))
         self.combo_slots_selector = QComboBox()
         self.combo_slots_selector.currentIndexChanged.connect(self._on_slot_selector_changed)
@@ -1115,7 +1161,7 @@ class FrameDesignerPage(QWidget):
         btn_del_slot.setObjectName("btn_danger")
         btn_del_slot.clicked.connect(self._delete_slot)
         slot_sel_layout.addWidget(btn_del_slot)
-        l_fit.addLayout(slot_sel_layout)
+        l_fit.addWidget(slot_sel_layout)
 
         # Cách căn ảnh: Lấp Đầy Khung vs Hiển Thị Toàn Ảnh (Không ngoặc đơn)
         l_fit.addWidget(QLabel("<b>Cách Căn Ảnh:</b>"))
@@ -1143,13 +1189,12 @@ class FrameDesignerPage(QWidget):
         l_fit.addWidget(self.combo_slot_position)
 
         # Thu phóng ảnh
-        zoom_header = QHBoxLayout()
+        zoom_header = ResponsiveRow("slot_zoom_header")
         zoom_header.addWidget(QLabel("<b>Thu Phóng Ảnh:</b>"))
         self.lbl_zoom_val = QLabel("100%")
         self.lbl_zoom_val.setStyleSheet("color: #D4AF37; font-weight: bold;")
         zoom_header.addWidget(self.lbl_zoom_val)
-        zoom_header.addStretch()
-        l_fit.addLayout(zoom_header)
+        l_fit.addWidget(zoom_header)
 
         self.slider_zoom = QSlider(Qt.Horizontal)
         self.slider_zoom.setRange(100, 250)
@@ -1159,20 +1204,18 @@ class FrameDesignerPage(QWidget):
         l_fit.addWidget(self.slider_zoom)
 
         # Dịch chuyển vùng cắt & Nút Đặt Lại Tâm Cắt
-        crop_layout = QHBoxLayout()
+        crop_layout = ResponsiveRow("slot_crop_row")
         self.lbl_crop_offset = QLabel("Cắt lệch: (0%, 0%)")
         self.lbl_crop_offset.setStyleSheet("color: #94A3B8; font-size: 13px;")
         crop_layout.addWidget(self.lbl_crop_offset)
-        crop_layout.addStretch()
-
         btn_reset_crop = QPushButton("↺ Đặt Lại Tâm Cắt")
         btn_reset_crop.setObjectName("btn_secondary")
         btn_reset_crop.clicked.connect(self._reset_crop_offset)
         crop_layout.addWidget(btn_reset_crop)
-        l_fit.addLayout(crop_layout)
+        l_fit.addWidget(crop_layout)
 
         # Vùng an toàn & Bo góc
-        extra_slot_layout = QHBoxLayout()
+        extra_slot_layout = ResponsiveRow("slot_extra_options_row")
         self.chk_slot_safe = QCheckBox("🛡️ Vùng an toàn")
         self.chk_slot_safe.setChecked(True)
         self.chk_slot_safe.toggled.connect(self._on_slot_safe_toggled)
@@ -1184,10 +1227,10 @@ class FrameDesignerPage(QWidget):
         self.spin_slot_corner.setSuffix(" px")
         self.spin_slot_corner.valueChanged.connect(self._on_slot_corner_changed)
         extra_slot_layout.addWidget(self.spin_slot_corner)
-        l_fit.addLayout(extra_slot_layout)
+        l_fit.addWidget(extra_slot_layout)
 
         # Thao tác xoay và căn giữa ô
-        slot_actions = QHBoxLayout()
+        slot_actions = ResponsiveRow("slot_actions_row")
         btn_rot = QPushButton("🔄 Xoay 90°")
         btn_rot.setObjectName("btn_secondary")
         btn_rot.clicked.connect(self._rotate_slot)
@@ -1197,7 +1240,7 @@ class FrameDesignerPage(QWidget):
         btn_center_slot.setObjectName("btn_secondary")
         btn_center_slot.clicked.connect(self._center_slot_horizontally)
         slot_actions.addWidget(btn_center_slot)
-        l_fit.addLayout(slot_actions)
+        l_fit.addWidget(slot_actions)
 
         # Áp dụng cho tất cả ô
         btn_apply_all = QPushButton("⚡ Áp Dụng Cho Tất Cả Ô")
@@ -1218,7 +1261,7 @@ class FrameDesignerPage(QWidget):
         l_txt.setSpacing(10)
 
         # Selector chọn lớp chữ
-        text_sel_layout = QHBoxLayout()
+        text_sel_layout = ResponsiveRow("text_layer_selector_row", stack_below=470)
         text_sel_layout.addWidget(QLabel("<b>Lớp Chữ:</b>"))
         self.combo_text_selector = QComboBox()
         self.combo_text_selector.currentIndexChanged.connect(self._on_text_selector_changed)
@@ -1233,7 +1276,7 @@ class FrameDesignerPage(QWidget):
         btn_del_txt.setObjectName("btn_danger")
         btn_del_txt.clicked.connect(self._delete_text)
         text_sel_layout.addWidget(btn_del_txt)
-        l_txt.addLayout(text_sel_layout)
+        l_txt.addWidget(text_sel_layout)
 
         # Nội dung chữ (hỗ trợ đa dòng)
         l_txt.addWidget(QLabel("<b>Nội Dung Chữ:</b>"))
@@ -1249,8 +1292,8 @@ class FrameDesignerPage(QWidget):
 
         # Phông chữ & Danh mục phân loại phông chữ
         l_txt.addWidget(QLabel("<b>Bộ Sưu Tập Phông Chữ Cưới (Offline):</b>"))
-        font_cat_bar = QHBoxLayout()
-        font_cat_bar.setSpacing(4)
+        font_cat_bar = ResponsiveRow("font_category_row", stack_below=470)
+        font_cat_bar.row_layout.setSpacing(4)
         self.btn_font_all = QPushButton("Tất Cả")
         self.btn_font_hw = QPushButton("Viết Tay")
         self.btn_font_lux = QPushButton("Sang Trọng")
@@ -1269,9 +1312,9 @@ class FrameDesignerPage(QWidget):
         font_cat_bar.addWidget(self.btn_font_hw)
         font_cat_bar.addWidget(self.btn_font_lux)
         font_cat_bar.addWidget(self.btn_font_mod)
-        l_txt.addLayout(font_cat_bar)
+        l_txt.addWidget(font_cat_bar)
 
-        font_bar = QHBoxLayout()
+        font_bar = ResponsiveRow("text_font_row", stack_below=470)
         font_bar.addWidget(QLabel("Font:"))
         self.combo_font = QComboBox()
         self.combo_font.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
@@ -1300,7 +1343,7 @@ class FrameDesignerPage(QWidget):
         self.btn_italic.toggled.connect(self._on_text_style_changed)
         font_bar.addWidget(self.btn_italic)
 
-        l_txt.addLayout(font_bar)
+        l_txt.addWidget(font_bar)
 
         # Mẫu xem trước phông chữ trực tiếp
         self.lbl_font_preview = QLabel("1998 TEAM • Trăm Năm Hạnh Phúc")
@@ -1311,7 +1354,7 @@ class FrameDesignerPage(QWidget):
         l_txt.addWidget(self.lbl_font_preview)
 
         # Màu sắc chữ & Bảng màu mẫu
-        color_layout = QHBoxLayout()
+        color_layout = ResponsiveRow("text_color_row", stack_below=470)
         color_layout.addWidget(QLabel("Màu:"))
         self.btn_text_color = QPushButton("#FFFFFF")
         self.btn_text_color.setObjectName("btn_secondary")
@@ -1327,12 +1370,11 @@ class FrameDesignerPage(QWidget):
             btn_p.clicked.connect(lambda _, c=hex_c: self._set_text_color_preset(c))
             color_layout.addWidget(btn_p)
 
-        color_layout.addStretch()
-        l_txt.addLayout(color_layout)
+        l_txt.addWidget(color_layout)
 
         # Căn lề chữ (Text Alignment)
         l_txt.addWidget(QLabel("<b>Căn Lề Chữ:</b>"))
-        align_layout = QHBoxLayout()
+        align_layout = ResponsiveRow("text_alignment_row", stack_below=470)
         self.btn_align_left = QPushButton("⬅️ Trái")
         self.btn_align_left.setCheckable(True)
         self.btn_align_center = QPushButton("↔️ Giữa")
@@ -1353,7 +1395,7 @@ class FrameDesignerPage(QWidget):
         align_layout.addWidget(self.btn_align_left)
         align_layout.addWidget(self.btn_align_center)
         align_layout.addWidget(self.btn_align_right)
-        l_txt.addLayout(align_layout)
+        l_txt.addWidget(align_layout)
 
         # NÚT ĐIỀU KHIỂN VỊ TRÍ CHỦ ĐỘNG: CĂN GIỮA, CĂN TRÊN, CĂN DƯỚI, ĐẶT LẠI VỊ TRÍ, KHÓA LỚP
         l_txt.addWidget(QLabel("<b>Định Vị & Căn Chỉnh Vị Trí:</b>"))
@@ -1383,7 +1425,7 @@ class FrameDesignerPage(QWidget):
         l_txt.addLayout(pos_actions)
 
         # Nút Khóa / Mở Khóa / Ẩn / Hiện Lớp Chữ
-        lock_row = QHBoxLayout()
+        lock_row = ResponsiveRow("text_lock_row", stack_below=470)
         self.btn_toggle_visible_text = QPushButton("👁️ Đang Hiện")
         self.btn_toggle_visible_text.setObjectName("btn_secondary")
         self.btn_toggle_visible_text.setToolTip("Ẩn hoặc hiện lớp chữ trên bản in")
@@ -1403,16 +1445,16 @@ class FrameDesignerPage(QWidget):
         self.spin_safe_margin.setSuffix(" px")
         self.spin_safe_margin.valueChanged.connect(self._on_text_margin_changed)
         lock_row.addWidget(self.spin_safe_margin)
-        l_txt.addLayout(lock_row)
+        l_txt.addWidget(lock_row)
 
         # Giãn đều các lớp chữ dọc & Cảnh báo đè lớp
-        dist_row = QHBoxLayout()
+        dist_row = ResponsiveRow("text_distribution_row")
         self.btn_distribute_text = QPushButton("↕️ Giãn Đều Các Lớp Chữ Dọc")
         self.btn_distribute_text.setObjectName("btn_secondary")
         self.btn_distribute_text.setToolTip("Tự động phân bổ đều khoảng cách các lớp chữ theo chiều dọc")
         self.btn_distribute_text.clicked.connect(self._distribute_text_layers)
         dist_row.addWidget(self.btn_distribute_text)
-        l_txt.addLayout(dist_row)
+        l_txt.addWidget(dist_row)
 
         self.lbl_text_overlap = QLabel("")
         self.lbl_text_overlap.setStyleSheet("color: #F59E0B; font-weight: bold; font-size: 12px;")
@@ -1428,7 +1470,7 @@ class FrameDesignerPage(QWidget):
         l_lg = QVBoxLayout(grp_logo)
         l_lg.setSpacing(10)
 
-        logo_sel_layout = QHBoxLayout()
+        logo_sel_layout = ResponsiveRow("logo_selector_row", stack_below=470)
         logo_sel_layout.addWidget(QLabel("<b>Logo:</b>"))
         self.combo_logo_selector = QComboBox()
         self.combo_logo_selector.currentIndexChanged.connect(self._on_logo_selector_changed)
@@ -1443,16 +1485,15 @@ class FrameDesignerPage(QWidget):
         btn_del_logo.setObjectName("btn_danger")
         btn_del_logo.clicked.connect(self._delete_logo)
         logo_sel_layout.addWidget(btn_del_logo)
-        l_lg.addLayout(logo_sel_layout)
+        l_lg.addWidget(logo_sel_layout)
 
         # Kích thước Logo (Khóa tỷ lệ gốc)
-        logo_scale_hdr = QHBoxLayout()
+        logo_scale_hdr = ResponsiveRow("logo_scale_header")
         logo_scale_hdr.addWidget(QLabel("<b>Kích Thước Logo:</b>"))
         self.lbl_logo_scale_val = QLabel("100%")
         self.lbl_logo_scale_val.setStyleSheet("color: #D4AF37; font-weight: bold;")
         logo_scale_hdr.addWidget(self.lbl_logo_scale_val)
-        logo_scale_hdr.addStretch()
-        l_lg.addLayout(logo_scale_hdr)
+        l_lg.addWidget(logo_scale_hdr)
 
         self.slider_logo_scale = QSlider(Qt.Horizontal)
         self.slider_logo_scale.setRange(20, 200)
@@ -1488,7 +1529,7 @@ class FrameDesignerPage(QWidget):
         l_lg.addLayout(quick_grid)
 
         # Độ Trong Suốt
-        op_layout = QHBoxLayout()
+        op_layout = ResponsiveRow("logo_opacity_row")
         op_layout.addWidget(QLabel("Độ trong suốt:"))
         self.slider_logo_opacity = QSlider(Qt.Horizontal)
         self.slider_logo_opacity.setRange(10, 100)
@@ -1497,7 +1538,7 @@ class FrameDesignerPage(QWidget):
         op_layout.addWidget(self.slider_logo_opacity)
         self.lbl_logo_op_val = QLabel("100%")
         op_layout.addWidget(self.lbl_logo_op_val)
-        l_lg.addLayout(op_layout)
+        l_lg.addWidget(op_layout)
 
         right_layout.addWidget(grp_logo)
 
@@ -2467,12 +2508,21 @@ class FrameDesignerPage(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         w = event.size().width()
-        if hasattr(self, "scroll_area"):
-            if w < 1200:
-                self.scroll_area.setMinimumWidth(300)
-                self.scroll_area.setMaximumWidth(380)
+        if hasattr(self, "scroll_area") and hasattr(self, "main_layout"):
+            is_narrow = w < 1200
+            direction = QBoxLayout.TopToBottom if is_narrow else QBoxLayout.LeftToRight
+            if self.main_layout.direction() != direction:
+                self.main_layout.setDirection(direction)
+
+            if is_narrow:
+                self.main_layout.setStretch(0, 3)
+                self.main_layout.setStretch(1, 2)
+                self.scroll_area.setMinimumWidth(0)
+                self.scroll_area.setMaximumWidth(16777215)
             else:
-                self.scroll_area.setMinimumWidth(340)
-                self.scroll_area.setMaximumWidth(480)
+                self.main_layout.setStretch(0, 6)
+                self.main_layout.setStretch(1, 4)
+                self.scroll_area.setMinimumWidth(360)
+                self.scroll_area.setMaximumWidth(560)
         if hasattr(self, "canvas"):
             self.canvas.update()

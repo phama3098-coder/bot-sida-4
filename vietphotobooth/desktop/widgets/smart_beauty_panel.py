@@ -194,11 +194,11 @@ class SmartBeautyDialog(QDialog):
         self.setMinimumSize(960, 600)
         # Frameless with rounded styling
         self.setStyleSheet(
-            "QDialog { background-color: #D8D0C3; border: 2px solid #BEB3A3; border-radius: 16px; }"
-            "QLabel { color: #34312E; font-family: 'Segoe UI', Arial, sans-serif; }"
-            "QCheckBox { color: #777067; font-size: 13px; font-weight: 500; spacing: 8px; }"
-            "QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid #BEB3A3; background-color: #E7DFD2; }"
-            "QCheckBox::indicator:checked { background-color: #B89555; border-color: #8F7038; }"
+            "QDialog { background-color: #C8C5BD; border: 2px solid #AAA69D; border-radius: 16px; }"
+            "QLabel { color: #353631; font-family: 'Segoe UI', Arial, sans-serif; }"
+            "QCheckBox { color: #716F68; font-size: 13px; font-weight: 500; spacing: 8px; }"
+            "QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid #AAA69D; background-color: #D9D5CC; }"
+            "QCheckBox::indicator:checked { background-color: #AD905B; border-color: #8A703F; }"
         )
 
     def _init_ui(self):
@@ -214,14 +214,14 @@ class SmartBeautyDialog(QDialog):
 
         # Tiêu đề chính
         lbl_title = QLabel("✨ ẢNH VỪA CHỤP")
-        lbl_title.setStyleSheet("font-size: 22px; font-weight: 900; color: #34312E; letter-spacing: 0.5px;")
+        lbl_title.setStyleSheet("font-size: 22px; font-weight: 900; color: #353631; letter-spacing: 0.5px;")
         header_layout.addWidget(lbl_title)
 
         # Huy hiệu tiến độ (ví dụ: Đã chụp 1/6)
         self.lbl_progress = QLabel(f"Đã chụp {self.shot_index}/{self.total_shots}")
         self.lbl_progress.setStyleSheet(
-            "background-color: #C9BDAA; color: #34312E; font-size: 14px; font-weight: bold; "
-            "border: 1.5px solid #BEB3A3; padding: 4px 14px; border-radius: 12px;"
+            "background-color: #B9B5AB; color: #353631; font-size: 14px; font-weight: bold; "
+            "border: 1.5px solid #AAA69D; padding: 4px 14px; border-radius: 12px;"
         )
         header_layout.addWidget(self.lbl_progress)
 
@@ -232,13 +232,13 @@ class SmartBeautyDialog(QDialog):
             status_style = "background-color: rgba(239, 68, 68, 0.15); color: #DC2626; border: 1px solid #F87171;"
         elif num_faces == 0:
             status_text = "ℹ Không Phát Hiện Khuôn Mặt"
-            status_style = "background-color: rgba(119, 112, 103, 0.15); color: #777067; border: 1px solid #BEB3A3;"
+            status_style = "background-color: rgba(119, 112, 103, 0.15); color: #716F68; border: 1px solid #AAA69D;"
         elif num_faces == 1:
             status_text = "👤 Đã Nhận Diện 1 Khuôn Mặt"
             status_style = "background-color: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid #6EE7B7;"
         else:
             status_text = f"👥 Đã Nhận Diện {num_faces} Khuôn Mặt"
-            status_style = "background-color: rgba(184, 149, 85, 0.15); color: #8F7038; border: 1px solid #CDB07B;"
+            status_style = "background-color: rgba(184, 149, 85, 0.15); color: #8A703F; border: 1px solid #CDB07B;"
 
         self.lbl_face_status = QLabel(status_text)
         self.lbl_face_status.setStyleSheet(
@@ -251,8 +251,8 @@ class SmartBeautyDialog(QDialog):
         # Huy hiệu đếm ngược tự động xác nhận
         self.lbl_countdown = QLabel(f"Tự động tiếp tục sau: {self._remaining_sec}s")
         self.lbl_countdown.setStyleSheet(
-            "color: #777067; font-size: 12px; font-weight: 500; background: #E7DFD2; "
-            "padding: 4px 10px; border-radius: 8px; border: 1.5px solid #BEB3A3;"
+            "color: #716F68; font-size: 12px; font-weight: 500; background: #D9D5CC; "
+            "padding: 4px 10px; border-radius: 8px; border: 1.5px solid #AAA69D;"
         )
         header_layout.addWidget(self.lbl_countdown)
 
@@ -283,19 +283,19 @@ class SmartBeautyDialog(QDialog):
         # BẢNG ĐIỀU KHIỂN LÀM ĐẸP (RIGHT CONTROLS)
         ctrl_card = QFrame()
         ctrl_card.setStyleSheet(
-            "background-color: #E7DFD2; border: 1.5px solid #BEB3A3; border-radius: 14px;"
+            "background-color: #D9D5CC; border: 1.5px solid #AAA69D; border-radius: 14px;"
         )
         ctrl_vbox = QVBoxLayout(ctrl_card)
         ctrl_vbox.setContentsMargins(20, 20, 20, 20)
         ctrl_vbox.setSpacing(18)
 
         lbl_ctrl_title = QLabel("Tùy Chỉnh Làm Đẹp Tự Nhiên")
-        lbl_ctrl_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #34312E;")
+        lbl_ctrl_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #353631;")
         ctrl_vbox.addWidget(lbl_ctrl_title)
 
         lbl_desc = QLabel("Công nghệ AI nhận diện đa diện khuôn mặt, giữ nguyên texture chân thật của làn da.")
         lbl_desc.setWordWrap(True)
-        lbl_desc.setStyleSheet("color: #777067; font-size: 12px; line-height: 1.4;")
+        lbl_desc.setStyleSheet("color: #716F68; font-size: 12px; line-height: 1.4;")
         ctrl_vbox.addWidget(lbl_desc)
 
         ctrl_vbox.addSpacing(6)
@@ -303,16 +303,16 @@ class SmartBeautyDialog(QDialog):
         slider_style = """
             QSlider::groove:horizontal {
                 height: 8px;
-                background: #C9BDAA;
+                background: #B9B5AB;
                 border-radius: 4px;
             }
             QSlider::sub-page:horizontal {
-                background: #B89555;
+                background: #AD905B;
                 border-radius: 4px;
             }
             QSlider::handle:horizontal {
-                background: #E7DFD2;
-                border: 2.5px solid #B89555;
+                background: #D9D5CC;
+                border: 2.5px solid #AD905B;
                 width: 22px;
                 height: 22px;
                 margin-top: -7px;
@@ -320,17 +320,17 @@ class SmartBeautyDialog(QDialog):
                 border-radius: 11px;
             }
             QSlider::handle:horizontal:hover {
-                background: #B89555;
-                border: 2.5px solid #E7DFD2;
+                background: #AD905B;
+                border: 2.5px solid #D9D5CC;
             }
         """
 
         # Thanh trượt 1: Sáng da (0 - 100%, step 5, default 0%)
         l_s1 = QHBoxLayout()
         lbl_s1_name = QLabel("☀ Sáng da")
-        lbl_s1_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #34312E;")
+        lbl_s1_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #353631;")
         self.lbl_s1_val = QLabel(f"{int(self._brighten_val)}%")
-        self.lbl_s1_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #B89555;")
+        self.lbl_s1_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #AD905B;")
         l_s1.addWidget(lbl_s1_name)
         l_s1.addStretch()
         l_s1.addWidget(self.lbl_s1_val)
@@ -348,9 +348,9 @@ class SmartBeautyDialog(QDialog):
         # Thanh trượt 2: Mịn da (0 - 100%, step 5, default 0%)
         l_s2 = QHBoxLayout()
         lbl_s2_name = QLabel("◉ Mịn da")
-        lbl_s2_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #34312E;")
+        lbl_s2_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #353631;")
         self.lbl_s2_val = QLabel(f"{int(self._smooth_val)}%")
-        self.lbl_s2_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #B89555;")
+        self.lbl_s2_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #AD905B;")
         l_s2.addWidget(lbl_s2_name)
         l_s2.addStretch()
         l_s2.addWidget(self.lbl_s2_val)
@@ -368,9 +368,9 @@ class SmartBeautyDialog(QDialog):
         # Thanh trượt 3: Son môi (0 - 100%, step 5, default 0%)
         l_s3 = QHBoxLayout()
         lbl_s3_name = QLabel("💄 Son môi")
-        lbl_s3_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #34312E;")
+        lbl_s3_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #353631;")
         self.lbl_s3_val = QLabel(f"{int(self._lips_val)}%")
-        self.lbl_s3_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #B89555;")
+        self.lbl_s3_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #AD905B;")
         l_s3.addWidget(lbl_s3_name)
         l_s3.addStretch()
         l_s3.addWidget(self.lbl_s3_val)
@@ -403,10 +403,10 @@ class SmartBeautyDialog(QDialog):
 
         self.btn_reset = QPushButton("🔄 Đặt Lại")
         self.btn_reset.setStyleSheet(
-            "QPushButton { background-color: #EFE8DC; color: #34312E; border: 1.5px solid #BEB3A3; "
+            "QPushButton { background-color: #EFE8DC; color: #353631; border: 1.5px solid #AAA69D; "
             "border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #C9BDAA; border-color: #B89555; color: #34312E; }"
-            "QPushButton:pressed { background-color: #BEB3A3; }"
+            "QPushButton:hover { background-color: #B9B5AB; border-color: #AD905B; color: #353631; }"
+            "QPushButton:pressed { background-color: #AAA69D; }"
         )
         self.btn_reset.clicked.connect(self._on_reset_clicked)
         h_sub_btns.addWidget(self.btn_reset)
@@ -414,11 +414,11 @@ class SmartBeautyDialog(QDialog):
         self.btn_compare = QPushButton("👁 Xem Ảnh Gốc")
         self.btn_compare.setCheckable(True)
         self.btn_compare.setStyleSheet(
-            "QPushButton { background-color: #EFE8DC; color: #34312E; border: 1.5px solid #BEB3A3; "
+            "QPushButton { background-color: #EFE8DC; color: #353631; border: 1.5px solid #AAA69D; "
             "border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #C9BDAA; border-color: #B89555; }"
-            "QPushButton:checked { background-color: #C9BDAA; border-color: #B89555; color: #B89555; }"
-            "QPushButton:pressed { background-color: #BEB3A3; }"
+            "QPushButton:hover { background-color: #B9B5AB; border-color: #AD905B; }"
+            "QPushButton:checked { background-color: #B9B5AB; border-color: #AD905B; color: #AD905B; }"
+            "QPushButton:pressed { background-color: #AAA69D; }"
         )
         self.btn_compare.toggled.connect(self._on_compare_toggled)
         h_sub_btns.addWidget(self.btn_compare)
@@ -428,11 +428,11 @@ class SmartBeautyDialog(QDialog):
         # Nút xác nhận khổng lồ vàng Champagne
         self.btn_confirm = QPushButton("✓ Xác Nhận & Tiếp Tục")
         self.btn_confirm.setStyleSheet(
-            "QPushButton { background: #B89555; "
-            "color: #FFFFFF; font-size: 16px; font-weight: 900; border: 1px solid #8F7038; border-radius: 12px; "
+            "QPushButton { background: #AD905B; "
+            "color: #FFFFFF; font-size: 16px; font-weight: 900; border: 1px solid #8A703F; border-radius: 12px; "
             "padding: 14px 20px; }"
             "QPushButton:hover { background: #CDB07B; }"
-            "QPushButton:pressed { background: #8F7038; }"
+            "QPushButton:pressed { background: #8A703F; }"
         )
         self.btn_confirm.clicked.connect(self._on_confirm_clicked)
         btn_box.addWidget(self.btn_confirm)

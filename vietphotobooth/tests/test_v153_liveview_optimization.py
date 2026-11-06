@@ -10,7 +10,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from vietphotobooth.camera.backends.nikon_maid.maid_types import (
-    NkMAIDCapability, NkMAIDLiveViewImageSize, NkMAIDLiveViewStatus,
+    NkMAIDCapability, NkMAIDCommand, NkMAIDLiveViewImageSize,
+    NkMAIDLiveViewImageStatus, NkMAIDLiveViewStatus,
     NkMAIDResult, NkMAIDEnum
 )
 from vietphotobooth.camera.backends.nikon_maid.maid_session import NikonSession
@@ -63,9 +64,15 @@ def test_start_live_view_invokes_xga_configuration():
     session._is_src_open = True
     session._src_obj = MagicMock()
 
+    def fake_lv_entry(p_obj, cmd, param, dt, data, pfn, ref):
+        if cmd == NkMAIDCommand.CAP_GET and param == NkMAIDCapability.LIVE_VIEW_IMAGE_STATUS:
+            st = NkMAIDEnum.from_address(int(data))
+            st.ulValue = int(NkMAIDLiveViewImageStatus.CAN_ACQUIRE)
+        return NkMAIDResult.NO_ERROR
+
     with patch.object(session, "get_unsigned_capability", return_value=0), \
          patch.object(session, "set_live_view_image_size") as mock_set_size, \
-         patch.object(session, "_entry", return_value=NkMAIDResult.NO_ERROR):
+         patch.object(session, "_entry", side_effect=fake_lv_entry):
 
         ok = session.start_live_view()
         assert ok is True

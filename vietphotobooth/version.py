@@ -7,10 +7,10 @@ import re
 from typing import Tuple
 
 __app_name__ = "1998 TEAM — Photobooth"
-__version__ = "2.0.0"
-__build__ = 206
-__channel__ = "RC"
-__release_date__ = "2026-11-03"
+__version__ = "2.0.1"
+__build__ = 208
+__channel__ = "RC2"
+__release_date__ = "2026-11-05"
 __publisher__ = "1998 Studio phóng sự cưới"
 __copyright__ = "© 2026 1998 Studio. All rights reserved."
 

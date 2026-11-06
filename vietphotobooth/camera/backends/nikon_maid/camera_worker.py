@@ -29,6 +29,7 @@ class NikonCameraWorker:
         # Atomic single-frame buffer
         self._latest_frame: Optional[FrameData] = None
         self._frame_lock = threading.Lock()
+        self._new_frame_event = threading.Event()
 
         # FPS metrics
         self._frame_count = 0
@@ -100,6 +101,7 @@ class NikonCameraWorker:
         """Dừng worker nền."""
         self._running = False
         self._live_view_enabled = False
+        self._new_frame_event.set()
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=1.5)
         self._thread = None
@@ -123,9 +125,13 @@ class NikonCameraWorker:
         self._session.stop_live_view()
         with self._frame_lock:
             self._latest_frame = None
+            self._new_frame_event.set()
 
-    def get_latest_frame(self) -> Optional[FrameData]:
-        """Lấy khung hình xem trước mới nhất (O(1), không block worker)."""
+    def get_latest_frame(self, wait_new: bool = False, timeout: float = 0.05) -> Optional[FrameData]:
+        """Lấy khung hình xem trước mới nhất (O(1)). Nếu wait_new=True, đợi frame mới xuất hiện."""
+        if wait_new:
+            if self._new_frame_event.wait(timeout=timeout):
+                self._new_frame_event.clear()
         with self._frame_lock:
             return self._latest_frame
 
@@ -213,6 +219,7 @@ class NikonCameraWorker:
 
                 with self._frame_lock:
                     self._latest_frame = frame
+                    self._new_frame_event.set()
 
                 if self.on_frame_ready:
                     try:
@@ -220,10 +227,7 @@ class NikonCameraWorker:
                     except Exception as ex:
                         logger.debug("on_frame_ready error: %s", ex)
 
-                # Tần số nhắm đến ~30-40 FPS, yield CPU siêu ngắn
-                dur = (time.perf_counter() - t_start)
-                if dur < 0.02:
-                    time.sleep(0.005)
+                # Thu nhận frame theo tốc độ thực tế của máy ảnh (không ép sleep nhân tạo)
             else:
                 self._session.pump_async()
                 time.sleep(0.01)

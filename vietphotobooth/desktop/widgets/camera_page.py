@@ -334,8 +334,9 @@ class CameraPage(QWidget):
         # Đo đạc FPS hiển thị trực quan (Render FPS)
         self._render_fps_tracker = FPSTracker(window_seconds=1.5)
 
-        # Timer chu kỳ render khung hình xem trước (~30 FPS)
+        # Timer chu kỳ render khung hình xem trước (~30 FPS) - Chuẩn PreciseTimer cho Windows
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.PreciseTimer)
         self._timer.setInterval(33)
         self._timer.timeout.connect(self._update_preview)
 
@@ -964,11 +965,15 @@ class CameraPage(QWidget):
         frame_data = self.camera_mgr.get_frame_data()
         rgb_frame = frame_data.rgb if (frame_data and frame_data.has_rgb) else self.camera_mgr.get_liveview_rgb()
         if rgb_frame is not None and getattr(rgb_frame, "size", 0) > 0:
+            seq_id = getattr(frame_data, "sequence_id", 0) if frame_data else 0
+            if seq_id and seq_id == getattr(self, "_last_rendered_preview_seq", -1):
+                # Frame này đã được vẽ rồi, không vẽ lại trùng lặp (Latest-Frame-Wins)
+                return
+            self._last_rendered_preview_seq = seq_id
             self._consecutive_no_frame_count = 0
             self._render_fps_tracker.tick()
             self.lbl_viewport.set_frame_rgb(rgb_frame)
             if getattr(self, "_face_detect_enabled", False) or getattr(self, "_face_eye_af_enabled", False):
-                seq_id = frame_data.sequence_id if frame_data else 0
                 ts = frame_data.timestamp if frame_data else 0.0
                 self._face_service.submit_frame(rgb_frame, sequence_id=seq_id, timestamp=ts)
         else:
@@ -1080,8 +1085,12 @@ class CameraPage(QWidget):
         if hasattr(self, '_face_eye_af_controller') and self._face_eye_af_controller.is_enabled:
             dim = frame_shape
             if not dim:
-                cur_pix = self.lbl_viewport._current_pixmap
-                dim = (cur_pix.width(), cur_pix.height()) if cur_pix and cur_pix.width() > 0 else None
+                if hasattr(self.lbl_viewport, 'get_source_dimensions'):
+                    src_w, src_h = self.lbl_viewport.get_source_dimensions()
+                    dim = (src_w, src_h) if (src_w > 0 and src_h > 0) else None
+                else:
+                    cur_pix = getattr(self.lbl_viewport, '_current_pixmap', None)
+                    dim = (cur_pix.width(), cur_pix.height()) if cur_pix and cur_pix.width() > 0 else None
             self._face_eye_af_controller.process_faces(faces, frame_shape=dim, sequence_id=seq_id, timestamp=ts)
         if not shiboken6.isValid(self):
             return

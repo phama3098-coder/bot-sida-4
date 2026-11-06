@@ -58,8 +58,8 @@ class SessionLightboxDialog(QDialog):
         self.setMinimumSize(800, 560)
         self.setStyleSheet("""
             QDialog {
-                background-color: #D8D0C3;
-                color: #34312E;
+                background-color: #C8C5BD;
+                color: #353631;
             }
         """)
 
@@ -109,12 +109,12 @@ class SessionLightboxDialog(QDialog):
 
         v_head = QVBoxLayout()
         v_head.setSpacing(2)
-        lbl_title = QLabel(f"LƯỢT CHỤP: <span style='color: #B89555;'>{self.session_id}</span>")
-        lbl_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #34312E;")
+        lbl_title = QLabel(f"LƯỢT CHỤP: <span style='color: #AD905B;'>{self.session_id}</span>")
+        lbl_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #353631;")
         v_head.addWidget(lbl_title)
 
         lbl_sub = QLabel(f"Sự kiện: <b>{self.event_name}</b> • 1998 TEAM Photobooth Studio")
-        lbl_sub.setStyleSheet("font-size: 11px; color: #777067;")
+        lbl_sub.setStyleSheet("font-size: 11px; color: #716F68;")
         v_head.addWidget(lbl_sub)
         h_head.addLayout(v_head)
 
@@ -126,17 +126,17 @@ class SessionLightboxDialog(QDialog):
         btn_export.setCursor(Qt.PointingHandCursor)
         btn_export.setStyleSheet("""
             QPushButton {
-                background-color: #E7DFD2;
-                border: 1.5px solid #BEB3A3;
-                color: #34312E;
+                background-color: #D9D5CC;
+                border: 1.5px solid #AAA69D;
+                color: #353631;
                 font-weight: 600;
                 padding: 6px 14px;
                 border-radius: 6px;
                 font-size: 12px;
             }
             QPushButton:hover {
-                border-color: #B89555;
-                background-color: #C9BDAA;
+                border-color: #AD905B;
+                background-color: #B9B5AB;
             }
         """)
         btn_export.clicked.connect(self._export_session)
@@ -147,17 +147,17 @@ class SessionLightboxDialog(QDialog):
         btn_open_folder.setCursor(Qt.PointingHandCursor)
         btn_open_folder.setStyleSheet("""
             QPushButton {
-                background-color: #E7DFD2;
-                border: 1.5px solid #BEB3A3;
-                color: #34312E;
+                background-color: #D9D5CC;
+                border: 1.5px solid #AAA69D;
+                color: #353631;
                 font-weight: 600;
                 padding: 6px 14px;
                 border-radius: 6px;
                 font-size: 12px;
             }
             QPushButton:hover {
-                border-color: #B89555;
-                background-color: #C9BDAA;
+                border-color: #AD905B;
+                background-color: #B9B5AB;
             }
         """)
         btn_open_folder.clicked.connect(self._open_session_folder)
@@ -190,7 +190,7 @@ class SessionLightboxDialog(QDialog):
 
         self.lbl_current_label = QLabel("Đang xem: Ảnh Thành Phẩm Ghép In")
         self.lbl_current_label.setAlignment(Qt.AlignCenter)
-        self.lbl_current_label.setStyleSheet("color: #B89555; font-size: 11px; font-weight: 700; padding: 4px;")
+        self.lbl_current_label.setStyleSheet("color: #AD905B; font-size: 11px; font-weight: 700; padding: 4px;")
         l_viewer.addWidget(self.lbl_current_label)
 
         h_body.addWidget(self.frame_viewer, 3)
@@ -203,8 +203,8 @@ class SessionLightboxDialog(QDialog):
         card_meta = QFrame()
         card_meta.setStyleSheet("""
             QFrame {
-                background-color: #E7DFD2;
-                border: 1.5px solid #BEB3A3;
+                background-color: #D9D5CC;
+                border: 1.5px solid #AAA69D;
                 border-radius: 8px;
             }
         """)
@@ -213,27 +213,27 @@ class SessionLightboxDialog(QDialog):
         l_meta.setSpacing(8)
 
         lbl_meta_h = QLabel("THÔNG TIN LƯỢT CHỤP")
-        lbl_meta_h.setStyleSheet("color: #34312E; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
+        lbl_meta_h.setStyleSheet("color: #353631; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
         l_meta.addWidget(lbl_meta_h)
 
         self.lbl_res = QLabel("Độ phân giải: Đang tải...")
-        self.lbl_res.setStyleSheet("color: #34312E; font-size: 12px; font-weight: 600;")
+        self.lbl_res.setStyleSheet("color: #353631; font-size: 12px; font-weight: 600;")
         l_meta.addWidget(self.lbl_res)
 
         self.lbl_size = QLabel("Dung lượng tệp: --")
-        self.lbl_size.setStyleSheet("color: #34312E; font-size: 12px; font-weight: 600;")
+        self.lbl_size.setStyleSheet("color: #353631; font-size: 12px; font-weight: 600;")
         l_meta.addWidget(self.lbl_size)
 
         self.lbl_time = QLabel("Thời gian tạo: --")
-        self.lbl_time.setStyleSheet("color: #777067; font-size: 12px;")
+        self.lbl_time.setStyleSheet("color: #716F68; font-size: 12px;")
         l_meta.addWidget(self.lbl_time)
 
         self.lbl_shots_count = QLabel(f"Số ảnh gốc chụp: {len(self.original_photos)} ảnh")
-        self.lbl_shots_count.setStyleSheet("color: #777067; font-size: 12px;")
+        self.lbl_shots_count.setStyleSheet("color: #716F68; font-size: 12px;")
         l_meta.addWidget(self.lbl_shots_count)
 
         self.lbl_sync_badge = QLabel("Đồng bộ Cloud: Kiểm tra...")
-        self.lbl_sync_badge.setStyleSheet("color: #B89555; font-size: 12px; font-weight: bold;")
+        self.lbl_sync_badge.setStyleSheet("color: #AD905B; font-size: 12px; font-weight: bold;")
         l_meta.addWidget(self.lbl_sync_badge)
 
         v_info.addWidget(card_meta)
@@ -242,8 +242,8 @@ class SessionLightboxDialog(QDialog):
         card_actions = QFrame()
         card_actions.setStyleSheet("""
             QFrame {
-                background-color: #E7DFD2;
-                border: 1.5px solid #BEB3A3;
+                background-color: #D9D5CC;
+                border: 1.5px solid #AAA69D;
                 border-radius: 8px;
             }
         """)
@@ -252,7 +252,7 @@ class SessionLightboxDialog(QDialog):
         l_act.setSpacing(8)
 
         lbl_act_h = QLabel("THAO TÁC NHANH")
-        lbl_act_h.setStyleSheet("color: #34312E; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
+        lbl_act_h.setStyleSheet("color: #353631; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
         l_act.addWidget(lbl_act_h)
 
         self.btn_print_now = QPushButton(" In Ngay Lượt Này")
@@ -261,18 +261,18 @@ class SessionLightboxDialog(QDialog):
         self.btn_print_now.setCursor(Qt.PointingHandCursor)
         self.btn_print_now.setStyleSheet("""
             QPushButton {
-                background: #B89555;
+                background: #AD905B;
                 color: #FFFFFF;
                 font-weight: 800;
                 font-size: 12px;
                 border-radius: 6px;
-                border: 1px solid #8F7038;
+                border: 1px solid #8A703F;
             }
             QPushButton:hover {
                 background: #CDB07B;
             }
             QPushButton:pressed {
-                background: #8F7038;
+                background: #8A703F;
             }
         """)
         self.btn_print_now.clicked.connect(self._print_current_session)
@@ -285,16 +285,16 @@ class SessionLightboxDialog(QDialog):
         self.btn_open_qr.setStyleSheet("""
             QPushButton {
                 background-color: #EFE8DC;
-                border: 1.5px solid #BEB3A3;
-                color: #34312E;
+                border: 1.5px solid #AAA69D;
+                color: #353631;
                 font-size: 12px;
                 font-weight: bold;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                border-color: #B89555;
-                color: #34312E;
-                background-color: #C9BDAA;
+                border-color: #AD905B;
+                color: #353631;
+                background-color: #B9B5AB;
             }
         """)
         self.btn_open_qr.clicked.connect(self._show_qr_code)
@@ -309,14 +309,14 @@ class SessionLightboxDialog(QDialog):
         btn_close.setStyleSheet("""
             QPushButton {
                 background-color: #EFE8DC;
-                border: 1.5px solid #BEB3A3;
-                color: #777067;
+                border: 1.5px solid #AAA69D;
+                color: #716F68;
                 font-size: 12px;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #C9BDAA;
-                color: #34312E;
+                background-color: #B9B5AB;
+                color: #353631;
             }
         """)
         btn_close.clicked.connect(self.accept)
@@ -327,7 +327,7 @@ class SessionLightboxDialog(QDialog):
 
         # 3. THUMBNAIL STRIP DƯỚI ĐÁY (Hiển thị tất cả ảnh thuộc lượt: Final + Originals)
         lbl_strip_h = QLabel("<b>DANH SÁCH ẢNH TRONG LƯỢT:</b> Nhấp để chuyển ảnh xem chi tiết")
-        lbl_strip_h.setStyleSheet("color: #777067; font-size: 11px;")
+        lbl_strip_h.setStyleSheet("color: #716F68; font-size: 11px;")
         main_layout.addWidget(lbl_strip_h)
 
         scroll_strip = QScrollArea()
@@ -360,7 +360,7 @@ class SessionLightboxDialog(QDialog):
 
         if not self.final_path and not self.original_photos:
             lbl_empty = QLabel("Không tìm thấy tệp ảnh nào thuộc lượt chụp này.")
-            lbl_empty.setStyleSheet("color: #777067; font-size: 12px;")
+            lbl_empty.setStyleSheet("color: #716F68; font-size: 12px;")
             h_strip.addWidget(lbl_empty)
 
         h_strip.addStretch(1)
@@ -381,17 +381,17 @@ class SessionLightboxDialog(QDialog):
         btn.setText(label)
         btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: #E7DFD2;
-                border: 1.5px solid {"#B89555" if is_final else "#BEB3A3"};
+                background-color: #D9D5CC;
+                border: 1.5px solid {"#AD905B" if is_final else "#AAA69D"};
                 border-radius: 6px;
-                color: #34312E;
+                color: #353631;
                 font-size: 9px;
                 font-weight: bold;
                 padding-top: 2px;
             }}
             QPushButton:hover {{
-                border-color: #B89555;
-                background-color: #C9BDAA;
+                border-color: #AD905B;
+                background-color: #B9B5AB;
             }}
         """)
         btn.clicked.connect(lambda: self._select_preview(path, label))

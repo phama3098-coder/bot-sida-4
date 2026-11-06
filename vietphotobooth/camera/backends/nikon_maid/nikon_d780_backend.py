@@ -6,6 +6,8 @@ Implements the CameraBackendBase contract using the Nikon MAID3 SDK for zero-lat
 from typing import Dict, Any, List, Optional, Tuple, Callable
 from PIL import Image
 import logging
+import re
+import subprocess
 
 from vietphotobooth.camera.backends.base import CameraBackendBase
 from vietphotobooth.camera.models import (
@@ -18,6 +20,94 @@ from vietphotobooth.camera.backends.nikon_maid.maid_types import NkMAIDCapabilit
 logger = logging.getLogger(__name__)
 
 
+def parse_pnputil_device_status(output: Optional[str]) -> bool:
+    """
+    Phân tích output của lệnh pnputil để xác định máy ảnh Nikon D780 có đang kết nối và ở trạng thái 'Started'.
+
+    Hỗ trợ xử lý khoảng trắng linh hoạt (single space, multi-space, tabs, newlines) giữa 'Status:' và 'Started'.
+    Đảm bảo kiểm tra theo từng khối thiết bị (device block) để tránh nhầm lẫn trạng thái giữa các thiết bị khác nhau.
+    """
+    if not output or not isinstance(output, str):
+        return False
+
+    # Tách output thành các khối thiết bị riêng biệt dựa trên 'Instance ID:'
+    blocks = re.split(r"(?:^|\r?\n)Instance ID\s*:", output, flags=re.IGNORECASE)
+
+    for block in blocks:
+        if not block.strip():
+            continue
+
+        # Kiểm tra định danh Nikon D780:
+        # 1. Có chứa VID 04B0 và PID 0446
+        has_vid_pid = bool(re.search(r"04B0.*0446", block, re.IGNORECASE))
+        # 2. Friendly Name có chứa D780 và thuộc hãng Nikon
+        has_friendly_d780 = bool(re.search(r"\bD780\b", block, re.IGNORECASE))
+        has_nikon_brand = "NIKON" in block.upper()
+
+        if not (has_vid_pid or (has_friendly_d780 and has_nikon_brand)):
+            continue
+
+        # Kiểm tra trạng thái thiết bị trong khối này:
+        # Bắt buộc khớp 'Status: Started' linh hoạt whitespace
+        is_started = bool(re.search(r"Status\s*:\s*Started\b", block, re.IGNORECASE))
+        is_disconnected = bool(re.search(r"Status\s*:\s*(?:Disconnected|Disabled|Unknown)\b", block, re.IGNORECASE))
+
+        if is_started and not is_disconnected:
+            return True
+
+    return False
+
+
+def check_nikon_d780_pnp(timeout_sec: float = 0.8) -> bool:
+    """
+    Kiểm tra trạng thái kết nối phần cứng của Nikon D780 qua pnputil,
+    với cơ chế Fallback PowerShell khi pnputil gặp sự cố hoặc không trả dữ liệu hợp lệ.
+    """
+    # 1. Thử pnputil trước (tốc độ cao ~20-30ms)
+    pnputil_valid = False
+    try:
+        out = subprocess.check_output(
+            ["pnputil", "/enum-devices", "/class", "WPD", "/connected"],
+            text=True,
+            timeout=timeout_sec,
+            stderr=subprocess.DEVNULL
+        )
+        if "Microsoft PnP Utility" in out or "Instance ID" in out:
+            pnputil_valid = True
+            if parse_pnputil_device_status(out):
+                return True
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, OSError) as ex:
+        logger.debug("pnputil kiểm tra thất bại: %s", ex)
+    except Exception as ex:
+        logger.debug("Lỗi không xác định khi gọi pnputil: %s", ex)
+
+    # 2. Fallback PowerShell: chỉ kích hoạt khi pnputil bị lỗi hoặc không có dữ liệu hợp lệ
+    if not pnputil_valid:
+        try:
+            logger.debug("Kích hoạt Fallback PowerShell để kiểm tra trạng thái Nikon D780...")
+            ps_cmd = (
+                "Get-PnpDevice -Class WPD -Status OK -ErrorAction SilentlyContinue | "
+                "Where-Object { $_.InstanceId -like '*04B0*0446*' -or ($_.FriendlyName -like '*D780*' -and $_.Manufacturer -like '*Nikon*') } | "
+                "Select-Object -ExpandProperty InstanceId"
+            )
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+                capture_output=True,
+                text=True,
+                timeout=2.0
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                out_upper = res.stdout.upper()
+                if "04B0" in out_upper or "D780" in out_upper:
+                    return True
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, OSError) as ex:
+            logger.debug("PowerShell fallback thất bại: %s", ex)
+        except Exception as ex:
+            logger.debug("Lỗi không xác định khi chạy PowerShell fallback: %s", ex)
+
+    return False
+
+
 class NikonD780Backend(CameraBackendBase):
     """Backend kết nối máy ảnh Nikon D780 trực tiếp qua USB bằng Nikon MAID3 Type0026 SDK."""
 
@@ -27,6 +117,7 @@ class NikonD780Backend(CameraBackendBase):
         self._status = ConnectionState.DISCONNECTED
         self._last_error: Optional[CameraError] = None
         self._device_info: Optional[CameraDeviceInfo] = None
+        self._last_discovered_sources: List[int] = []
 
     @property
     def backend_type(self) -> str:
@@ -45,24 +136,16 @@ class NikonD780Backend(CameraBackendBase):
                 return [self._device_info]
 
             # Kiểm tra nhanh Windows PnP Device cho Nikon D780 đang kết nối thực tế (VID 04B0, PID 0446)
-            pnp_found = False
-            try:
-                import subprocess
-                out = subprocess.check_output(
-                    "pnputil /enum-devices /class WPD /connected",
-                    text=True,
-                    timeout=0.6,
-                    stderr=subprocess.DEVNULL
-                )
-                if ("04B0&PID_0446" in out or "D780" in out) and "Status: Started" in out:
-                    pnp_found = True
-            except Exception:
-                pass
+            pnp_found = check_nikon_d780_pnp(timeout_sec=0.8)
 
             # Chỉ thăm dò qua SDK nếu PnP xác nhận có thiết bị hoặc đã mở module
             sources = []
             if pnp_found or getattr(self._session, "_is_mod_open", False):
                 sources = self._session.enumerate_cameras(timeout_sec=0.5)
+
+            self._last_discovered_sources = list(sources)
+            if sources:
+                logger.info("Nikon MAID phát hiện camera qua SDK enumeration: Source ID(s)=%s", sources)
 
             if sources or pnp_found:
                 device = CameraDeviceInfo(
@@ -177,10 +260,10 @@ class NikonD780Backend(CameraBackendBase):
             return False
 
     def read_frame(self) -> Optional[FrameData]:
-        """Đọc 1 khung hình Live View hợp lệ từ bộ đệm O(1) của worker nền."""
+        """Đọc 1 khung hình Live View hợp lệ từ bộ đệm O(1) của worker nền (Chờ frame mới, O(1))."""
         if self._worker is None or self._status != ConnectionState.LIVE_VIEW_ACTIVE:
             return None
-        return self._worker.get_latest_frame()
+        return self._worker.get_latest_frame(wait_new=True, timeout=0.06)
 
     def stop_live_view(self) -> None:
         """Dừng luồng Live View."""

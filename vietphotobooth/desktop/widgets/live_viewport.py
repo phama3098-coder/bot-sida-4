@@ -33,6 +33,8 @@ class CameraLiveViewport(QWidget):
         self.setMinimumHeight(240)
 
         self._current_pixmap: Optional[QPixmap] = None
+        self._current_image: Optional[QImage] = None
+        self._current_frame_buffer: Optional[np.ndarray] = None
         self._frame_aspect_ratio: float = 1024.0 / 680.0
         self._target_rect: QRect = QRect()
         self._grid_enabled: bool = False
@@ -43,11 +45,22 @@ class CameraLiveViewport(QWidget):
         self._detected_faces: List[Any] = []
         self._last_detected_seq_id: int = 0
         self._message_text: str = "CHƯA CÓ TÍN HIỆU HÌNH ẢNH\nVui lòng kiểm tra cáp USB hoặc chọn lại nguồn camera."
-        self._message_color: QColor = QColor("#777067")
+        self._message_color: QColor = QColor("#716F68")
         self._border_color: QColor = QColor("#2A2D33")
         self._bg_color: QColor = QColor("#17191C")
         self._flash_active: bool = False
         self._resize_callbacks: List[Callable[[], None]] = []
+
+    def get_source_dimensions(self) -> Tuple[int, int]:
+        """Trả về kích thước (width, height) của khung hình nguồn hiện tại."""
+        if self._current_image is not None and not self._current_image.isNull():
+            return self._current_image.width(), self._current_image.height()
+        if self._current_pixmap is not None and not self._current_pixmap.isNull():
+            return self._current_pixmap.width(), self._current_pixmap.height()
+        if self._current_frame_buffer is not None and getattr(self._current_frame_buffer, "size", 0) > 0:
+            h, w = self._current_frame_buffer.shape[:2]
+            return w, h
+        return 0, 0
 
     def sizeHint(self) -> QSize:
         """Kích thước gợi ý ổn định, không thay đổi theo từng frame."""
@@ -113,9 +126,10 @@ class CameraLiveViewport(QWidget):
             self._frame_aspect_ratio = new_aspect
             self._recalculate_target_rect()
 
-        # Tạo QImage trực tiếp từ con trỏ bộ đệm (Zero-copy wrapper)
-        qimg = QImage(rgb_frame.data, w, h, 3 * w, QImage.Format_RGB888)
-        self._current_pixmap = QPixmap.fromImage(qimg)
+        # Lưu tham chiếu buffer numpy để đảm bảo lifetime con trỏ bộ đệm cho QImage (Zero-copy)
+        self._current_frame_buffer = rgb_frame
+        self._current_image = QImage(rgb_frame.data, w, h, 3 * w, QImage.Format_RGB888)
+        self._current_pixmap = None
         self._message_text = ""
         self.update()
 
@@ -129,15 +143,21 @@ class CameraLiveViewport(QWidget):
                 if abs(new_aspect - self._frame_aspect_ratio) > 0.01:
                     self._frame_aspect_ratio = new_aspect
                     self._recalculate_target_rect()
+            self._current_frame_buffer = None
+            self._current_image = None
             self._current_pixmap = pixmap
             self._message_text = ""
             self.update()
         else:
+            self._current_frame_buffer = None
+            self._current_image = None
             self._current_pixmap = None
             self.update()
 
     def clear(self):
         """Xóa ảnh hiện tại trong viewport và dọn sạch overlay."""
+        self._current_frame_buffer = None
+        self._current_image = None
         self._current_pixmap = None
         self.clear_overlays()
 
@@ -238,7 +258,11 @@ class CameraLiveViewport(QWidget):
         pass
 
     def pixmap(self) -> Optional[QPixmap]:
-        return self._current_pixmap
+        if self._current_pixmap is not None:
+            return self._current_pixmap
+        if self._current_image is not None and not self._current_image.isNull():
+            return QPixmap.fromImage(self._current_image)
+        return None
 
     def text(self) -> str:
         return self._message_text
@@ -255,13 +279,19 @@ class CameraLiveViewport(QWidget):
         # 2. Vẽ nền tối
         painter.fillRect(self.rect(), self._bg_color)
 
-        # 3. Nếu có ảnh: Vẽ ảnh vừa khung nhìn KeepAspectRatio
-        if self._current_pixmap and not self._current_pixmap.isNull():
+        # 3. Nếu có ảnh: Vẽ ảnh vừa khung nhìn KeepAspectRatio (Ưu tiên QImage direct drawImage)
+        has_image = self._current_image is not None and not self._current_image.isNull()
+        has_pixmap = self._current_pixmap is not None and not self._current_pixmap.isNull()
+
+        if has_image or has_pixmap:
             if not self._target_rect.isValid() or self._target_rect.isEmpty():
                 self._recalculate_target_rect()
 
-            # Vẽ ảnh căn giữa, giữ nguyên tỷ lệ
-            painter.drawPixmap(self._target_rect, self._current_pixmap)
+            # Vẽ ảnh căn giữa, giữ nguyên tỷ lệ 1024:680 (3:2) không crop méo
+            if has_image:
+                painter.drawImage(self._target_rect, self._current_image)
+            else:
+                painter.drawPixmap(self._target_rect, self._current_pixmap)
 
             # 4. Vẽ lưới 3x3 nếu được kích hoạt
             if self._grid_enabled and self._target_rect.width() > 60:
@@ -283,8 +313,7 @@ class CameraLiveViewport(QWidget):
             show_faces = (self._face_detection_enabled or self._face_eye_af_enabled) and bool(self._detected_faces)
             if show_faces:
                 painter.setRenderHint(QPainter.Antialiasing, True)
-                src_w = float(self._current_pixmap.width())
-                src_h = float(self._current_pixmap.height())
+                src_w, src_h = float(self.get_source_dimensions()[0]), float(self.get_source_dimensions()[1])
 
                 if src_w > 0 and src_h > 0:
                     r = self._target_rect

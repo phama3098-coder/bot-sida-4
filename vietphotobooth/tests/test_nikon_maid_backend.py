@@ -93,3 +93,30 @@ def test_nikon_d780_backend_mocked_lifecycle():
         assert backend.get_status() == ConnectionState.DISCONNECTED
         mock_close_cam.assert_called()
         mock_close_mod.assert_called()
+
+
+def test_maid_result_success_and_capture_callback():
+    """Kiểm tra NkMAIDResult.SUCCESS == NkMAIDResult.NO_ERROR == 0 và callback on_capture_start."""
+    from vietphotobooth.camera.backends.nikon_maid.maid_types import NkMAIDResult
+    from vietphotobooth.camera.backends.nikon_maid.maid_session import NikonSession
+
+    assert NkMAIDResult.NO_ERROR == 0
+    assert NkMAIDResult.SUCCESS == 0
+    assert NkMAIDResult.WAITING_2ND_RELEASE == 168
+
+    session = NikonSession()
+    session._is_src_open = True
+    session._src_obj = MagicMock()
+
+    callback_called = [False]
+    def on_start():
+        callback_called[0] = True
+
+    # Giả lập lệnh CAP_START trả về NO_ERROR (0)
+    with patch.object(session, "_entry", return_value=NkMAIDResult.NO_ERROR), \
+         patch.object(session, "set_unsigned_capability", return_value=True), \
+         patch.object(session, "pump_async"):
+        # Timeout 0.05s để kết thúc nhanh vì new_items rỗng
+        res = session.capture_photo(timeout_sec=0.05, on_capture_start=on_start)
+        assert callback_called[0] is True
+        assert res is None  # Do giả lập không có item mới trong SDRAM

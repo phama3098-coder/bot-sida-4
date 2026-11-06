@@ -443,12 +443,12 @@ class DigiCamControlBackend(CameraBackendBase):
         if self._status == ConnectionState.LIVE_VIEW_ACTIVE:
             self._status = ConnectionState.CONNECTED_NO_FRAME if self._connected else ConnectionState.DISCONNECTED
 
-    def capture_photo(self) -> Optional[Image.Image]:
+    def capture_photo(self, on_capture_start: Optional[Any] = None) -> Optional[Image.Image]:
         """
         Kích hoạt chụp ảnh chất lượng cao độ phân giải gốc (24MP/6000x4000) qua digiCamControl.
         Quy trình xác minh an toàn:
         1. Kiểm tra trạng thái camera đã nhận diện.
-        2. Gửi lệnh chụp duy nhất.
+        2. Gửi lệnh chụp duy nhất. Kích hoạt on_capture_start khi camera backend chấp nhận lệnh chụp.
         3. Chờ và xác minh ảnh mới được tạo trên đĩa (không phải ảnh cũ).
         4. Kiểm tra toàn vẹn và giải mã thành công ảnh PIL RGB.
         """
@@ -485,7 +485,11 @@ class DigiCamControlBackend(CameraBackendBase):
 
                 # Gửi lệnh chụp qua HTTP
                 with urllib.request.urlopen(f"{self._base_url}/?cmd=Capture", timeout=2.0) as resp:
-                    pass
+                    if resp.status == 200 and on_capture_start:
+                        try:
+                            on_capture_start()
+                        except Exception as ex:
+                            logger.debug(f"[digiCamControl] on_capture_start callback error: {ex}")
 
                 # Chờ ảnh mới xuất hiện tối đa 8 giây
                 deadline = time.time() + 8.0

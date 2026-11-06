@@ -14,6 +14,32 @@ from vietphotobooth.camera.backends.nikon_maid.maid_types import (
 )
 
 
+class NikonMainProcessSDKLoadForbiddenError(RuntimeError):
+    """Ngoại lệ phát sinh khi Main Process cố nạp trực tiếp Nikon MAID SDK ở chế độ Isolated Worker."""
+
+
+# Mặc định tắt guard (False) để tương thích 100% với chế độ in-process hiện tại.
+# Khi chế độ Process-Isolated Worker được kích hoạt ở Main Process, guard này sẽ được bật.
+_main_process_isolation_guard_enabled: bool = False
+
+
+def set_main_process_isolation_guard(enabled: bool) -> None:
+    """Bật hoặc tắt chốt chặn ngăn Main Process nạp trực tiếp Type0026.md3."""
+    global _main_process_isolation_guard_enabled
+    _main_process_isolation_guard_enabled = bool(enabled)
+
+
+def is_main_process_isolation_guard_enabled() -> bool:
+    """Kiểm tra xem chốt chặn nạp Nikon SDK tại Main Process có đang kích hoạt hay không."""
+    if _main_process_isolation_guard_enabled:
+        return True
+    env_guard = os.environ.get("VIETPHOTOBOOTH_NIKON_MAIN_GUARD", "").strip().lower()
+    is_worker = os.environ.get("VIETPHOTOBOOTH_NIKON_WORKER_PROCESS", "").strip().lower() in ("1", "true", "yes")
+    if env_guard in ("1", "true", "yes") and not is_worker:
+        return True
+    return False
+
+
 class NikonSDKLoader:
     """Quản lý tìm kiếm, nạp và giải phóng thư viện Nikon MAID3 SDK."""
 
@@ -22,6 +48,17 @@ class NikonSDKLoader:
         self._entry_point: Optional[MAIDEntryPointProc] = None
         self._sdk_dir: Optional[str] = None
         self._dll_cookie = None
+        self._instance_isolation_guard: Optional[bool] = None
+
+    def set_isolation_guard(self, enabled: Optional[bool]) -> None:
+        """Thiết lập chốt chặn cô lập riêng trên từng instance loader (None = theo cấu hình toàn cục)."""
+        self._instance_isolation_guard = None if enabled is None else bool(enabled)
+
+    def is_isolation_guard_active(self) -> bool:
+        """Kiểm tra xem instance loader hiện tại có đang bị chặn nạp SDK hay không."""
+        if self._instance_isolation_guard is not None:
+            return self._instance_isolation_guard
+        return is_main_process_isolation_guard_enabled()
 
     @property
     def is_loaded(self) -> bool:
@@ -74,11 +111,28 @@ class NikonSDKLoader:
                 return directory
         return None
 
-    def load(self) -> Tuple[bool, str]:
+    def assert_load_permitted(self) -> None:
+        """Kiểm tra và ném ngoại lệ nếu Main Process Isolation Guard đang chặn nạp SDK."""
+        if self.is_isolation_guard_active():
+            raise NikonMainProcessSDKLoadForbiddenError(
+                "Bị chặn bởi Main Process Isolation Guard: Main Process không được phép nạp trực tiếp "
+                "Nikon MAID Type0026.md3 khi chế độ Process-Isolated Driver Worker đang kích hoạt."
+            )
+
+    def load(self, raise_on_guard: bool = False) -> Tuple[bool, str]:
         """
         Nạp Type0026.md3 vào tiến trình hiện tại.
         Trả về (success: bool, message: str).
         """
+        if self.is_isolation_guard_active():
+            msg = (
+                "Bị chặn bởi Main Process Isolation Guard: Main Process không được phép nạp trực tiếp "
+                "Nikon MAID Type0026.md3 khi chế độ Process-Isolated Driver Worker đang kích hoạt."
+            )
+            if raise_on_guard:
+                raise NikonMainProcessSDKLoadForbiddenError(msg)
+            return False, msg
+
         if self._entry_point is not None:
             return True, "SDK đã được nạp trước đó."
 
