@@ -27,6 +27,10 @@ from vietphotobooth.frames.frame_designer import FrameDesigner
 from vietphotobooth.frames.frame_models import FrameTemplate, PhotoSlot, TextLayer, LogoLayer, DPI_300_SIZES
 from vietphotobooth.processing.image_processor import get_face_detector
 from vietphotobooth.core.logger import get_logger
+from vietphotobooth.desktop.styles import (
+    LIVE_VIEW_BG, THEME_BORDER, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY,
+    THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_DARK, THEME_SURFACE, THEME_BG_SECONDARY
+)
 
 logger = get_logger()
 
@@ -98,7 +102,7 @@ class ImportFrameDialog(QDialog):
         self.lbl_preview = QLabel("Chưa chọn tệp ảnh/vector...")
         self.lbl_preview.setAlignment(Qt.AlignCenter)
         self.lbl_preview.setStyleSheet(
-            "background-color: #070A12; border: 2px dashed #28395E; border-radius: 10px; color: #94A3B8;"
+            f"background-color: {LIVE_VIEW_BG}; border: 2px dashed {THEME_BORDER}; border-radius: 10px; color: {THEME_TEXT_SECONDARY};"
         )
         self.lbl_preview.setMinimumSize(280, 420)
         left_box.addWidget(self.lbl_preview, 1)
@@ -1012,10 +1016,10 @@ class FrameDesignerPage(QWidget):
         self.scroll_area = scroll
         scroll.setWidgetResizable(True)
         scroll.setMinimumWidth(0)
-        scroll.setMaximumWidth(560)
+        scroll.setMaximumWidth(640)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         scroll_content = QWidget()
@@ -1065,7 +1069,7 @@ class FrameDesignerPage(QWidget):
 
         # MỤC MỚI: VĂN BẢN MẶC ĐỊNH CỦA KHUNG IN
         lbl_def_head = QLabel("<b>Văn Bản Mặc Định Cho Khung:</b>")
-        lbl_def_head.setStyleSheet("color: #D4AF37; font-size: 13px; margin-top: 4px;")
+        lbl_def_head.setStyleSheet(f"color: {THEME_GOLD_DARK}; font-size: 13px; margin-top: 4px;")
         l_props.addWidget(lbl_def_head)
 
         self.txt_def_text = QLineEdit()
@@ -1075,8 +1079,8 @@ class FrameDesignerPage(QWidget):
         def_font_row = ResponsiveRow("default_font_row", stack_below=470)
         self.combo_def_font = QComboBox()
         self.combo_def_font.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_def_font.setMinimumContentsLength(10)
         # Nạp danh sách font từ FontRegistry
-        FontRegistry.initialize()
         for f_item in FontRegistry.list_fonts("all"):
             self.combo_def_font.addItem(f"{f_item.display_name} ({f_item.category_label})", f_item.family_name)
         def_font_row.addWidget(self.combo_def_font, 1)
@@ -1084,18 +1088,19 @@ class FrameDesignerPage(QWidget):
         self.spin_def_size = QSpinBox()
         self.spin_def_size.setRange(16, 120)
         self.spin_def_size.setValue(34)
+        self.spin_def_size.setFixedWidth(54)
         def_font_row.addWidget(self.spin_def_size)
 
         self.btn_def_bold = QPushButton("B")
         self.btn_def_bold.setCheckable(True)
         self.btn_def_bold.setChecked(True)
-        self.btn_def_bold.setFixedWidth(32)
+        self.btn_def_bold.setFixedWidth(30)
         self.btn_def_bold.setStyleSheet("font-weight: bold;")
         def_font_row.addWidget(self.btn_def_bold)
 
         self.btn_def_italic = QPushButton("I")
         self.btn_def_italic.setCheckable(True)
-        self.btn_def_italic.setFixedWidth(32)
+        self.btn_def_italic.setFixedWidth(30)
         self.btn_def_italic.setStyleSheet("font-style: italic;")
         def_font_row.addWidget(self.btn_def_italic)
         l_props.addWidget(def_font_row)
@@ -1112,6 +1117,7 @@ class FrameDesignerPage(QWidget):
         self.spin_def_margin.setRange(10, 120)
         self.spin_def_margin.setValue(40)
         self.spin_def_margin.setSuffix(" px")
+        self.spin_def_margin.setFixedWidth(68)
         def_style_row.addWidget(self.spin_def_margin)
         l_props.addWidget(def_style_row)
 
@@ -1149,6 +1155,8 @@ class FrameDesignerPage(QWidget):
         slot_sel_layout = ResponsiveRow("slot_selector_row", stack_below=470)
         slot_sel_layout.addWidget(QLabel("<b>Ô Ảnh:</b>"))
         self.combo_slots_selector = QComboBox()
+        self.combo_slots_selector.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_slots_selector.setMinimumContentsLength(8)
         self.combo_slots_selector.currentIndexChanged.connect(self._on_slot_selector_changed)
         slot_sel_layout.addWidget(self.combo_slots_selector, 1)
 
@@ -1264,6 +1272,8 @@ class FrameDesignerPage(QWidget):
         text_sel_layout = ResponsiveRow("text_layer_selector_row", stack_below=470)
         text_sel_layout.addWidget(QLabel("<b>Lớp Chữ:</b>"))
         self.combo_text_selector = QComboBox()
+        self.combo_text_selector.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_text_selector.setMinimumContentsLength(8)
         self.combo_text_selector.currentIndexChanged.connect(self._on_text_selector_changed)
         text_sel_layout.addWidget(self.combo_text_selector, 1)
 
@@ -1318,6 +1328,7 @@ class FrameDesignerPage(QWidget):
         font_bar.addWidget(QLabel("Font:"))
         self.combo_font = QComboBox()
         self.combo_font.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_font.setMinimumContentsLength(10)
         self._populate_font_combo("all")
         self.combo_font.currentIndexChanged.connect(self._on_text_style_changed)
         font_bar.addWidget(self.combo_font, 1)
@@ -1326,19 +1337,20 @@ class FrameDesignerPage(QWidget):
         self.spin_font_size = QSpinBox()
         self.spin_font_size.setRange(16, 120)
         self.spin_font_size.setValue(36)
+        self.spin_font_size.setFixedWidth(54)
         self.spin_font_size.valueChanged.connect(self._on_text_style_changed)
         font_bar.addWidget(self.spin_font_size)
 
         self.btn_bold = QPushButton("B")
         self.btn_bold.setCheckable(True)
-        self.btn_bold.setFixedWidth(34)
+        self.btn_bold.setFixedWidth(30)
         self.btn_bold.setStyleSheet("font-weight: bold; font-size: 15px;")
         self.btn_bold.toggled.connect(self._on_text_style_changed)
         font_bar.addWidget(self.btn_bold)
 
         self.btn_italic = QPushButton("I")
         self.btn_italic.setCheckable(True)
-        self.btn_italic.setFixedWidth(34)
+        self.btn_italic.setFixedWidth(30)
         self.btn_italic.setStyleSheet("font-style: italic; font-size: 15px;")
         self.btn_italic.toggled.connect(self._on_text_style_changed)
         font_bar.addWidget(self.btn_italic)
@@ -1349,7 +1361,7 @@ class FrameDesignerPage(QWidget):
         self.lbl_font_preview = QLabel("1998 TEAM • Trăm Năm Hạnh Phúc")
         self.lbl_font_preview.setAlignment(Qt.AlignCenter)
         self.lbl_font_preview.setStyleSheet(
-            "background-color: #070A12; border: 1px solid #1E293B; border-radius: 6px; padding: 6px; color: #D4AF37; font-size: 15px;"
+            f"background-color: {LIVE_VIEW_BG}; border: 1px solid {THEME_BORDER}; border-radius: 6px; padding: 6px; color: {THEME_GOLD_LIGHT}; font-size: 15px;"
         )
         l_txt.addWidget(self.lbl_font_preview)
 
@@ -1432,7 +1444,7 @@ class FrameDesignerPage(QWidget):
         self.btn_toggle_visible_text.clicked.connect(self._toggle_visible_selected_text)
         lock_row.addWidget(self.btn_toggle_visible_text)
 
-        self.btn_lock_text = QPushButton("🔓 Vị Trí: Cho Phép Kéo")
+        self.btn_lock_text = QPushButton("🔓 Cho Phép Kéo")
         self.btn_lock_text.setObjectName("btn_secondary")
         self.btn_lock_text.setCheckable(True)
         self.btn_lock_text.toggled.connect(self._toggle_lock_text)
@@ -1443,6 +1455,7 @@ class FrameDesignerPage(QWidget):
         self.spin_safe_margin.setRange(10, 120)
         self.spin_safe_margin.setValue(40)
         self.spin_safe_margin.setSuffix(" px")
+        self.spin_safe_margin.setFixedWidth(64)
         self.spin_safe_margin.valueChanged.connect(self._on_text_margin_changed)
         lock_row.addWidget(self.spin_safe_margin)
         l_txt.addWidget(lock_row)
@@ -1466,13 +1479,15 @@ class FrameDesignerPage(QWidget):
         # --------------------------------------------------------------
         # 4. LOGO & HỌA TIẾT (LOGO LAYERS)
         # --------------------------------------------------------------
-        grp_logo = QGroupBox("4. Logo & Họa Tiết")
+        grp_logo = QGroupBox("4. Logo && Họa Tiết")
         l_lg = QVBoxLayout(grp_logo)
         l_lg.setSpacing(10)
 
         logo_sel_layout = ResponsiveRow("logo_selector_row", stack_below=470)
         logo_sel_layout.addWidget(QLabel("<b>Logo:</b>"))
         self.combo_logo_selector = QComboBox()
+        self.combo_logo_selector.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo_logo_selector.setMinimumContentsLength(8)
         self.combo_logo_selector.currentIndexChanged.connect(self._on_logo_selector_changed)
         logo_sel_layout.addWidget(self.combo_logo_selector, 1)
 
@@ -1848,7 +1863,6 @@ class FrameDesignerPage(QWidget):
         self.combo_font.blockSignals(True)
         cur_data = self.combo_font.currentData()
         self.combo_font.clear()
-        FontRegistry.initialize()
         fonts = FontRegistry.list_fonts(category)
         for f in fonts:
             self.combo_font.addItem(f"{f.display_name} ({f.category_label})", f.family_name)
@@ -1891,7 +1905,7 @@ class FrameDesignerPage(QWidget):
 
         is_locked = getattr(t, 'is_locked', False)
         self.btn_lock_text.setChecked(is_locked)
-        self.btn_lock_text.setText("🔒 Vị Trí: Đã Khóa" if is_locked else "🔓 Vị Trí: Cho Phép Kéo")
+        self.btn_lock_text.setText("🔒 Đã Khóa Kéo" if is_locked else "🔓 Cho Phép Kéo")
 
         is_vis = getattr(t, 'is_visible', True)
         self.btn_toggle_visible_text.setText("👁️ Đang Hiện" if is_vis else "👁️‍🗨️ Đang Ẩn")
@@ -2032,7 +2046,7 @@ class FrameDesignerPage(QWidget):
         if 0 <= idx < len(self.current_frame.text_layers):
             t = self.current_frame.text_layers[idx]
             t.is_locked = locked
-            self.btn_lock_text.setText("🔒 Vị Trí: Đã Khóa" if locked else "🔓 Vị Trí: Cho Phép Kéo")
+            self.btn_lock_text.setText("🔒 Đã Khóa Kéo" if locked else "🔓 Cho Phép Kéo")
             self.canvas.update()
 
     def _on_text_margin_changed(self, val: int):
@@ -2523,6 +2537,6 @@ class FrameDesignerPage(QWidget):
                 self.main_layout.setStretch(0, 6)
                 self.main_layout.setStretch(1, 4)
                 self.scroll_area.setMinimumWidth(360)
-                self.scroll_area.setMaximumWidth(560)
+                self.scroll_area.setMaximumWidth(640)
         if hasattr(self, "canvas"):
             self.canvas.update()

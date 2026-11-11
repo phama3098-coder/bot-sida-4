@@ -51,7 +51,12 @@ from vietphotobooth.desktop.styles import (
     THEME_BG_MAIN, THEME_SURFACE, THEME_BG_SECONDARY, THEME_INPUT_BG,
     THEME_BORDER, THEME_BORDER_LIGHT, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY,
     THEME_TEXT_DISABLED, THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_PALE,
-    THEME_GOLD_DARK, LIVE_VIEW_BG
+    THEME_GOLD_DARK, LIVE_VIEW_BG,
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_BORDER, COLOR_BORDER_LIGHT,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR, COLOR_LIVEVIEW,
+    STYLE_BTN_CHAMPAGNE, STYLE_BTN_SECONDARY
 )
 from vietphotobooth.desktop.icons import (
     COLOR_GOLD, COLOR_GOLD_LIGHT, COLOR_GOLD_DARK, get_svg_icon, get_brand_logo_tight_pixmap
@@ -395,35 +400,35 @@ class FrameCardWidget(QFrame):
         self.on_select = on_select
         self.is_selected = is_selected
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumWidth(110)
-        self.setMaximumWidth(220)
-        self.setFixedHeight(144)
+        self.setMinimumWidth(80)
+        self.setMaximumWidth(210)
+        self.setFixedHeight(96)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
 
         # Khung chứa hình thu nhỏ (thumbnail)
         self.thumb_container = QWidget()
-        self.thumb_container.setFixedHeight(102)
+        self.thumb_container.setFixedHeight(62)
         thumb_l = QVBoxLayout(self.thumb_container)
         thumb_l.setContentsMargins(0, 0, 0, 0)
         thumb_l.setAlignment(Qt.AlignCenter)
 
         self.lbl_thumb = QLabel()
         self.lbl_thumb.setAlignment(Qt.AlignCenter)
-        self.lbl_thumb.setPixmap(thumbnail_pixmap.scaled(104, 98, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.lbl_thumb.setPixmap(thumbnail_pixmap.scaled(74, 58, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         thumb_l.addWidget(self.lbl_thumb)
 
         # Dấu tích vàng Muted Champagne nhận diện khung đang chọn
         self.lbl_badge = QLabel("✓", self.thumb_container)
         self.lbl_badge.setAlignment(Qt.AlignCenter)
-        self.lbl_badge.setFixedSize(20, 20)
+        self.lbl_badge.setFixedSize(16, 16)
         self.lbl_badge.setStyleSheet(
-            f"background-color: {THEME_GOLD}; color: #FFFFFF; font-weight: 900; font-size: 12px; border-radius: 10px;"
+            f"background-color: {COLOR_CHAMPAGNE}; color: #FFFFFF; font-weight: 900; font-size: 10px; border-radius: 8px;"
         )
-        self.lbl_badge.move(self.thumb_container.width() - 22, 2)
+        self.lbl_badge.move(self.thumb_container.width() - 18, 2)
         self.lbl_badge.setVisible(is_selected)
 
         layout.addWidget(self.thumb_container)
@@ -431,26 +436,26 @@ class FrameCardWidget(QFrame):
         # Tên khổ in bên dưới
         display_name = template.name
         if template.is_dual_strip or "dual" in template.id.lower() or "ghép đôi" in display_name.lower():
-            caption = "Khổ 4x6 - Ghép đôi 2 dải"
+            caption = "4x6 Ghép đôi"
         elif "ngang" in display_name.lower() or "landscape" in template.type.lower():
-            caption = "Khổ ngang 4x6 - 3 ảnh"
+            caption = "4x6 Ngang"
         elif "4" in display_name and "2x6" in display_name:
-            caption = "Dải 2x6 - 4 ảnh"
+            caption = "2x6 4 ảnh"
         elif "3" in display_name and "2x6" in display_name:
-            caption = "Dải 2x6 - 3 ảnh"
+            caption = "2x6 3 ảnh"
         else:
-            caption = display_name[:20]
+            caption = display_name if len(display_name) <= 18 else (display_name[:17] + "…")
 
         self.lbl_caption = QLabel(caption)
         self.lbl_caption.setAlignment(Qt.AlignCenter)
-        self.lbl_caption.setWordWrap(True)
+        self.lbl_caption.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {COLOR_TEXT_PRIMARY}; border: none; background: transparent;")
         layout.addWidget(self.lbl_caption)
 
         self._update_style()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.lbl_badge.move(self.thumb_container.width() - 22, 2)
+        self.lbl_badge.move(self.thumb_container.width() - 18, 2)
 
     def set_selected(self, selected: bool):
         self.is_selected = selected
@@ -460,15 +465,15 @@ class FrameCardWidget(QFrame):
     def _update_style(self):
         if self.is_selected:
             self.setStyleSheet(
-                f"FrameCardWidget {{ background-color: {THEME_GOLD_LIGHT}; border: 2.5px solid {THEME_GOLD}; border-radius: 10px; }}"
+                f"FrameCardWidget {{ background-color: {COLOR_PALE_GOLD}; border: 1.5px solid {COLOR_CHAMPAGNE}; border-radius: 10px; }}"
             )
-            self.lbl_caption.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {THEME_TEXT_PRIMARY};")
+            self.lbl_caption.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {COLOR_TEXT_PRIMARY}; border: none; background: transparent;")
         else:
             self.setStyleSheet(
-                f"FrameCardWidget {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 10px; }}"
-                f"FrameCardWidget:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
+                f"FrameCardWidget {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 10px; }}"
+                f"FrameCardWidget:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
             )
-            self.lbl_caption.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {THEME_TEXT_SECONDARY};")
+            self.lbl_caption.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {COLOR_TEXT_SECONDARY}; border: none; background: transparent;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -483,6 +488,7 @@ class KioskPage(QWidget):
     session_finished = Signal(str)
     request_tab_switch = Signal(int)
     request_fullscreen = Signal()
+    request_capture_fullscreen = Signal(bool)
 
     def minimumSizeHint(self) -> QSize:
         return QSize(720, 480)
@@ -525,9 +531,11 @@ class KioskPage(QWidget):
         self.current_composite: Optional[Image.Image] = None
         self.current_session_id: Optional[str] = None
         self.current_token: Optional[str] = None
+        self._is_capture_immersive: bool = False
 
         # Cấu hình Smart Beauty Panel sau mỗi ảnh
         self._beauty_settings_cache: Optional[Dict[str, float]] = None
+        self._beauty_enabled_cache: Optional[Dict[str, bool]] = None
         self._reuse_beauty_settings: bool = False
 
         # Carousel khung ảnh
@@ -623,10 +631,22 @@ class KioskPage(QWidget):
         # KHUNG LIVE VIEW LỚN TỐI ĐA (CHÍNH GIỮA)
         # -------------------------------------------------------------
         self.card_live = QFrame()
-        self.card_live.setStyleSheet(f"background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 12px;")
+        self.card_live.setObjectName("card_live")
+        self.card_live.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.card_live.setStyleSheet(f"""
+            QFrame#card_live {{
+                background-color: {COLOR_LIVEVIEW};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 12px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
         l_live = QVBoxLayout(self.card_live)
-        l_live.setContentsMargins(10, 8, 10, 10)
-        l_live.setSpacing(6)
+        l_live.setContentsMargins(6, 4, 6, 6)
+        l_live.setSpacing(4)
 
         # Thanh tiêu đề / trạng thái ngay trên Live View
         self.live_top_bar = QHBoxLayout()
@@ -634,22 +654,22 @@ class KioskPage(QWidget):
 
         self.lbl_live_badge = QLabel("📷 CHƯA KẾT NỐI MÁY ẢNH | XEM TRƯỚC GIAO DIỆN")
         self.lbl_live_badge.setStyleSheet(
-            "background-color: #FDE8E8; color: #C53030; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #FCA5A5;"
+            f"background-color: #FDE8E8; color: {COLOR_ERROR}; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 4px 10px; border: 1px solid #FCA5A5;"
         )
         self.live_top_bar.addWidget(self.lbl_live_badge)
 
         # Huy hiệu hiển thị sự kiện hiện tại gọn gàng
         self.lbl_active_event_pill = QLabel("📁 Sự kiện: SuKien_MacDinh")
         self.lbl_active_event_pill.setStyleSheet(
-            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
+            f"background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: bold; border-radius: 6px; padding: 4px 10px; border: 1px solid {COLOR_BORDER};"
         )
         self.live_top_bar.addWidget(self.lbl_active_event_pill)
 
         self.btn_switch_event = QPushButton("Đổi Sự Kiện")
         self.btn_switch_event.setFixedHeight(24)
         self.btn_switch_event.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 6px; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; padding: 0 8px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 6px; color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; padding: 0 8px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; color: {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
         )
         self.btn_switch_event.clicked.connect(lambda: self.request_tab_switch.emit(4))
         self.live_top_bar.addWidget(self.btn_switch_event)
@@ -658,15 +678,19 @@ class KioskPage(QWidget):
 
         self.lbl_live_res = QLabel("LIVE VIEW 1920 × 1080")
         self.lbl_live_res.setStyleSheet(
-            f"background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 10px; border: 1px solid {THEME_BORDER};"
+            f"background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 10px; border: 1px solid {COLOR_BORDER};"
         )
         self.live_top_bar.addWidget(self.lbl_live_res)
 
-        self.btn_live_fullscreen = QPushButton("⛶")
+        self.btn_live_fullscreen = QPushButton()
+        self.btn_live_fullscreen.setIcon(get_svg_icon("maximize", 15, COLOR_TEXT_PRIMARY))
+        self.btn_live_fullscreen.setIconSize(QSize(15, 15))
         self.btn_live_fullscreen.setFixedSize(28, 26)
+        self.btn_live_fullscreen.setCursor(Qt.PointingHandCursor)
         self.btn_live_fullscreen.setToolTip("Chế độ toàn màn hình (F11)")
         self.btn_live_fullscreen.setStyleSheet(
-            f"background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: bold; border-radius: 6px; border: 1.5px solid {THEME_BORDER};"
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; padding: 0px; border-radius: 6px; border: 1px solid {COLOR_BORDER}; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
         )
         self.btn_live_fullscreen.clicked.connect(lambda: self.request_fullscreen.emit())
         self.live_top_bar.addWidget(self.btn_live_fullscreen)
@@ -679,7 +703,7 @@ class KioskPage(QWidget):
         self.lbl_viewport.set_face_eye_af_state(False, None, None)
         self.lbl_viewport.setMinimumHeight(240)
         self.lbl_viewport.register_resize_callback(self._reposition_viewport_overlays)
-        l_live.addWidget(self.lbl_viewport)
+        l_live.addWidget(self.lbl_viewport, 1)
 
         # Panel chờ kết nối rõ ràng (chuẩn studio, KHÔNG hiển thị người giả lập)
         self.panel_disconnected = QWidget(self.lbl_viewport)
@@ -689,17 +713,17 @@ class KioskPage(QWidget):
 
         icon_cam = QLabel("📷")
         icon_cam.setAlignment(Qt.AlignCenter)
-        icon_cam.setStyleSheet(f"font-size: 54px; color: {THEME_TEXT_SECONDARY}; background: transparent; border: none;")
+        icon_cam.setStyleSheet(f"font-size: 54px; color: {COLOR_TEXT_SECONDARY}; background: transparent; border: none;")
         l_disc.addWidget(icon_cam)
 
         lbl_disc_title = QLabel("CHƯA KẾT NỐI MÁY ẢNH")
         lbl_disc_title.setAlignment(Qt.AlignCenter)
-        lbl_disc_title.setStyleSheet(f"color: {THEME_GOLD}; font-size: 20px; font-weight: 900; background: transparent; border: none;")
+        lbl_disc_title.setStyleSheet(f"color: {COLOR_CHAMPAGNE}; font-size: 20px; font-weight: 900; background: transparent; border: none;")
         l_disc.addWidget(lbl_disc_title)
 
         lbl_disc_desc = QLabel("Vui lòng cắm cáp USB máy ảnh DSLR/Mirrorless và bấm nút 'Kết nối máy ảnh' bên phải.")
         lbl_disc_desc.setAlignment(Qt.AlignCenter)
-        lbl_disc_desc.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 13px; background: transparent; border: none;")
+        lbl_disc_desc.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px; background: transparent; border: none;")
         l_disc.addWidget(lbl_disc_desc)
 
         self.panel_disconnected.show()
@@ -717,7 +741,7 @@ class KioskPage(QWidget):
 
         self.lbl_no_feed_title = QLabel("CHƯA CÓ TÍN HIỆU LIVE VIEW")
         self.lbl_no_feed_title.setAlignment(Qt.AlignCenter)
-        self.lbl_no_feed_title.setStyleSheet("color: #B45309; font-size: 18px; font-weight: 900; background: transparent; border: none;")
+        self.lbl_no_feed_title.setStyleSheet(f"color: {COLOR_WARNING}; font-size: 18px; font-weight: 900; background: transparent; border: none;")
         l_no_feed.addWidget(self.lbl_no_feed_title)
 
         self.lbl_no_feed_desc = QLabel(
@@ -727,8 +751,8 @@ class KioskPage(QWidget):
         self.lbl_no_feed_desc.setAlignment(Qt.AlignCenter)
         self.lbl_no_feed_desc.setWordWrap(True)
         self.lbl_no_feed_desc.setStyleSheet(
-            f"color: {THEME_GOLD_PALE}; font-size: 13px; background: rgba(30, 26, 22, 0.92); "
-            f"padding: 12px 20px; border-radius: 8px; border: 1px solid {THEME_TEXT_SECONDARY}; line-height: 1.4;"
+            f"color: {COLOR_PALE_GOLD}; font-size: 13px; background: rgba(30, 26, 22, 0.92); "
+            f"padding: 12px 20px; border-radius: 8px; border: 1px solid {COLOR_TEXT_SECONDARY}; line-height: 1.4;"
         )
         l_no_feed.addWidget(self.lbl_no_feed_desc)
 
@@ -738,30 +762,41 @@ class KioskPage(QWidget):
         # Overlay đếm ngược to ở giữa
         self.lbl_countdown = QLabel("", self.lbl_viewport)
         self.lbl_countdown.setAlignment(Qt.AlignCenter)
-        self.lbl_countdown.setStyleSheet(f"color: {THEME_GOLD}; font-size: 130px; font-weight: 900; background: rgba(23,25,28,0.75); border: 3px solid {THEME_GOLD}; border-radius: 36px;")
+        self.lbl_countdown.setStyleSheet(f"color: {COLOR_CHAMPAGNE}; font-size: 130px; font-weight: 900; background: rgba(23,25,28,0.75); border: 3px solid {COLOR_CHAMPAGNE}; border-radius: 36px;")
         self.lbl_countdown.hide()
 
         # Label trạng thái ảnh ("Đang chụp ảnh 1/3...")
         self.lbl_status_badge = QLabel("", self.lbl_viewport)
         self.lbl_status_badge.setAlignment(Qt.AlignCenter)
-        self.lbl_status_badge.setStyleSheet(f"color: {THEME_GOLD_PALE}; font-size: 20px; font-weight: bold; background: rgba(23,25,28,0.92); border: 1.5px solid {THEME_GOLD}; padding: 8px 24px; border-radius: 18px;")
+        self.lbl_status_badge.setStyleSheet(f"color: {COLOR_PALE_GOLD}; font-size: 20px; font-weight: bold; background: rgba(23,25,28,0.92); border: 1.5px solid {COLOR_CHAMPAGNE}; padding: 8px 24px; border-radius: 18px;")
         self.lbl_status_badge.hide()
 
-        self.top_row_layout.addWidget(self.card_live, 1)
-
         # -------------------------------------------------------------
-        # CỘT PHẢI: TRẠNG THÁI MÁY ẢNH (GỌN GÀNG, CHUẨN STUDIO)
+        # CỘT PHẢI: TRẠNG THÁI MÁY ẢNH (Bảo toàn trong memory & API, không hiển thị trên layout chính)
         # -------------------------------------------------------------
-        self.card_camera = QFrame()
+        self.card_camera = QFrame(self)
+        self.card_camera.setObjectName("card_camera")
+        self.card_camera.setGeometry(-9999, -9999, 200, 100)
+        self.card_camera.show()
         self.card_camera.setMinimumWidth(190)
         self.card_camera.setMaximumWidth(250)
-        self.card_camera.setStyleSheet(f"background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 12px;")
+        self.card_camera.setStyleSheet(f"""
+            QFrame#card_camera {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 12px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
         l_cam = QVBoxLayout(self.card_camera)
         l_cam.setContentsMargins(14, 14, 14, 14)
         l_cam.setSpacing(12)
 
         lbl_cam_card_title = QLabel("📷 <b>TRẠNG THÁI MÁY ẢNH</b>")
-        lbl_cam_card_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        lbl_cam_card_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 13px; font-weight: bold; border: none; background: transparent;")
         l_cam.addWidget(lbl_cam_card_title)
 
         # Chấm trạng thái và nhãn
@@ -772,7 +807,7 @@ class KioskPage(QWidget):
         h_stat.addWidget(self.lbl_cam_dot)
 
         self.lbl_cam_status_text = QLabel("Chưa kết nối máy ảnh")
-        self.lbl_cam_status_text.setStyleSheet("color: #C53030; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        self.lbl_cam_status_text.setStyleSheet(f"color: {COLOR_ERROR}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         h_stat.addWidget(self.lbl_cam_status_text)
         h_stat.addStretch()
         l_cam.addLayout(h_stat)
@@ -780,424 +815,502 @@ class KioskPage(QWidget):
         # Ghi chú hướng dẫn
         self.lbl_cam_note = QLabel("Hãy kết nối máy ảnh và chọn thiết bị trong mục Máy ảnh để bắt đầu chụp.")
         self.lbl_cam_note.setWordWrap(True)
-        self.lbl_cam_note.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 12px; line-height: 1.3; border: none; background: transparent;")
+        self.lbl_cam_note.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 12px; line-height: 1.3; border: none; background: transparent;")
         l_cam.addWidget(self.lbl_cam_note)
 
         l_cam.addSpacing(6)
 
         # Nút Kết nối máy ảnh màu vàng champagne
         self.btn_reconnect_cam = QPushButton("🔗 Kết nối máy ảnh")
-        self.btn_reconnect_cam.setFixedHeight(44)
+        self.btn_reconnect_cam.setFixedHeight(42)
         self.btn_reconnect_cam.setStyleSheet(
-            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD}); "
-            f"color: #FFFFFF; font-weight: 800; font-size: 13px; border-radius: 8px; border: 1px solid {THEME_GOLD_DARK}; }}"
-            f"QPushButton:hover {{ background: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; }}"
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT}); "
+            f"color: #1C1D1C; font-weight: 800; font-size: 13px; border-radius: 8px; border: none; }}"
+            f"QPushButton:hover {{ background: #A88952; color: #FFFFFF; }}"
         )
         self.btn_reconnect_cam.clicked.connect(self._reconnect_camera)
         l_cam.addWidget(self.btn_reconnect_cam)
 
         # Nút Mở cài đặt máy ảnh
         self.btn_cam_settings = QPushButton("⚙️ Mở cài đặt máy ảnh")
-        self.btn_cam_settings.setFixedHeight(44)
+        self.btn_cam_settings.setFixedHeight(42)
         self.btn_cam_settings.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 8px; color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 600; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 8px; color: {COLOR_TEXT_PRIMARY}; font-size: 13px; font-weight: 600; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_PRIMARY}; }}"
         )
         self.btn_cam_settings.clicked.connect(lambda: self.request_tab_switch.emit(2))
         l_cam.addWidget(self.btn_cam_settings)
 
         l_cam.addStretch()
-        self.top_row_layout.addWidget(self.card_camera)
+        # Không add card_camera vào layout để Live View mở rộng tối đa toàn bộ chiều ngang
+        # Thông tin camera được tinh giản trên live_top_bar và quản lý đầy đủ tại Cài đặt/Giám sát thiết bị
 
-        self.capture_layout.addLayout(self.top_row_layout, 7)
-
-        # =============================================================
-        # 2. HÀNG ĐIỀU KHIỂN PHÍA DƯỚI (4 THẺ: SỐ ẢNH, ĐẾM NGƯỢC, KHUNG, BỘ LỌC)
-        # =============================================================
+        # Giữ lại các layout rỗng để bảo toàn tương thích ngược cho các module/test
         self.ctrl_row_layout = QHBoxLayout()
-        self.ctrl_row_layout.setSpacing(12)
+        self.bottom_bar_layout = QHBoxLayout()
+
+        # =============================================================
+        # BỐ CỤC 2 KHU VỰC CHÍNH (BUILD 212):
+        # BÊN TRÁI (70–75%): LIVE VIEW LỚN + NÚT BẮT ĐẦU CHỤP CHÍNH GIỮA DƯỚI LIVE VIEW
+        # BÊN PHẢI (25–30%): MẪU KHUNG ẢNH -> BỘ LỌC MÀU -> TÙY CHỌN CHỤP -> SỐ ẢNH & ĐẾM NGƯỢC
+        # =============================================================
 
         # -------------------------------------------------------------
-        # THẺ 1: SỐ ẢNH MỖI LƯỢT (BỘ ĐIỀU KHIỂN CÂN ĐỐI [ − ] [ 3 ] [ + ])
+        # 1. KHU VỰC BÊN TRÁI (70–75%): LIVE VIEW & NÚT BẮT ĐẦU CHỤP
         # -------------------------------------------------------------
-        self.card_shots = QFrame()
+        self.left_live_widget = QWidget()
+        self.left_live_widget.setObjectName("left_live_widget")
+        self.left_live_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        l_live_area = QVBoxLayout(self.left_live_widget)
+        l_live_area.setContentsMargins(0, 0, 0, 0)
+        l_live_area.setSpacing(10)
+
+        l_live_area.addWidget(self.card_live, 1)
+
+        # Thanh hành động chính giữa phía dưới Live View (chứa Nút BẮT ĐẦU CHỤP)
+        self.capture_action_bar = QWidget()
+        self.capture_action_bar.setObjectName("bottom_panel_widget")
+        self.bottom_panel_widget = self.capture_action_bar
+        self.capture_action_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        l_action_bar = QGridLayout(self.capture_action_bar)
+        l_action_bar.setContentsMargins(0, 2, 0, 2)
+        l_action_bar.setHorizontalSpacing(8)
+        l_action_bar.setColumnStretch(0, 1)
+        l_action_bar.setColumnStretch(1, 0)
+        l_action_bar.setColumnStretch(2, 1)
+
+        self.btn_start = QPushButton("📷 BẮT ĐẦU CHỤP")
+        self.btn_start.setFixedSize(360, 48)
+        self.btn_start.setCursor(Qt.PointingHandCursor)
+        self.btn_start.setStyleSheet(
+            f"QPushButton {{"
+            f"  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});"
+            f"  color: #1C1D1C;"
+            f"  font-size: 18px;"
+            f"  font-weight: 800;"
+            f"  letter-spacing: 0.5px;"
+            f"  border-radius: 24px;"
+            f"  border: none;"
+            f"}}"
+            f"QPushButton:hover {{"
+            f"  background: #A88952;"
+            f"  color: #FFFFFF;"
+            f"}}"
+            f"QPushButton:pressed {{"
+            f"  background: #8F7240;"
+            f"  color: #FFFFFF;"
+            f"}}"
+            f"QPushButton:disabled {{"
+            f"  background: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid {COLOR_BORDER};"
+            f"}}"
+        )
+        self.btn_start.clicked.connect(self.start_capture_flow)
+        l_action_bar.addWidget(self.btn_start, 0, 1, Qt.AlignCenter)
+
+        # Nút Toàn màn hình & Các nút Review fallback bên phải thanh dưới Live View
+        self.right_action_box = QWidget()
+        l_act = QHBoxLayout(self.right_action_box)
+        l_act.setContentsMargins(0, 0, 0, 0)
+        l_act.setSpacing(8)
+
+        self.btn_fullscreen = QPushButton(" Toàn màn hình")
+        self.btn_fullscreen.setIcon(get_svg_icon("maximize", 15, COLOR_TEXT_PRIMARY))
+        self.btn_fullscreen.setIconSize(QSize(15, 15))
+        self.btn_fullscreen.setFixedHeight(48)
+        self.btn_fullscreen.setCursor(Qt.PointingHandCursor)
+        self.btn_fullscreen.setStyleSheet(
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 8px; color: {COLOR_TEXT_PRIMARY}; font-size: 12px; font-weight: 600; padding: 0 14px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_PRIMARY}; }}"
+        )
+        self.btn_fullscreen.clicked.connect(lambda: self.request_fullscreen.emit())
+        l_act.addWidget(self.btn_fullscreen, 0, Qt.AlignRight)
+
+        # CÁC NÚT KHI Ở CHẾ ĐỘ XEM KẾT QUẢ FALLBACK (ẩn mặc định)
+        self.btn_retake = QPushButton("🔄 Chụp Lại")
+        self.btn_retake.setFixedHeight(48)
+        self.btn_retake.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; color: {COLOR_TEXT_PRIMARY}; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_retake.clicked.connect(self._retake_session)
+        self.btn_retake.hide()
+        l_act.addWidget(self.btn_retake)
+
+        self.btn_save = QPushButton("💾 Lưu Ảnh")
+        self.btn_save.setFixedHeight(48)
+        self.btn_save.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; color: {COLOR_TEXT_PRIMARY}; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_save.clicked.connect(self._save_photo_dialog)
+        self.btn_save.hide()
+        l_act.addWidget(self.btn_save)
+
+        self.btn_qr = QPushButton("📱 Quét Mã QR")
+        self.btn_qr.setFixedHeight(48)
+        self.btn_qr.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; color: {COLOR_TEXT_PRIMARY}; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_qr.clicked.connect(self._show_qr_dialog)
+        self.btn_qr.hide()
+        l_act.addWidget(self.btn_qr)
+
+        self.btn_print = QPushButton("🖨️ IN ẢNH")
+        self.btn_print.setFixedHeight(48)
+        self.btn_print.setStyleSheet(
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});"
+            f"color: #1C1D1C; font-weight: 800; font-size: 14px; border-radius: 8px; border: none; padding: 0 20px;"
+        )
+        self.btn_print.clicked.connect(self._print_composite)
+        self.btn_print.hide()
+        l_act.addWidget(self.btn_print)
+
+        self.btn_finish = QPushButton("✅ Hoàn Tất")
+        self.btn_finish.setFixedHeight(48)
+        self.btn_finish.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; color: {COLOR_TEXT_PRIMARY}; border-radius: 8px; font-weight: 700; padding: 0 16px;")
+        self.btn_finish.clicked.connect(self._finish_session)
+        self.btn_finish.hide()
+        l_act.addWidget(self.btn_finish)
+
+        l_action_bar.addWidget(self.right_action_box, 0, 2, Qt.AlignRight)
+        l_live_area.addWidget(self.capture_action_bar, 0)
+
+        # -------------------------------------------------------------
+        # 2. KHU VỰC ĐIỀU KHIỂN BÊN PHẢI (25–30% CHIỀU RỘNG)
+        # THỨ TỰ: 1. MẪU KHUNG ẢNH -> 2. BỘ LỌC MÀU -> 3. TÙY CHỌN CHỤP -> 4. SỐ ẢNH & ĐẾM NGƯỢC
+        # -------------------------------------------------------------
+        self.right_control_widget = QWidget()
+        self.right_control_widget.setObjectName("right_control_widget")
+        self.left_column_widget = self.right_control_widget
+        self.right_control_widget.setMinimumWidth(300)
+        self.right_control_widget.setMaximumWidth(480)
+        self.right_control_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        l_col_right = QVBoxLayout(self.right_control_widget)
+        l_col_right.setContentsMargins(0, 0, 0, 0)
+        l_col_right.setSpacing(8)
+
+        # --- MỤC 1: MẪU KHUNG ẢNH (LƯỚI 2 CỘT THUMBNAIL GỌN GÀNG) ---
+        self.card_frames = QFrame()
+        self.card_frames.setObjectName("card_frames")
+        self.card_frames.setStyleSheet(f"""
+            QFrame#card_frames {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 10px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        l_fr = QVBoxLayout(self.card_frames)
+        l_fr.setContentsMargins(10, 8, 10, 8)
+        l_fr.setSpacing(6)
+
+        h_fr_head = QHBoxLayout()
+        h_fr_head.setContentsMargins(0, 0, 0, 0)
+        lbl_fr_title = QLabel("🖼️ <b>Mẫu khung ảnh</b>")
+        lbl_fr_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        h_fr_head.addWidget(lbl_fr_title)
+
+        h_fr_head.addStretch()
+
+        self.btn_goto_frames = QPushButton("Chọn khung khác")
+        self.btn_goto_frames.setFixedHeight(24)
+        self.btn_goto_frames.setCursor(Qt.PointingHandCursor)
+        self.btn_goto_frames.setStyleSheet(
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 6px; color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; padding: 0 8px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; color: {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
+        )
+        self.btn_goto_frames.clicked.connect(lambda: self.request_tab_switch.emit(1))
+        h_fr_head.addWidget(self.btn_goto_frames)
+        l_fr.addLayout(h_fr_head)
+
+        self.frames_container_layout = QGridLayout()
+        self.frames_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.frames_container_layout.setSpacing(6)
+        l_fr.addLayout(self.frames_container_layout)
+
+        h_fr_nav = QHBoxLayout()
+        h_fr_nav.setContentsMargins(2, 2, 2, 0)
+        h_fr_nav.setSpacing(6)
+
+        self.btn_frame_prev = QPushButton()
+        self.btn_frame_prev.setIcon(get_svg_icon("chevron_left", 15, COLOR_GOLD_DARK))
+        self.btn_frame_prev.setIconSize(QSize(15, 15))
+        self.btn_frame_prev.setFixedSize(32, 26)
+        self.btn_frame_prev.setCursor(Qt.PointingHandCursor)
+        self.btn_frame_prev.setToolTip("Trang trước")
+        self.btn_frame_prev.setStyleSheet(
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 6px; padding: 0px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
+            f"QPushButton:disabled {{ background-color: {COLOR_SURFACE_SECONDARY}; border: 1px solid {COLOR_BORDER_LIGHT}; }}"
+        )
+        self.btn_frame_prev.clicked.connect(self._prev_frame_page)
+        h_fr_nav.addWidget(self.btn_frame_prev)
+
+        self.lbl_frame_page = QLabel("Trang 1/1")
+        self.lbl_frame_page.setAlignment(Qt.AlignCenter)
+        self.lbl_frame_page.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; font-weight: 600; border: none; background: transparent;")
+        h_fr_nav.addWidget(self.lbl_frame_page, 1)
+
+        self.btn_frame_next = QPushButton()
+        self.btn_frame_next.setIcon(get_svg_icon("chevron_right", 15, COLOR_GOLD_DARK))
+        self.btn_frame_next.setIconSize(QSize(15, 15))
+        self.btn_frame_next.setFixedSize(32, 26)
+        self.btn_frame_next.setCursor(Qt.PointingHandCursor)
+        self.btn_frame_next.setToolTip("Trang kế tiếp")
+        self.btn_frame_next.setStyleSheet(
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 6px; padding: 0px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
+            f"QPushButton:disabled {{ background-color: {COLOR_SURFACE_SECONDARY}; border: 1px solid {COLOR_BORDER_LIGHT}; }}"
+        )
+        self.btn_frame_next.clicked.connect(self._next_frame_page)
+        h_fr_nav.addWidget(self.btn_frame_next)
+
+        l_fr.addLayout(h_fr_nav)
+        l_col_right.addWidget(self.card_frames)
+
+        # --- MỤC 2: BỘ LỌC MÀU (ĐẶT NGAY DƯỚI MẪU KHUNG ẢNH) ---
+        self.card_filters = QFrame()
+        self.card_filters.setObjectName("card_filters")
+        self.card_filters.setFixedHeight(44)
+        self.card_filters.setStyleSheet(f"""
+            QFrame#card_filters {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 10px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        l_fil = QHBoxLayout(self.card_filters)
+        l_fil.setContentsMargins(10, 4, 10, 4)
+        l_fil.setSpacing(6)
+
+        lbl_fil_title = QLabel("🎨 <b>Bộ lọc màu:</b>")
+        lbl_fil_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: bold; border: none; background: transparent;")
+        l_fil.addWidget(lbl_fil_title)
+
+        self.widget_no_filter = QWidget()
+        l_nf = QHBoxLayout(self.widget_no_filter)
+        l_nf.setContentsMargins(0, 0, 0, 0)
+        l_nf.setSpacing(6)
+
+        lbl_nf_text = QLabel("Chưa chọn")
+        lbl_nf_text.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; border: none; background: transparent;")
+        l_nf.addWidget(lbl_nf_text, 1)
+
+        self.btn_add_filter_champagne = QPushButton("➕ Thêm")
+        self.btn_add_filter_champagne.setFixedHeight(26)
+        self.btn_add_filter_champagne.setCursor(Qt.PointingHandCursor)
+        self.btn_add_filter_champagne.setStyleSheet(
+            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT}); "
+            f"color: #1C1D1C; font-weight: 800; font-size: 11px; border-radius: 5px; border: none; padding: 0 10px; }}"
+            f"QPushButton:hover {{ background: #A88952; color: #FFFFFF; }}"
+        )
+        self.btn_add_filter_champagne.clicked.connect(self._open_filter_dialog)
+        l_nf.addWidget(self.btn_add_filter_champagne)
+        l_fil.addWidget(self.widget_no_filter, 1)
+
+        self.widget_has_filters = QWidget()
+        l_hf = QHBoxLayout(self.widget_has_filters)
+        l_hf.setContentsMargins(0, 0, 0, 0)
+        l_hf.setSpacing(4)
+
+        self.combo_active_filters = QComboBox()
+        self.combo_active_filters.setFixedHeight(26)
+        self.combo_active_filters.setStyleSheet(
+            f"QComboBox {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 5px; color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; padding: 0 6px; }}"
+        )
+        self.combo_active_filters.currentIndexChanged.connect(self._on_filter_changed)
+        l_hf.addWidget(self.combo_active_filters, 1)
+
+        self.btn_manage_filter = QPushButton("+")
+        self.btn_manage_filter.setFixedSize(26, 26)
+        self.btn_manage_filter.setCursor(Qt.PointingHandCursor)
+        self.btn_manage_filter.setStyleSheet(
+            f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 5px; color: {COLOR_TEXT_PRIMARY}; font-size: 12px; font-weight: 700; padding: 0px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; color: {COLOR_TEXT_PRIMARY}; background-color: {COLOR_SURFACE_SECONDARY}; }}"
+        )
+        self.btn_manage_filter.clicked.connect(self._open_filter_dialog)
+        l_hf.addWidget(self.btn_manage_filter)
+
+        self.widget_has_filters.hide()
+        l_fil.addWidget(self.widget_has_filters, 1)
+        l_col_right.addWidget(self.card_filters)
+
+        # --- MỤC 3: TÙY CHỌN CHỤP (GOM LÀM ĐẸP AI & XEM TRƯỚC) ---
+        chk_style = (
+            f"QCheckBox {{ color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; spacing: 6px; }} "
+            f"QCheckBox::indicator {{ width: 16px; height: 16px; border: 1px solid {COLOR_BORDER}; border-radius: 4px; background: {COLOR_SURFACE}; }} "
+            f"QCheckBox::indicator:checked {{ background: {COLOR_CHAMPAGNE}; border: 1px solid {COLOR_CHAMPAGNE}; }}"
+        )
+        self.card_options = QFrame()
+        self.card_options.setObjectName("card_options")
+        self.card_options.setFixedHeight(62)
+        self.card_options.setStyleSheet(f"""
+            QFrame#card_options {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 10px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        l_opt_box = QVBoxLayout(self.card_options)
+        l_opt_box.setContentsMargins(10, 6, 10, 6)
+        l_opt_box.setSpacing(4)
+
+        lbl_opt_title = QLabel("⚙️ <b>Tùy chọn chụp</b>")
+        lbl_opt_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: bold; border: none; background: transparent;")
+        l_opt_box.addWidget(lbl_opt_title)
+
+        l_opt = QHBoxLayout()
+        l_opt.setContentsMargins(0, 0, 0, 0)
+        l_opt.setSpacing(12)
+
+        self.chk_beauty = QCheckBox("✨ Làm đẹp thông minh AI")
+        self.chk_beauty.setChecked(self.config_mgr.get("kiosk.enable_smart_beauty", True))
+        self.chk_beauty.toggled.connect(lambda val: self.config_mgr.set("kiosk.enable_smart_beauty", val))
+        self.chk_beauty.setStyleSheet(chk_style)
+        l_opt.addWidget(self.chk_beauty)
+
+        self.chk_preview = QCheckBox("👁️ Xem trước")
+        self.chk_preview.setChecked(True)
+        self.chk_preview.setStyleSheet(chk_style)
+        l_opt.addWidget(self.chk_preview)
+
+        self.chk_autoprint = QCheckBox("Tự động in")
+        self.chk_autoprint.setChecked(False)
+        self.chk_autoprint.setStyleSheet(chk_style)
+        self.chk_autoprint.hide()
+        l_opt.addWidget(self.chk_autoprint)
+        l_opt.addStretch()
+
+        l_opt_box.addLayout(l_opt)
+        l_col_right.addWidget(self.card_options)
+
+        l_col_right.addStretch(1)
+
+        # --- MỤC 4: SỐ ẢNH VÀ ĐẾM NGƯỢC (CUỐI KHU VỰC ĐIỀU KHIỂN, GOM CHUNG 1 CARD) ---
+        self.card_session_settings = QFrame()
+        self.card_session_settings.setObjectName("card_session_settings")
+        self.card_session_settings.setStyleSheet(f"""
+            QFrame#card_session_settings {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 10px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
+        """)
+        l_sess = QVBoxLayout(self.card_session_settings)
+        l_sess.setContentsMargins(10, 8, 10, 8)
+        l_sess.setSpacing(8)
+
+        # Hàng 1: Số ảnh (chuẩn cảm ứng 44×44, 50×44)
+        self.card_shots = QFrame(self.card_session_settings)
         self.card_shots.setObjectName("card_shots")
-        self.card_shots.setMinimumWidth(185)
-        self.card_shots.setMaximumWidth(225)
-        self.card_shots.setStyleSheet(f"background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 10px;")
-        l_shots = QVBoxLayout(self.card_shots)
-        l_shots.setContentsMargins(12, 10, 12, 10)
-        l_shots.setSpacing(0)
+        self.card_shots.setStyleSheet("background: transparent; border: none;")
+        l_shots = QHBoxLayout(self.card_shots)
+        l_shots.setContentsMargins(0, 0, 0, 0)
+        l_shots.setSpacing(6)
 
-        l_shots.addStretch(1)
-        lbl_s_title = QLabel("📚 <b>Số ảnh mỗi lượt</b>")
-        lbl_s_title.setAlignment(Qt.AlignCenter)
-        lbl_s_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        lbl_s_title = QLabel("📚 <b>Số ảnh:</b>")
+        lbl_s_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: bold; border: none; background: transparent;")
         l_shots.addWidget(lbl_s_title)
-
-        l_shots.addSpacing(8)
-        h_s_btns = QHBoxLayout()
-        h_s_btns.setAlignment(Qt.AlignCenter)
-        h_s_btns.setSpacing(8)
+        l_shots.addStretch()
 
         self.btn_shots_minus = QPushButton("−")
         self.btn_shots_minus.setFixedSize(44, 44)
         self.btn_shots_minus.setCursor(Qt.PointingHandCursor)
         self.btn_shots_minus.setStyleSheet(
             f"QPushButton {{ min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
-            f"font-size: 24px; font-weight: 900; background-color: {THEME_SURFACE}; "
-            f"border: 1.5px solid {THEME_BORDER}; border-radius: 8px; color: {THEME_TEXT_PRIMARY}; padding: 0px; margin: 0px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
-            f"QPushButton:pressed {{ background-color: #A39F96; }}"
-            f"QPushButton:disabled {{ background-color: {THEME_BG_MAIN}; color: {THEME_TEXT_DISABLED}; border: 1px solid {THEME_BORDER}; }}"
+            f"font-size: 22px; font-weight: 900; background-color: {COLOR_SURFACE_SECONDARY}; "
+            f"border: 1px solid {COLOR_BORDER}; border-radius: 8px; color: {COLOR_TEXT_PRIMARY}; padding: 0px; margin: 0px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; color: {COLOR_TEXT_PRIMARY}; background-color: #E2DED5; }}"
+            f"QPushButton:pressed {{ background-color: #D5CDC0; }}"
+            f"QPushButton:disabled {{ background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid {COLOR_BORDER}; }}"
         )
         self.btn_shots_minus.clicked.connect(self._decrease_shots)
-        h_s_btns.addWidget(self.btn_shots_minus, 0, Qt.AlignCenter)
+        l_shots.addWidget(self.btn_shots_minus)
 
         self.txt_shots_input = QLineEdit(str(self.total_shots_needed))
-        self.txt_shots_input.setFixedSize(56, 44)
+        self.txt_shots_input.setFixedSize(50, 44)
         self.txt_shots_input.setAlignment(Qt.AlignCenter)
         self.txt_shots_input.setMaxLength(2)
         self.txt_shots_input.setToolTip("Nhập trực tiếp số ảnh (1 đến 16)")
         self.txt_shots_input.setStyleSheet(
-            f"QLineEdit {{ min-width: 56px; max-width: 56px; min-height: 44px; max-height: 44px; "
-            f"background: {THEME_INPUT_BG}; color: {THEME_TEXT_PRIMARY}; font-size: 20px; font-weight: 900; "
-            f"border: 2px solid {THEME_GOLD}; border-radius: 8px; padding: 0px; margin: 0px; selection-background-color: {THEME_GOLD}; selection-color: #FFFFFF; }}"
-            f"QLineEdit:focus {{ border: 2px solid {THEME_GOLD_DARK}; background-color: #ECE8E0; }}"
-            f"QLineEdit:disabled {{ background: {THEME_BG_MAIN}; color: {THEME_TEXT_DISABLED}; border: 1px solid {THEME_BORDER}; }}"
+            f"QLineEdit {{ min-width: 50px; max-width: 50px; min-height: 44px; max-height: 44px; "
+            f"background: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; font-size: 16px; font-weight: 900; "
+            f"border: 1.5px solid {COLOR_CHAMPAGNE}; border-radius: 8px; padding: 0px; margin: 0px; selection-background-color: {COLOR_CHAMPAGNE}; selection-color: #FFFFFF; }}"
+            f"QLineEdit:focus {{ border: 2px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE}; }}"
+            f"QLineEdit:disabled {{ background: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid {COLOR_BORDER}; }}"
         )
         self.txt_shots_input.setValidator(QIntValidator(1, 16, self))
         self.txt_shots_input.editingFinished.connect(self._on_shots_input_finished)
         self.txt_shots_input.returnPressed.connect(self._on_shots_input_finished)
-        h_s_btns.addWidget(self.txt_shots_input, 0, Qt.AlignCenter)
+        l_shots.addWidget(self.txt_shots_input)
 
         self.btn_shots_plus = QPushButton("+")
         self.btn_shots_plus.setFixedSize(44, 44)
         self.btn_shots_plus.setCursor(Qt.PointingHandCursor)
         self.btn_shots_plus.setStyleSheet(
             f"QPushButton {{ min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
-            f"font-size: 24px; font-weight: 900; background-color: {THEME_SURFACE}; "
-            f"border: 1.5px solid {THEME_BORDER}; border-radius: 8px; color: {THEME_TEXT_PRIMARY}; padding: 0px; margin: 0px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
-            f"QPushButton:pressed {{ background-color: #A39F96; }}"
-            f"QPushButton:disabled {{ background-color: {THEME_BG_MAIN}; color: {THEME_TEXT_DISABLED}; border: 1px solid {THEME_BORDER}; }}"
+            f"font-size: 22px; font-weight: 900; background-color: {COLOR_SURFACE_SECONDARY}; "
+            f"border: 1px solid {COLOR_BORDER}; border-radius: 8px; color: {COLOR_TEXT_PRIMARY}; padding: 0px; margin: 0px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; color: {COLOR_TEXT_PRIMARY}; background-color: #E2DED5; }}"
+            f"QPushButton:pressed {{ background-color: #D5CDC0; }}"
+            f"QPushButton:disabled {{ background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid {COLOR_BORDER}; }}"
         )
         self.btn_shots_plus.clicked.connect(self._increase_shots)
-        h_s_btns.addWidget(self.btn_shots_plus, 0, Qt.AlignCenter)
+        l_shots.addWidget(self.btn_shots_plus)
+        l_sess.addWidget(self.card_shots)
 
-        l_shots.addLayout(h_s_btns)
+        # Đường ngăn cách ngang nhẹ
+        sep_sess = QFrame()
+        sep_sess.setFrameShape(QFrame.HLine)
+        sep_sess.setFrameShadow(QFrame.Plain)
+        sep_sess.setStyleSheet(f"color: {COLOR_BORDER_LIGHT};")
+        l_sess.addWidget(sep_sess)
 
-        l_shots.addSpacing(8)
-        lbl_s_hint = QLabel("Giới hạn: 1 – 16 ảnh")
-        lbl_s_hint.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 11px; font-weight: 500; border: none; background: transparent;")
-        lbl_s_hint.setAlignment(Qt.AlignCenter)
-        l_shots.addWidget(lbl_s_hint)
-        l_shots.addStretch(1)
-        self.ctrl_row_layout.addWidget(self.card_shots)
+        # Hàng 2: Đếm ngược (3s, 5s, 10s)
+        self.card_cd = QFrame(self.card_session_settings)
+        self.card_cd.setObjectName("card_cd")
+        self.card_cd.setStyleSheet("background: transparent; border: none;")
+        l_cd = QHBoxLayout(self.card_cd)
+        l_cd.setContentsMargins(0, 0, 0, 0)
+        l_cd.setSpacing(6)
 
-        # -------------------------------------------------------------
-        # THẺ 2: ĐẾM NGƯỢC
-        # -------------------------------------------------------------
-        self.card_cd = QFrame()
-        self.card_cd.setMinimumWidth(170)
-        self.card_cd.setMaximumWidth(240)
-        self.card_cd.setStyleSheet(f"background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 10px;")
-        l_cd = QVBoxLayout(self.card_cd)
-        l_cd.setContentsMargins(10, 10, 10, 10)
-        l_cd.setSpacing(8)
-
-        lbl_cd_title = QLabel("⏱️ <b>Đếm ngược</b>")
-        lbl_cd_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        lbl_cd_title = QLabel("⏱️ <b>Đếm ngược:</b>")
+        lbl_cd_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: bold; border: none; background: transparent;")
         l_cd.addWidget(lbl_cd_title)
-
-        h_cd_btns = QHBoxLayout()
-        h_cd_btns.setSpacing(6)
-        self.btn_cd_3 = QPushButton("3 giây")
-        self.btn_cd_3.setFixedHeight(40)
-        self.btn_cd_3.clicked.connect(lambda: self._set_countdown_duration(3))
-        h_cd_btns.addWidget(self.btn_cd_3)
-
-        self.btn_cd_5 = QPushButton("5 giây")
-        self.btn_cd_5.setFixedHeight(40)
-        self.btn_cd_5.clicked.connect(lambda: self._set_countdown_duration(5))
-        h_cd_btns.addWidget(self.btn_cd_5)
-
-        self.btn_cd_10 = QPushButton("10 giây")
-        self.btn_cd_10.setFixedHeight(40)
-        self.btn_cd_10.clicked.connect(lambda: self._set_countdown_duration(10))
-        h_cd_btns.addWidget(self.btn_cd_10)
-
-        l_cd.addLayout(h_cd_btns)
         l_cd.addStretch()
-        self.ctrl_row_layout.addWidget(self.card_cd)
 
-        # -------------------------------------------------------------
-        # THẺ 3: MẪU KHUNG ẢNH (CAROUSEL THUMBNAIL THẬT)
-        # -------------------------------------------------------------
-        self.card_frames = QFrame()
-        self.card_frames.setStyleSheet(f"background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 10px;")
-        l_fr = QVBoxLayout(self.card_frames)
-        l_fr.setContentsMargins(12, 8, 12, 8)
-        l_fr.setSpacing(6)
+        self.btn_cd_3 = QPushButton("3s")
+        self.btn_cd_3.setFixedSize(44, 44)
+        self.btn_cd_3.setToolTip("Đếm ngược 3 giây")
+        self.btn_cd_3.clicked.connect(lambda: self._set_countdown_duration(3))
+        l_cd.addWidget(self.btn_cd_3)
 
-        # Tiêu đề & nút Chọn khung khác
-        h_fr_head = QHBoxLayout()
-        lbl_fr_title = QLabel("🖼️ <b>Mẫu khung ảnh</b>")
-        lbl_fr_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
-        h_fr_head.addWidget(lbl_fr_title)
+        self.btn_cd_5 = QPushButton("5s")
+        self.btn_cd_5.setFixedSize(44, 44)
+        self.btn_cd_5.setToolTip("Đếm ngược 5 giây")
+        self.btn_cd_5.clicked.connect(lambda: self._set_countdown_duration(5))
+        l_cd.addWidget(self.btn_cd_5)
 
-        h_fr_head.addStretch()
+        self.btn_cd_10 = QPushButton("10s")
+        self.btn_cd_10.setFixedSize(44, 44)
+        self.btn_cd_10.setToolTip("Đếm ngược 10 giây")
+        self.btn_cd_10.clicked.connect(lambda: self._set_countdown_duration(10))
+        l_cd.addWidget(self.btn_cd_10)
 
-        self.btn_goto_frames = QPushButton("🖼️ Chọn khung khác")
-        self.btn_goto_frames.setFixedHeight(26)
-        self.btn_goto_frames.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 6px; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; padding: 2px 10px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
-        )
-        self.btn_goto_frames.clicked.connect(lambda: self.request_tab_switch.emit(1))
-        h_fr_head.addWidget(self.btn_goto_frames)
-        l_fr.addLayout(h_fr_head)
+        l_sess.addWidget(self.card_cd)
+        l_col_right.addWidget(self.card_session_settings)
 
-        # Carousel hàng ngang các thẻ khung (Vector chevron rõ nét, không bị ô trống rỗng)
-        h_fr_carousel = QHBoxLayout()
-        h_fr_carousel.setSpacing(10)
-
-        self.btn_frame_prev = QPushButton()
-        self.btn_frame_prev.setIcon(get_svg_icon("chevron_left", 20, COLOR_GOLD))
-        self.btn_frame_prev.setIconSize(QSize(20, 20))
-        self.btn_frame_prev.setFixedSize(36, 64)
-        self.btn_frame_prev.setCursor(Qt.PointingHandCursor)
-        self.btn_frame_prev.setToolTip("Trang khung trước")
-        self.btn_frame_prev.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 8px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
-            f"QPushButton:pressed {{ background-color: #A39F96; }}"
-            f"QPushButton:disabled {{ background-color: {THEME_BG_MAIN}; border: 1px solid {THEME_BORDER}; }}"
-        )
-        self.btn_frame_prev.clicked.connect(self._prev_frame_page)
-        h_fr_carousel.addWidget(self.btn_frame_prev)
-
-        self.frames_container_layout = QHBoxLayout()
-        self.frames_container_layout.setSpacing(12)
-        h_fr_carousel.addLayout(self.frames_container_layout, 1)
-
-        self.btn_frame_next = QPushButton()
-        self.btn_frame_next.setIcon(get_svg_icon("chevron_right", 20, COLOR_GOLD))
-        self.btn_frame_next.setIconSize(QSize(20, 20))
-        self.btn_frame_next.setFixedSize(36, 64)
-        self.btn_frame_next.setCursor(Qt.PointingHandCursor)
-        self.btn_frame_next.setToolTip("Trang khung kế tiếp")
-        self.btn_frame_next.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 8px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; }}"
-            f"QPushButton:pressed {{ background-color: #A39F96; }}"
-            f"QPushButton:disabled {{ background-color: {THEME_BG_MAIN}; border: 1px solid {THEME_BORDER}; }}"
-        )
-        self.btn_frame_next.clicked.connect(self._next_frame_page)
-        h_fr_carousel.addWidget(self.btn_frame_next)
-
-        l_fr.addLayout(h_fr_carousel)
-        self.ctrl_row_layout.addWidget(self.card_frames, 2)
-
-        # -------------------------------------------------------------
-        # THẺ 4: BỘ LỌC MÀU (THƯ VIỆN SẠCH, CHƯA CÓ BỘ LỌC)
-        # -------------------------------------------------------------
-        self.card_filters = QFrame()
-        self.card_filters.setMinimumWidth(170)
-        self.card_filters.setMaximumWidth(240)
-        self.card_filters.setStyleSheet(f"background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 10px;")
-        l_fil = QVBoxLayout(self.card_filters)
-        l_fil.setContentsMargins(12, 10, 12, 10)
-        l_fil.setSpacing(6)
-
-        lbl_fil_title = QLabel("🎨 <b>Bộ lọc màu</b>")
-        lbl_fil_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
-        l_fil.addWidget(lbl_fil_title)
-
-        # Trạng thái Chưa có bộ lọc
-        self.widget_no_filter = QWidget()
-        l_nf = QVBoxLayout(self.widget_no_filter)
-        l_nf.setContentsMargins(0, 0, 0, 0)
-        l_nf.setSpacing(4)
-        l_nf.setAlignment(Qt.AlignCenter)
-
-        icon_plus = QLabel("+")
-        icon_plus.setAlignment(Qt.AlignCenter)
-        icon_plus.setFixedSize(30, 30)
-        icon_plus.setStyleSheet(
-            f"font-size: 20px; font-weight: bold; color: {THEME_GOLD}; border: 1.5px dashed {THEME_BORDER}; border-radius: 15px; background: {THEME_BG_SECONDARY};"
-        )
-        l_nf.addWidget(icon_plus, alignment=Qt.AlignCenter)
-
-        lbl_nf_text = QLabel("Chưa có bộ lọc")
-        lbl_nf_text.setAlignment(Qt.AlignCenter)
-        lbl_nf_text.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 12px; font-weight: 700; border: none; background: transparent;")
-        l_nf.addWidget(lbl_nf_text)
-
-        lbl_nf_sub = QLabel("Thêm bộ lọc của bạn để tạo phong cách riêng cho ảnh.")
-        lbl_nf_sub.setAlignment(Qt.AlignCenter)
-        lbl_nf_sub.setWordWrap(True)
-        lbl_nf_sub.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 10px; border: none; background: transparent;")
-        l_nf.addWidget(lbl_nf_sub)
-
-        self.btn_add_filter_champagne = QPushButton("➕ Thêm bộ lọc")
-        self.btn_add_filter_champagne.setFixedHeight(34)
-        self.btn_add_filter_champagne.setStyleSheet(
-            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD}); "
-            f"color: #FFFFFF; font-weight: 800; font-size: 12px; border-radius: 6px; border: 1px solid {THEME_GOLD_DARK}; }}"
-            f"QPushButton:hover {{ background: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; }}"
-        )
-        self.btn_add_filter_champagne.clicked.connect(self._open_filter_dialog)
-        l_nf.addWidget(self.btn_add_filter_champagne)
-
-        l_fil.addWidget(self.widget_no_filter)
-
-        # Trạng thái Khi đã có bộ lọc
-        self.widget_has_filters = QWidget()
-        l_hf = QVBoxLayout(self.widget_has_filters)
-        l_hf.setContentsMargins(0, 0, 0, 0)
-        l_hf.setSpacing(6)
-
-        self.combo_active_filters = QComboBox()
-        self.combo_active_filters.setFixedHeight(34)
-        self.combo_active_filters.currentIndexChanged.connect(self._on_filter_changed)
-        l_hf.addWidget(self.combo_active_filters)
-
-        self.btn_manage_filter = QPushButton("+ Thêm / Quản Lý")
-        self.btn_manage_filter.setFixedHeight(30)
-        self.btn_manage_filter.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 6px; color: {THEME_TEXT_PRIMARY}; font-size: 11px; font-weight: 600; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
-        )
-        self.btn_manage_filter.clicked.connect(self._open_filter_dialog)
-        l_hf.addWidget(self.btn_manage_filter)
-
-        self.widget_has_filters.hide()
-        l_fil.addWidget(self.widget_has_filters)
-
-        l_fil.addStretch()
-        self.ctrl_row_layout.addWidget(self.card_filters)
-
-        self.capture_layout.addLayout(self.ctrl_row_layout, 2)
-
-        # =============================================================
-        # 3. ĐÁY MÀN HÌNH: TÙY CHỌN, NÚT BẮT ĐẦU CHỤP VÀNG KHỔNG LỒ & TOÀN MÀN HÌNH
-        # =============================================================
-        self.bottom_bar_layout = QHBoxLayout()
-        self.bottom_bar_layout.setContentsMargins(10, 4, 10, 4)
-        self.bottom_bar_layout.setSpacing(16)
-
-        # Checkbox bên trái
-        l_chk = QVBoxLayout()
-        l_chk.setSpacing(4)
-        chk_style = (
-            f"QCheckBox {{ color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 600; }} "
-            f"QCheckBox::indicator {{ width: 18px; height: 18px; border: 1.5px solid {THEME_BORDER}; border-radius: 4px; background: {THEME_SURFACE}; }} "
-            f"QCheckBox::indicator:checked {{ background: {THEME_GOLD}; border: 1.5px solid {THEME_GOLD_DARK}; }}"
-        )
-        self.chk_preview = QCheckBox("Xem trước ảnh sau khi chụp")
-        self.chk_preview.setChecked(True)
-        self.chk_preview.setStyleSheet(chk_style)
-        l_chk.addWidget(self.chk_preview)
-
-        self.chk_beauty = QCheckBox("Làm đẹp thông minh AI")
-        self.chk_beauty.setChecked(self.config_mgr.get("kiosk.enable_smart_beauty", True))
-        self.chk_beauty.toggled.connect(lambda val: self.config_mgr.set("kiosk.enable_smart_beauty", val))
-        self.chk_beauty.setStyleSheet(chk_style)
-        l_chk.addWidget(self.chk_beauty)
-
-        self.chk_autoprint = QCheckBox("Tự động in sau khi chụp")
-        self.chk_autoprint.setChecked(False)
-        self.chk_autoprint.setStyleSheet(chk_style)
-        l_chk.addWidget(self.chk_autoprint)
-        self.bottom_bar_layout.addLayout(l_chk)
-
-        self.bottom_bar_layout.addStretch()
-
-        # NÚT BẮT ĐẦU CHỤP VÀNG CHAMPAGNE QUÝ PHÁI (CAPSULE GLOW)
-        self.btn_start = QPushButton("📷 BẮT ĐẦU CHỤP")
-        self.btn_start.setFixedSize(360, 58)
-        self.btn_start.setCursor(Qt.PointingHandCursor)
-        self.btn_start.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:0.45 {THEME_GOLD}, stop:1 {THEME_GOLD_DARK});"
-            f"  color: #FFFFFF;"
-            f"  font-size: 20px;"
-            f"  font-weight: 900;"
-            f"  letter-spacing: 1px;"
-            f"  border-radius: 29px;"
-            f"  border: 2px solid {THEME_GOLD_PALE};"
-            f"}}"
-            f"QPushButton:hover {{"
-            f"  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #DFCFB0, stop:0.45 #B99D69, stop:1 #987C49);"
-            f"  border: 2px solid #FFFFFF;"
-            f"}}"
-            f"QPushButton:pressed {{"
-            f"  background: {THEME_GOLD_DARK};"
-            f"}}"
-            f"QPushButton:disabled {{"
-            f"  background: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; border: 1px solid {THEME_BORDER};"
-            f"}}"
-        )
-        self.btn_start.clicked.connect(self.start_capture_flow)
-        self.bottom_bar_layout.addWidget(self.btn_start)
-
-        # CÁC NÚT KHI Ở CHẾ ĐỘ XEM KẾT QUẢ (REVIEW STATE)
-        review_btn_style = (
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; border-radius: 8px; font-weight: 700; padding: 0 16px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
-        )
-        self.btn_retake = QPushButton("🔄 Chụp Lại")
-        self.btn_retake.setFixedHeight(50)
-        self.btn_retake.setStyleSheet(review_btn_style)
-        self.btn_retake.clicked.connect(self._retake_session)
-        self.btn_retake.hide()
-        self.bottom_bar_layout.addWidget(self.btn_retake)
-
-        self.btn_save = QPushButton("💾 Lưu Ảnh")
-        self.btn_save.setFixedHeight(50)
-        self.btn_save.setStyleSheet(review_btn_style)
-        self.btn_save.clicked.connect(self._save_photo_dialog)
-        self.btn_save.hide()
-        self.bottom_bar_layout.addWidget(self.btn_save)
-
-        self.btn_qr = QPushButton("📱 Quét Mã QR")
-        self.btn_qr.setFixedHeight(50)
-        self.btn_qr.setStyleSheet(review_btn_style)
-        self.btn_qr.clicked.connect(self._show_qr_dialog)
-        self.btn_qr.hide()
-        self.bottom_bar_layout.addWidget(self.btn_qr)
-
-        self.btn_print = QPushButton("🖨️ IN ẢNH NGAY")
-        self.btn_print.setFixedHeight(50)
-        self.btn_print.setStyleSheet(
-            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD});"
-            f"color: #FFFFFF; font-weight: 900; font-size: 15px; border-radius: 8px; border: 1.5px solid {THEME_GOLD_DARK}; padding: 0 24px;"
-        )
-        self.btn_print.clicked.connect(self._print_composite)
-        self.btn_print.hide()
-        self.bottom_bar_layout.addWidget(self.btn_print)
-
-        self.btn_finish = QPushButton("✅ Hoàn Tất")
-        self.btn_finish.setFixedHeight(50)
-        self.btn_finish.setStyleSheet(f"background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_BORDER}; color: {THEME_TEXT_PRIMARY}; border-radius: 8px; font-weight: 700; padding: 0 16px;")
-        self.btn_finish.clicked.connect(self._finish_session)
-        self.btn_finish.hide()
-        self.bottom_bar_layout.addWidget(self.btn_finish)
-
-        self.bottom_bar_layout.addStretch()
-
-        # Nút Toàn màn hình bên phải
-        self.btn_fullscreen = QPushButton("⛶ Toàn màn hình")
-        self.btn_fullscreen.setFixedHeight(42)
-        self.btn_fullscreen.setStyleSheet(
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 8px; color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 600; padding: 0 14px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
-        )
-        self.btn_fullscreen.clicked.connect(lambda: self.request_fullscreen.emit())
-        self.bottom_bar_layout.addWidget(self.btn_fullscreen)
-
-        self.capture_layout.addLayout(self.bottom_bar_layout)
+        # Ghép Khu Vực Trái (73%) và Khu Vực Phải (27%) vào top_row_layout
+        self.top_row_layout.addWidget(self.left_live_widget, 73)
+        self.top_row_layout.addWidget(self.right_control_widget, 27)
+        self.capture_layout.addLayout(self.top_row_layout, 1)
 
         # Import và tích hợp GuestReviewWidget làm trang hoàn thiện nội bộ (In-window Review)
         from vietphotobooth.desktop.widgets.guest_review_dialog import GuestReviewWidget
@@ -1287,12 +1400,15 @@ class KioskPage(QWidget):
 
     def _update_countdown_buttons_style(self):
         active_style = (
-            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD}); "
-            f"color: #FFFFFF; font-weight: 800; font-size: 13px; border-radius: 6px; border: 1.5px solid {THEME_GOLD_DARK}; padding: 4px 4px; }}"
+            f"QPushButton {{ min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT}); "
+            f"color: #1C1D1C; font-weight: 900; font-size: 14px; border-radius: 8px; border: none; padding: 0px; margin: 0px; }}"
         )
         inactive_style = (
-            f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_BORDER}; border-radius: 6px; color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 600; padding: 4px 4px; }}"
-            f"QPushButton:hover {{ border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; background-color: {THEME_BG_SECONDARY}; }}"
+            f"QPushButton {{ min-width: 44px; max-width: 44px; min-height: 44px; max-height: 44px; "
+            f"background-color: {COLOR_SURFACE_SECONDARY}; border: 1px solid {COLOR_BORDER}; border-radius: 8px; "
+            f"color: {COLOR_TEXT_PRIMARY}; font-size: 14px; font-weight: 700; padding: 0px; margin: 0px; }}"
+            f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; color: {COLOR_TEXT_PRIMARY}; background-color: #E2DED5; }}"
         )
         self.btn_cd_3.setStyleSheet(active_style if self.countdown_duration == 3 else inactive_style)
         self.btn_cd_5.setStyleSheet(active_style if self.countdown_duration == 5 else inactive_style)
@@ -1313,47 +1429,57 @@ class KioskPage(QWidget):
         frames = self.frame_mgr.list_frames()
 
         if not frames:
-            lbl_empty = QLabel("Chưa có khung ảnh. Hãy nhập khung mới.")
-            lbl_empty.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-style: italic; font-size: 12px; border: none; background: transparent;")
-            self.frames_container_layout.addWidget(lbl_empty)
+            lbl_empty = QLabel("Chưa có khung ảnh.")
+            lbl_empty.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-style: italic; font-size: 11px; border: none; background: transparent;")
+            if isinstance(self.frames_container_layout, QGridLayout):
+                self.frames_container_layout.addWidget(lbl_empty, 0, 0, 1, 2)
+            else:
+                self.frames_container_layout.addWidget(lbl_empty)
             self.btn_frame_prev.setEnabled(False)
             self.btn_frame_next.setEnabled(False)
+            if hasattr(self, "lbl_frame_page"):
+                self.lbl_frame_page.setText("0/0")
             return
 
         if not self.selected_frame_id and frames:
             self.selected_frame_id = frames[0].id
 
-        # Mở rộng container các thẻ khung để tận dụng tự nhiên chiều rộng sẵn có
         page_size = self._get_carousel_page_size()
         start_idx = self.frame_carousel_offset
         end_idx = min(start_idx + page_size, len(frames))
 
-        for idx in range(start_idx, end_idx):
+        for i, idx in enumerate(range(start_idx, end_idx)):
             f = frames[idx]
             pix = self._get_frame_thumbnail_pixmap(f)
             card = FrameCardWidget(
                 template=f,
                 thumbnail_pixmap=pix,
                 is_selected=(f.id == self.selected_frame_id),
-                on_select=self._on_frame_card_selected
+                on_select=self._on_frame_card_selected,
+                parent=self.card_frames
             )
             self.frame_cards.append(card)
-            self.frames_container_layout.addWidget(card)
+            if isinstance(self.frames_container_layout, QGridLayout):
+                row = i // 2
+                col = i % 2
+                self.frames_container_layout.addWidget(card, row, col)
+            else:
+                self.frames_container_layout.addWidget(card)
 
-        # Cập nhật trạng thái kích hoạt của 2 nút mũi tên điều hướng
+        # Cập nhật trạng thái kích hoạt của nút chuyển trang
         self.btn_frame_prev.setEnabled(self.frame_carousel_offset > 0)
         self.btn_frame_next.setEnabled(self.frame_carousel_offset + page_size < len(frames))
+        if hasattr(self, "lbl_frame_page"):
+            cur_p = (self.frame_carousel_offset // page_size) + 1
+            tot_p = max(1, (len(frames) + page_size - 1) // page_size)
+            self.lbl_frame_page.setText(f"{cur_p}/{tot_p}")
 
     def _get_carousel_page_size(self) -> int:
-        """Tính toán số lượng thẻ khung hiển thị thích ứng theo độ rộng vùng điều khiển."""
-        w = self.card_frames.width() if hasattr(self, "card_frames") else 600
-        if w > 1000:
+        """Tính toán số lượng thẻ khung hiển thị trong Cột Trái (2 cột x 2 hoặc 3 hàng)."""
+        h = self.height() if hasattr(self, "height") else 768
+        if h > 850:
             return 6
-        elif w > 750:
-            return 5
-        elif w > 500:
-            return 4
-        return 3
+        return 4
 
     def _get_frame_thumbnail_pixmap(self, template: FrameTemplate) -> QPixmap:
         """Sinh hoặc lấy từ bộ nhớ đệm đĩa hình thumbnail thật của khung in ảnh."""
@@ -1390,7 +1516,8 @@ class KioskPage(QWidget):
         frames = self.frame_mgr.list_frames()
         if not frames:
             return
-        self.frame_carousel_offset = max(0, self.frame_carousel_offset - 1)
+        page_size = self._get_carousel_page_size()
+        self.frame_carousel_offset = max(0, self.frame_carousel_offset - page_size)
         self._load_frame_options()
 
     def _next_frame_page(self):
@@ -1399,7 +1526,7 @@ class KioskPage(QWidget):
             return
         page_size = self._get_carousel_page_size()
         if self.frame_carousel_offset + page_size < len(frames):
-            self.frame_carousel_offset += 1
+            self.frame_carousel_offset += page_size
             self._load_frame_options()
 
     def _on_frame_card_selected(self, frame_id: str):
@@ -1576,10 +1703,16 @@ class KioskPage(QWidget):
         if hasattr(self, "panel_no_feed"):
             self.panel_no_feed.setGeometry(0, 0, w, h)
         if hasattr(self, "lbl_countdown"):
-            self.lbl_countdown.setGeometry((w - 220) // 2, (h - 220) // 2, 220, 220)
+            cd_sz = min(260, min(w, h) - 40) if min(w, h) > 280 else 180
+            cd_top = (h - cd_sz) // 2
+            self.lbl_countdown.setGeometry((w - cd_sz) // 2, cd_top, cd_sz, cd_sz)
         if hasattr(self, "lbl_status_badge"):
-            badge_w = min(max(360, self.lbl_status_badge.sizeHint().width() + 32), max(360, w - 40))
-            self.lbl_status_badge.setGeometry((w - badge_w) // 2, h - 75, badge_w, 48)
+            badge_w = min(max(340, self.lbl_status_badge.sizeHint().width() + 48), max(340, w - 40))
+            badge_h = max(58, self.lbl_status_badge.sizeHint().height() + 4)
+            cd_sz_eff = min(260, min(w, h) - 40) if min(w, h) > 280 else 180
+            cd_top_eff = (h - cd_sz_eff) // 2
+            badge_y = max(16, cd_top_eff - badge_h - 16)
+            self.lbl_status_badge.setGeometry((w - badge_w) // 2, badge_y, badge_w, badge_h)
 
     def _on_live_view_frame(self, frame_rgb: np.ndarray):
         if not getattr(self, "_live_view_active", True) or self.current_state not in ("IDLE", "COUNTDOWN", "CAPTURING"):
@@ -1728,21 +1861,125 @@ class KioskPage(QWidget):
             self._on_live_view_frame(frame_rgb)
 
     # -------------------------------------------------------------
-    # TIẾN TRÌNH CHỤP ẢNH TỰ ĐỘNG
+    # TIẾN TRÌNH CHỤP ẢNH TỰ ĐỘNG & CHẾ ĐỘ TOÀN MÀN HÌNH TẬP TRUNG
     # -------------------------------------------------------------
+    def set_capture_immersive_mode(self, active: bool):
+        """Bật/tắt chế độ toàn màn hình tập trung tối đa cho Live View khi chụp ảnh."""
+        self._is_capture_immersive = active
+        if active:
+            if hasattr(self, "right_control_widget"):
+                self.right_control_widget.hide()
+            if hasattr(self, "capture_action_bar"):
+                self.capture_action_bar.hide()
+            if hasattr(self, "card_session_settings"):
+                self.card_session_settings.hide()
+            if hasattr(self, "card_options"):
+                self.card_options.hide()
+            if hasattr(self, "card_shots"):
+                self.card_shots.hide()
+            if hasattr(self, "card_cd"):
+                self.card_cd.hide()
+            if hasattr(self, "card_frames"):
+                self.card_frames.hide()
+            if hasattr(self, "card_filters"):
+                self.card_filters.hide()
+            if hasattr(self, "btn_start"):
+                self.btn_start.hide()
+            if hasattr(self, "chk_preview"):
+                self.chk_preview.hide()
+            if hasattr(self, "chk_beauty"):
+                self.chk_beauty.hide()
+            if hasattr(self, "chk_autoprint"):
+                self.chk_autoprint.hide()
+            if hasattr(self, "btn_fullscreen"):
+                self.btn_fullscreen.hide()
+            if hasattr(self, "live_top_bar"):
+                self.lbl_active_event_pill.hide()
+                self.btn_switch_event.hide()
+                self.btn_live_fullscreen.hide()
+                self.lbl_live_badge.hide()
+                self.lbl_live_res.hide()
+            self.capture_layout.setContentsMargins(0, 0, 0, 0)
+            self.capture_layout.setSpacing(0)
+            self.top_row_layout.setContentsMargins(0, 0, 0, 0)
+            self.top_row_layout.setSpacing(0)
+            self.card_live.setStyleSheet(f"QFrame#card_live {{ background-color: {COLOR_LIVEVIEW}; border: none; border-radius: 0px; }}")
+            l_live = self.card_live.layout()
+            if l_live:
+                l_live.setContentsMargins(0, 0, 0, 0)
+                l_live.setSpacing(0)
+        else:
+            if hasattr(self, "right_control_widget"):
+                self.right_control_widget.show()
+            if hasattr(self, "capture_action_bar"):
+                self.capture_action_bar.show()
+            if hasattr(self, "card_session_settings"):
+                self.card_session_settings.show()
+            if hasattr(self, "card_options"):
+                self.card_options.show()
+            if hasattr(self, "card_shots"):
+                self.card_shots.show()
+            if hasattr(self, "card_cd"):
+                self.card_cd.show()
+            if hasattr(self, "card_frames"):
+                self.card_frames.show()
+            if hasattr(self, "card_filters"):
+                self.card_filters.show()
+            if getattr(self, "current_state", "IDLE") != "REVIEW":
+                if hasattr(self, "btn_start"):
+                    self.btn_start.show()
+                    self.btn_start.setEnabled(True)
+                if hasattr(self, "chk_preview"):
+                    self.chk_preview.show()
+                if hasattr(self, "chk_beauty"):
+                    self.chk_beauty.show()
+                if hasattr(self, "btn_fullscreen"):
+                    self.btn_fullscreen.show()
+            if hasattr(self, "live_top_bar"):
+                self.lbl_active_event_pill.show()
+                self.btn_switch_event.show()
+                self.btn_live_fullscreen.show()
+                self.lbl_live_badge.show()
+                self.lbl_live_res.show()
+            self.capture_layout.setContentsMargins(14, 10, 14, 12)
+            self.capture_layout.setSpacing(10)
+            self.top_row_layout.setContentsMargins(0, 0, 0, 0)
+            self.top_row_layout.setSpacing(12)
+            self.card_live.setStyleSheet(f"""
+                QFrame#card_live {{
+                    background-color: {COLOR_LIVEVIEW};
+                    border: 1px solid {COLOR_BORDER};
+                    border-radius: 12px;
+                }}
+                QLabel {{
+                    border: none;
+                    background: transparent;
+                }}
+            """)
+            l_live = self.card_live.layout()
+            if l_live:
+                l_live.setContentsMargins(6, 4, 6, 6)
+                l_live.setSpacing(4)
+        self._reposition_viewport_overlays()
+
     def start_capture_flow(self):
         if self.current_state != "IDLE" or getattr(self, "_active_capture_tx", None) is not None:
             return
 
         if not self.camera_mgr.is_connected() and self.camera_mgr.current_backend_name != "simulator":
-            QMessageBox.warning(self, "Máy Ảnh", "Chưa kết nối máy ảnh! Vui lòng cắm cáp USB máy ảnh và bấm 'Kết nối máy ảnh'.")
+            QMessageBox.warning(self, "Máy Ảnh", "Chưa kết nối máy ảnh! Vui lòng cắm cáp USB máy ảnh và kiểm tra kết nối.")
             return
+
+        # Tự động mở Live View toàn màn hình khi bắt đầu chụp (không toggle tắt nếu đang fullscreen sẵn)
+        self.request_capture_fullscreen.emit(True)
+        self.set_capture_immersive_mode(True)
 
         self.current_state = "COUNTDOWN"
         self.captured_originals.clear()
         self.captured_paths.clear()
         self.current_shot_index = 1
         self._beauty_settings_cache = None
+        self._beauty_enabled_cache = None
         self._reuse_beauty_settings = False
 
         self.btn_start.setEnabled(False)
@@ -1757,19 +1994,22 @@ class KioskPage(QWidget):
     def _start_single_shot_countdown(self):
         self.countdown_remaining = self.countdown_duration
         self.lbl_countdown.setText(str(self.countdown_remaining))
-        self._reposition_viewport_overlays()
-        self.lbl_countdown.show()
+        self.lbl_countdown.setStyleSheet(
+            f"color: {COLOR_CHAMPAGNE}; font-size: 150px; font-weight: 900; "
+            f"background: rgba(23,25,28,0.72); border: 4px solid {COLOR_CHAMPAGNE}; border-radius: 40px;"
+        )
 
         self.lbl_status_badge.setStyleSheet(
-            "color: #F7E7CE; font-size: 20px; font-weight: bold; "
-            "background: rgba(13,21,39,0.92); border: 1.5px solid #D4AF37; "
-            "padding: 8px 24px; border-radius: 18px;"
+            f"color: #FFFFFF; font-size: 26px; font-weight: 900; "
+            f"background: rgba(23,25,28,0.85); border: 2px solid {COLOR_CHAMPAGNE}; "
+            f"padding: 8px 36px; border-radius: 24px; letter-spacing: 1px;"
         )
         if getattr(self, "_retake_slot_index", None) is not None:
-            self.lbl_status_badge.setText(f"📸 Đang chụp lại Ô số {self._retake_slot_index + 1}!")
+            self.lbl_status_badge.setText(f"📸 ĐANG CHỤP LẠI Ô SỐ {self._retake_slot_index + 1}")
         else:
-            self.lbl_status_badge.setText(f"Chuẩn bị! Ảnh {self.current_shot_index} / {self.total_shots_needed}")
+            self.lbl_status_badge.setText(f"ẢNH {self.current_shot_index} / {self.total_shots_needed}")
         self._reposition_viewport_overlays()
+        self.lbl_countdown.show()
         self.lbl_status_badge.show()
 
         # Tạo mới Countdown Transaction ID độc nhất cho lượt này
@@ -1830,6 +2070,8 @@ class KioskPage(QWidget):
         self.lbl_countdown.hide()
         self.lbl_status_badge.hide()
         self.current_state = "IDLE"
+        self.set_capture_immersive_mode(False)
+        self.request_capture_fullscreen.emit(False)
         self.btn_start.setEnabled(True)
         self.btn_start.show()
 
@@ -1846,26 +2088,35 @@ class KioskPage(QWidget):
         try:
             from vietphotobooth.desktop.widgets.smart_beauty_panel import SmartBeautyDialog
             initial_s = self._beauty_settings_cache if self._reuse_beauty_settings else None
+            initial_en = self._beauty_enabled_cache if self._reuse_beauty_settings else None
             beauty_dlg = SmartBeautyDialog(
                 image_pil_or_path=target_path,
                 shot_index=self.current_shot_index,
                 total_shots=self.total_shots_needed,
                 initial_settings=initial_s,
+                initial_enabled_effects=initial_en,
                 reuse_for_next=self._reuse_beauty_settings,
-                auto_timeout_sec=int(self.config_mgr.get("kiosk.beauty_timeout_sec", 25)),
+                developer_mode=bool(self.config_mgr.get("developer_mock_mode", False)),
                 parent=self
             )
             dlg_res = beauty_dlg.exec()
             if dlg_res == QDialog.Accepted:
                 processed_img, settings, reuse = beauty_dlg.get_result()
+                enabled_fx = beauty_dlg.get_enabled_effects()
                 self._reuse_beauty_settings = reuse
                 if reuse:
                     self._beauty_settings_cache = settings
+                    self._beauty_enabled_cache = enabled_fx
                 else:
                     self._beauty_settings_cache = None
+                    self._beauty_enabled_cache = None
 
-                # Nếu có hiệu ứng làm đẹp > 0
-                if any(v > 0 for v in settings.values()):
+                # Nếu có hiệu ứng làm đẹp đang bật và > 0
+                has_active_fx = any(
+                    v > 0 and enabled_fx.get(k, True)
+                    for k, v in settings.items()
+                )
+                if has_active_fx:
                     beauty_path = os.path.join(self.session_dir, f"photo_{self.current_shot_index}_beauty.jpg")
                     try:
                         processed_img.save(beauty_path, "JPEG", quality=95)
@@ -2169,6 +2420,8 @@ class KioskPage(QWidget):
             QMessageBox.warning(self, "Lỗi Kết Nối Máy Ảnh", err_msg)
             return
         self.current_state = "IDLE"
+        self.set_capture_immersive_mode(False)
+        self.request_capture_fullscreen.emit(False)
         self.lbl_countdown.hide()
         self.lbl_status_badge.hide()
         self.btn_start.setEnabled(True)
@@ -2212,6 +2465,8 @@ class KioskPage(QWidget):
         self.current_token = token_info.token
 
         # TỰ ĐỘNG CHUYỂN NỘI DUNG SANG TRANG HOÀN THIỆN ẢNH NỘI BỘ (KHÔNG MỞ CỬA SỔ RIÊNG)
+        self.set_capture_immersive_mode(False)
+        self.request_capture_fullscreen.emit(False)
         enable_guest_review = self.config_mgr.get("kiosk.enable_guest_review", True)
         if enable_guest_review and self.captured_originals:
             self.review_widget.load_session(
@@ -2559,6 +2814,7 @@ class KioskPage(QWidget):
         self._reset_to_idle()
 
     def _reset_to_idle(self):
+        self.set_capture_immersive_mode(False)
         self.current_state = "IDLE"
         self.current_session_id = None
         self.current_token = None
@@ -2571,7 +2827,6 @@ class KioskPage(QWidget):
         self.btn_start.setEnabled(True)
         self.chk_preview.show()
         self.chk_beauty.show()
-        self.chk_autoprint.show()
         self.btn_fullscreen.show()
 
         self.btn_shots_minus.setEnabled(True)
@@ -2615,8 +2870,10 @@ class KioskPage(QWidget):
         self.current_state = "COUNTDOWN"
         self.current_shot_index = slot_idx + 1
 
-        # Chuyển stack về Viewfinder và bắt đầu đếm ngược cho riêng ô này
+        # Chuyển stack về Viewfinder toàn màn hình và bắt đầu đếm ngược cho riêng ô này
         self.kiosk_stack.setCurrentIndex(0)
+        self.request_capture_fullscreen.emit(True)
+        self.set_capture_immersive_mode(True)
         self.start_live_view()
         self._start_single_shot_countdown()
 
@@ -2657,54 +2914,11 @@ class KioskPage(QWidget):
             if w < 1200:
                 self.card_camera.setMaximumWidth(190)
                 self.card_camera.setMinimumWidth(150)
-                self.btn_start.setFixedSize(270, 52)
-                self.btn_start.setStyleSheet(
-                    f"QPushButton {{"
-                    f"  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:0.45 {THEME_GOLD}, stop:1 {THEME_GOLD_DARK});"
-                    f"  color: #FFFFFF; font-size: 17px; font-weight: 900; border-radius: 26px; border: 2px solid {THEME_GOLD_PALE};"
-                    f"}}"
-                    f"QPushButton:hover {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #DFCFB0, stop:0.45 #B99D69, stop:1 #987C49); border: 2px solid #FFFFFF; }}"
-                    f"QPushButton:disabled {{ background: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; border: 1px solid {THEME_BORDER}; }}"
-                )
-                if hasattr(self, "card_shots"):
-                    self.card_shots.setMinimumWidth(180)
-                    self.card_shots.setMaximumWidth(210)
-                if hasattr(self, "card_cd"):
-                    self.card_cd.setMaximumWidth(190)
-                if hasattr(self, "card_filters"):
-                    self.card_filters.setMaximumWidth(190)
+                self.btn_start.setFixedSize(270, 48)
             else:
                 self.card_camera.setMaximumWidth(250)
                 self.card_camera.setMinimumWidth(190)
-                self.btn_start.setFixedSize(360, 58)
-                self.btn_start.setStyleSheet(
-                    f"QPushButton {{"
-                    f"  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:0.45 {THEME_GOLD}, stop:1 {THEME_GOLD_DARK});"
-                    f"  color: #FFFFFF;"
-                    f"  font-size: 20px;"
-                    f"  font-weight: 900;"
-                    f"  letter-spacing: 1px;"
-                    f"  border-radius: 29px;"
-                    f"  border: 2px solid {THEME_GOLD_PALE};"
-                    f"}}"
-                    f"QPushButton:hover {{"
-                    f"  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #DFCFB0, stop:0.45 #B99D69, stop:1 #987C49);"
-                    f"  border: 2px solid #FFFFFF;"
-                    f"}}"
-                    f"QPushButton:pressed {{"
-                    f"  background: {THEME_GOLD_DARK};"
-                    f"}}"
-                    f"QPushButton:disabled {{"
-                    f"  background: {THEME_BG_SECONDARY}; color: {THEME_TEXT_SECONDARY}; border: 1px solid {THEME_BORDER};"
-                    f"}}"
-                )
-                if hasattr(self, "card_shots"):
-                    self.card_shots.setMinimumWidth(185)
-                    self.card_shots.setMaximumWidth(230)
-                if hasattr(self, "card_cd"):
-                    self.card_cd.setMaximumWidth(240)
-                if hasattr(self, "card_filters"):
-                    self.card_filters.setMaximumWidth(240)
+                self.btn_start.setFixedSize(360, 48)
 
         # Căn chỉnh lại các overlay trong Viewport
         self._reposition_viewport_overlays()
@@ -2725,21 +2939,31 @@ class KioskPage(QWidget):
         """Cập nhật giao diện nút khi chuyển đổi chế độ toàn màn hình."""
         if hasattr(self, "btn_fullscreen"):
             if is_fs:
-                self.btn_fullscreen.setText("🗗 Thu Nhỏ (ESC)")
+                self.btn_fullscreen.setText(" Thu Nhỏ (ESC)")
+                self.btn_fullscreen.setIcon(get_svg_icon("minimize", 15, COLOR_CHAMPAGNE))
+                self.btn_fullscreen.setIconSize(QSize(15, 15))
                 self.btn_fullscreen.setToolTip("Thoát chế độ toàn màn hình (ESC hoặc F11)")
                 self.btn_fullscreen.setStyleSheet(
-                    f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1.5px solid {THEME_GOLD}; border-radius: 8px; color: {THEME_GOLD}; font-size: 13px; font-weight: 700; padding: 0 14px; }}"
-                    f"QPushButton:hover {{ background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
+                    f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1.5px solid {COLOR_CHAMPAGNE}; border-radius: 8px; color: {COLOR_CHAMPAGNE}; font-size: 12px; font-weight: 700; padding: 0 12px; }}"
+                    f"QPushButton:hover {{ background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_PRIMARY}; }}"
                 )
             else:
-                self.btn_fullscreen.setText("⛶ Toàn màn hình")
+                self.btn_fullscreen.setText(" Toàn màn hình")
+                self.btn_fullscreen.setIcon(get_svg_icon("maximize", 15, COLOR_TEXT_PRIMARY))
+                self.btn_fullscreen.setIconSize(QSize(15, 15))
                 self.btn_fullscreen.setToolTip("Chế độ toàn màn hình Kiosk (F11)")
                 self.btn_fullscreen.setStyleSheet(
-                    f"QPushButton {{ background-color: {THEME_SURFACE}; border: 1px solid {THEME_BORDER}; border-radius: 8px; color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 600; padding: 0 14px; }}"
-                    f"QPushButton:hover {{ border: 1px solid {THEME_GOLD}; background-color: {THEME_BG_SECONDARY}; color: {THEME_TEXT_PRIMARY}; }}"
+                    f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; border-radius: 8px; color: {COLOR_TEXT_PRIMARY}; font-size: 12px; font-weight: 600; padding: 0 12px; }}"
+                    f"QPushButton:hover {{ border: 1px solid {COLOR_CHAMPAGNE}; background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_PRIMARY}; }}"
                 )
         if hasattr(self, "btn_live_fullscreen"):
+            self.btn_live_fullscreen.setIcon(
+                get_svg_icon("minimize" if is_fs else "maximize", 15, COLOR_CHAMPAGNE if is_fs else COLOR_TEXT_PRIMARY)
+            )
             self.btn_live_fullscreen.setToolTip("Thoát toàn màn hình (ESC hoặc F11)" if is_fs else "Toàn màn hình (F11)")
+        if hasattr(self, "lbl_viewport"):
+            self.lbl_viewport._recalculate_target_rect()
+            self._reposition_viewport_overlays()
 
     def cleanup(self):
         """Dừng dứt điểm toàn bộ timers, workers và giải phóng tài nguyên của Kiosk."""

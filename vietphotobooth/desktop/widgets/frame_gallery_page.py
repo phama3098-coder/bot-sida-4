@@ -27,7 +27,11 @@ from vietphotobooth.desktop.icons import (
 from vietphotobooth.desktop.styles import (
     THEME_BG_MAIN, THEME_BG_SECONDARY, THEME_SURFACE, THEME_BORDER,
     THEME_INPUT_BG, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY, THEME_TEXT_DISABLED,
-    THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_DARK, THEME_GOLD_PALE
+    THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_DARK, THEME_GOLD_PALE,
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_BORDER, COLOR_BORDER_LIGHT,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR
 )
 from vietphotobooth.core.logger import get_logger
 
@@ -68,9 +72,9 @@ class FrameCard(QFrame):
         self.thumb_box.setFixedHeight(260)
         self.thumb_box.setStyleSheet(f"""
             QFrame {{
-                background-color: #CFCCC4;
+                background-color: {COLOR_SURFACE_SECONDARY};
                 border-radius: 8px;
-                border: none;
+                border: 1px solid {COLOR_BORDER};
             }}
         """)
         box_layout = QVBoxLayout(self.thumb_box)
@@ -86,7 +90,7 @@ class FrameCard(QFrame):
         lbl_type.setAlignment(Qt.AlignCenter)
         lbl_type.setFixedSize(38, 20)
         lbl_type.setStyleSheet("""
-            background-color: rgba(53, 54, 49, 0.78);
+            background-color: rgba(41, 43, 41, 0.82);
             color: #FFFFFF;
             border-radius: 4px;
             font-size: 11px;
@@ -101,7 +105,7 @@ class FrameCard(QFrame):
         self.lbl_check.setFixedSize(22, 22)
         self.lbl_check.setAlignment(Qt.AlignCenter)
         self.lbl_check.setStyleSheet(f"""
-            background-color: {THEME_GOLD};
+            background-color: {COLOR_CHAMPAGNE};
             border-radius: 11px;
         """)
         self.lbl_check.setVisible(self._is_selected)
@@ -112,7 +116,7 @@ class FrameCard(QFrame):
         # Thumbnail thực tế - Giữ đúng tỷ lệ ảnh gốc, căn giữa tuyệt đối
         self.lbl_thumb = QLabel()
         self.lbl_thumb.setAlignment(Qt.AlignCenter)
-        self.lbl_thumb.setStyleSheet("background-color: transparent;")
+        self.lbl_thumb.setStyleSheet("background-color: transparent; border: none;")
 
         if self.thumb_path and os.path.exists(self.thumb_path):
             pix = QPixmap(self.thumb_path)
@@ -120,7 +124,7 @@ class FrameCard(QFrame):
             self.lbl_thumb.setPixmap(pix.scaled(200, 230, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.lbl_thumb.setText(self.template.name)
-            self.lbl_thumb.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 12px;")
+            self.lbl_thumb.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 12px; border: none; background: transparent;")
 
         box_layout.addWidget(self.lbl_thumb, 1, Qt.AlignCenter)
         card_layout.addWidget(self.thumb_box)
@@ -131,11 +135,12 @@ class FrameCard(QFrame):
         self.lbl_name.setWordWrap(True)
         self.lbl_name.setFixedHeight(38)
         self.lbl_name.setStyleSheet(f"""
-            color: {THEME_TEXT_PRIMARY};
+            color: {COLOR_TEXT_PRIMARY};
             font-weight: 700;
             font-size: 12px;
             line-height: 1.2;
             background: transparent;
+            border: none;
         """)
         self.lbl_name.setToolTip(self.template.name)
         card_layout.addWidget(self.lbl_name)
@@ -149,24 +154,24 @@ class FrameCard(QFrame):
         if self._is_selected:
             self.setStyleSheet(f"""
                 FrameCard {{
-                    background-color: #E3DFD6;
-                    border: 2px solid {THEME_GOLD};
+                    background-color: {COLOR_PALE_GOLD};
+                    border: 1.5px solid {COLOR_CHAMPAGNE};
                     border-radius: 12px;
                 }}
                 FrameCard:hover {{
-                    background-color: #E9E6DE;
+                    background-color: #E2D7BE;
                 }}
             """)
         else:
             self.setStyleSheet(f"""
                 FrameCard {{
-                    background-color: {THEME_SURFACE};
-                    border: 1px solid {THEME_BORDER};
+                    background-color: {COLOR_SURFACE};
+                    border: 1px solid {COLOR_BORDER};
                     border-radius: 12px;
                 }}
                 FrameCard:hover {{
-                    background-color: {THEME_INPUT_BG};
-                    border: 1.5px solid {THEME_GOLD};
+                    background-color: {COLOR_SURFACE_SECONDARY};
+                    border: 1px solid {COLOR_CHAMPAGNE};
                 }}
             """)
 
@@ -263,22 +268,23 @@ class FrameGalleryPage(QWidget):
 
         # Nút chuyển sang trình thiết kế khung dành cho Quản trị viên
         self.btn_designer = QPushButton("Thiết Kế Khung Ảnh")
-        self.btn_designer.setIcon(get_svg_icon("edit", 16, THEME_GOLD))
+        self.btn_designer.setIcon(get_svg_icon("edit", 16, COLOR_CHAMPAGNE))
         self.btn_designer.setFixedHeight(38)
         self.btn_designer.setCursor(Qt.PointingHandCursor)
         self.btn_designer.setStyleSheet(f"""
             QPushButton {{
-                background-color: {THEME_SURFACE};
-                color: {THEME_TEXT_PRIMARY};
-                border: 1.5px solid {THEME_BORDER};
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_BORDER};
                 border-radius: 8px;
                 padding: 4px 16px;
                 font-weight: 700;
                 font-size: 13px;
             }}
             QPushButton:hover {{
-                background-color: {THEME_BG_SECONDARY};
-                border: 1.5px solid {THEME_GOLD};
+                background-color: {COLOR_SURFACE_SECONDARY};
+                border: 1px solid {COLOR_CHAMPAGNE};
+                color: {COLOR_CHAMPAGNE};
             }}
         """)
         self.btn_designer.setToolTip("Mở trình thiết kế kéo thả khung ảnh chuyên sâu (Cần mã PIN)")
@@ -294,21 +300,21 @@ class FrameGalleryPage(QWidget):
         # Ô tìm kiếm (Chiều rộng cân đối 280px)
         self.txt_search = QLineEdit()
         self.txt_search.setPlaceholderText("Tìm tên khung ảnh...")
-        self.txt_search.addAction(get_svg_icon("search", 16, THEME_TEXT_SECONDARY), QLineEdit.LeadingPosition)
+        self.txt_search.addAction(get_svg_icon("search", 16, COLOR_TEXT_SECONDARY), QLineEdit.LeadingPosition)
         self.txt_search.setFixedHeight(38)
         self.txt_search.setFixedWidth(280)
         self.txt_search.setStyleSheet(f"""
             QLineEdit {{
-                background-color: {THEME_INPUT_BG};
-                color: {THEME_TEXT_PRIMARY};
-                border: 1.5px solid {THEME_BORDER};
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_BORDER};
                 border-radius: 8px;
                 padding: 4px 12px;
                 font-size: 13px;
             }}
             QLineEdit:focus {{
-                border: 1.5px solid {THEME_GOLD};
-                background-color: #FFFFFF;
+                border: 1.5px solid {COLOR_CHAMPAGNE};
+                background-color: {COLOR_SURFACE};
             }}
         """)
         self.txt_search.textChanged.connect(lambda _: self.refresh_gallery())
@@ -482,9 +488,9 @@ class FrameGalleryPage(QWidget):
             if cat == self.current_category:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {THEME_GOLD};
-                        color: #FFFFFF;
-                        font-weight: bold;
+                        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
+                        color: #1C1D1C;
+                        font-weight: 800;
                         border: none;
                         border-radius: 8px;
                         text-align: left;
@@ -495,26 +501,26 @@ class FrameGalleryPage(QWidget):
             else:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {THEME_SURFACE};
-                        color: {THEME_TEXT_PRIMARY};
-                        border: 1px solid {THEME_BORDER};
+                        background-color: {COLOR_SURFACE};
+                        color: {COLOR_TEXT_PRIMARY};
+                        border: 1px solid {COLOR_BORDER};
                         border-radius: 8px;
                         text-align: left;
                         padding-left: 14px;
                         font-size: 13px;
                     }}
                     QPushButton:hover {{
-                        background-color: {THEME_INPUT_BG};
-                        border: 1px solid {THEME_GOLD};
+                        background-color: {COLOR_SURFACE_SECONDARY};
+                        border: 1px solid {COLOR_CHAMPAGNE};
                     }}
                 """)
 
         # Cập nhật style nút lọc tỷ lệ
         active_ratio_style = f"""
             QPushButton {{
-                background-color: {THEME_GOLD};
-                color: #FFFFFF;
-                font-weight: bold;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
+                color: #1C1D1C;
+                font-weight: 800;
                 border-radius: 8px;
                 padding: 4px 16px;
                 border: none;
@@ -523,16 +529,16 @@ class FrameGalleryPage(QWidget):
         """
         normal_ratio_style = f"""
             QPushButton {{
-                background-color: {THEME_SURFACE};
-                color: {THEME_TEXT_PRIMARY};
-                border: 1.5px solid {THEME_BORDER};
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_BORDER};
                 border-radius: 8px;
                 padding: 4px 16px;
                 font-size: 13px;
             }}
             QPushButton:hover {{
-                background-color: {THEME_INPUT_BG};
-                border: 1.5px solid {THEME_GOLD};
+                background-color: {COLOR_SURFACE_SECONDARY};
+                border: 1px solid {COLOR_CHAMPAGNE};
             }}
         """
 

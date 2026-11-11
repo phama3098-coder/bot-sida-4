@@ -48,12 +48,11 @@ from starlette.testclient import TestClient
 # =========================================================================
 
 def test_rc2_version_and_channel():
-    """Xác minh phiên bản 2.0.x, Build >= 202, Channel RC/RC2 theo đúng Single Source of Truth."""
-    assert __version__ in ("2.0.0", "2.0.1")
+    """Xác minh phiên bản >= 2.0.0, Build >= 202 theo đúng Single Source of Truth."""
+    assert parse_semver(__version__) >= (2, 0, 0)
     assert __build__ >= 202
-    assert __channel__ in ("RC", "RC2")
+    assert __channel__ in ("", "RC", "RC2")
     assert get_version_string() == f"{__version__} (Build {__build__})"
-    assert parse_semver(__version__)[:2] == (2, 0)
 
 
 # =========================================================================

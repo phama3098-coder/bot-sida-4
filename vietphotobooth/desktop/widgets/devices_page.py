@@ -19,6 +19,12 @@ from vietphotobooth.camera.manager import CameraManager
 from vietphotobooth.printing.manager import PrintManager
 from vietphotobooth.core.config import ConfigManager
 from vietphotobooth.sharing.token_manager import TokenManager
+from vietphotobooth.desktop.styles import (
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_BORDER, COLOR_BORDER_LIGHT,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR
+)
 from vietphotobooth.desktop.icons import (
     COLOR_GOLD, COLOR_GOLD_LIGHT, COLOR_WHITE, COLOR_SLATE,
     COLOR_GREEN, COLOR_RED, COLOR_BLUE, get_svg_icon
@@ -29,15 +35,19 @@ class DeviceChannelCard(QFrame):
     """Thẻ thông tin giám sát cho một kênh thiết bị phần cứng."""
     def __init__(self, title: str, icon_name: str, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            DeviceChannelCard {
-                background-color: #D9D5CC;
-                border: 1.5px solid #AAA69D;
+        self.setStyleSheet(f"""
+            DeviceChannelCard {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
                 border-radius: 12px;
-            }
-            DeviceChannelCard:hover {
-                border-color: #AD905B;
-            }
+            }}
+            DeviceChannelCard:hover {{
+                border-color: {COLOR_CHAMPAGNE};
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
         """)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(16, 14, 16, 14)
@@ -47,11 +57,11 @@ class DeviceChannelCard(QFrame):
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
         self.lbl_icon = QLabel()
-        self.lbl_icon.setPixmap(get_svg_icon(icon_name, 18, COLOR_GOLD).pixmap(18, 18))
+        self.lbl_icon.setPixmap(get_svg_icon(icon_name, 18, COLOR_CHAMPAGNE).pixmap(18, 18))
         top.addWidget(self.lbl_icon)
 
         self.lbl_title = QLabel(f"<b>{title}</b>")
-        self.lbl_title.setStyleSheet("color: #353631; font-size: 13px; border: none;")
+        self.lbl_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 13px; border: none; background: transparent;")
         top.addWidget(self.lbl_title)
         top.addStretch()
 
@@ -106,10 +116,10 @@ class DeviceChannelCard(QFrame):
 
         for r_idx, (lbl_txt, val_txt, is_hi) in enumerate(rows):
             lbl = QLabel(lbl_txt)
-            lbl.setStyleSheet("color: #716F68; font-size: 11px; border: none;")
+            lbl.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; border: none; background: transparent;")
             val = QLabel(val_txt)
-            hi_color = "#AD905B" if is_hi else "#353631"
-            val.setStyleSheet(f"color: {hi_color}; font-size: 11px; font-weight: {'bold' if is_hi else 'normal'}; border: none;")
+            hi_color = COLOR_CHAMPAGNE if is_hi else COLOR_TEXT_PRIMARY
+            val.setStyleSheet(f"color: {hi_color}; font-size: 11px; font-weight: {'bold' if is_hi else 'normal'}; border: none; background: transparent;")
             val.setAlignment(Qt.AlignRight)
 
             self.grid.addWidget(lbl, r_idx, 0)
@@ -121,6 +131,7 @@ class DevicesPage(QWidget):
     Trang Bảng Giám Sát Thiết Bị & Cảm Biến Toàn Hệ Thống v2.0.
     """
     refresh_requested = Signal()
+    back_requested = Signal()
 
     def __init__(
         self,
@@ -136,7 +147,7 @@ class DevicesPage(QWidget):
         self.config_mgr = config_mgr
         self.token_mgr = token_mgr
 
-        self.setStyleSheet("background-color: #C8C5BD; color: #353631;")
+        self.setStyleSheet(f"background-color: {COLOR_BG}; color: {COLOR_TEXT_PRIMARY};")
 
         self._init_ui()
 
@@ -155,15 +166,42 @@ class DevicesPage(QWidget):
 
         # Header Bar
         h_head = QHBoxLayout()
+        h_head.setSpacing(14)
+
+        # Nút Quay lại màn hình trước đó
+        self.btn_back = QPushButton("← Quay lại")
+        self.btn_back.setFixedHeight(36)
+        self.btn_back.setCursor(Qt.PointingHandCursor)
+        self.btn_back.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                color: {COLOR_TEXT_PRIMARY};
+                font-size: 13px;
+                font-weight: 700;
+                border-radius: 8px;
+                padding: 0 16px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_SECONDARY};
+                border-color: {COLOR_CHAMPAGNE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_BORDER};
+            }}
+        """)
+        self.btn_back.clicked.connect(self.back_requested.emit)
+        h_head.addWidget(self.btn_back)
+
         v_title = QVBoxLayout()
         v_title.setSpacing(2)
 
         lbl_title = QLabel("📡 <b>GIÁM SÁT THIẾT BỊ & CẢM BIẾN (DEVICES TELEMETRY)</b>")
-        lbl_title.setStyleSheet("color: #353631; font-size: 16px; font-weight: 800;")
+        lbl_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 16px; font-weight: 800; border: none; background: transparent;")
         v_title.addWidget(lbl_title)
 
         lbl_sub = QLabel("Theo dõi liên tục kết nối phần cứng, trạng thái máy ảnh, máy in, mạng LAN và tài nguyên hệ thống")
-        lbl_sub.setStyleSheet("color: #716F68; font-size: 11px;")
+        lbl_sub.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; border: none; background: transparent;")
         v_title.addWidget(lbl_sub)
         h_head.addLayout(v_title)
         h_head.addStretch()
@@ -172,24 +210,24 @@ class DevicesPage(QWidget):
         self.btn_refresh.setIcon(get_svg_icon("reset", 14, COLOR_GOLD))
         self.btn_refresh.setFixedHeight(36)
         self.btn_refresh.setCursor(Qt.PointingHandCursor)
-        self.btn_refresh.setStyleSheet("""
-            QPushButton {
-                background-color: #D9D5CC;
-                border: 1.5px solid #AAA69D;
-                color: #353631;
+        self.btn_refresh.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                color: {COLOR_TEXT_PRIMARY};
                 font-size: 12px;
-                font-weight: bold;
+                font-weight: 700;
                 border-radius: 8px;
                 padding: 0 16px;
-            }
-            QPushButton:hover {
-                border-color: #AD905B;
-                color: #353631;
-                background-color: #B9B5AB;
-            }
-            QPushButton:pressed {
-                background-color: #AAA69D;
-            }
+            }}
+            QPushButton:hover {{
+                border-color: {COLOR_CHAMPAGNE};
+                color: {COLOR_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE_SECONDARY};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_BORDER};
+            }}
         """)
         self.btn_refresh.clicked.connect(self.refresh_telemetry)
         h_head.addWidget(self.btn_refresh)

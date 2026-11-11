@@ -1,19 +1,19 @@
 """
-1998 TEAM — Smart Beauty Panel (AI Face Retouching Dialog & Control Widget)
-Hiển thị sau mỗi lần chụp thành công:
-- Tiêu đề: "✨ ẢNH VỪA CHỤP"
-- Tiến độ: "Đã chụp X/Y"
-- 3 thanh trượt điều chỉnh tự nhiên (bước nhảy 5%, mặc định 0%):
-  1. ☀ Sáng da (0 - 100%)
-  2. ◉ Mịn da (0 - 100%)
-  3. 💄 Son môi (0 - 100%)
-- Nút bấm: "Đặt lại", "Xem ảnh gốc", "Xác nhận".
-- Luồng xem trước bất đồng bộ bằng QThread, không chặn UI hoặc Live View.
-- Bảo toàn ảnh gốc trên đĩa, xuất ảnh làm đẹp chất lượng cao khi xác nhận.
+1998 TEAM — Smart Beauty Panel (Luxury Beauty Studio Control Panel + MediaPipe 478 Landmarks)
+Thiết kế lại khu vực điều chỉnh làm đẹp theo phong cách Beauty Studio cao cấp:
+- Bố cục 2 cột: 68% Xem trước ảnh studio (với nút bật/tắt Lưới 478 Điểm) / 32% Menu hiệu ứng Beauty Studio.
+- Không còn chữ mô tả thừa hoặc nút BẬT/TẮT thô kiểu kỹ thuật.
+- Mỗi hiệu ứng trong 7 vùng là một thẻ điều khiển tinh tế riêng:
+  - Icon line-art đồng bộ phong cách + Tên hiệu ứng + % + Công tắc Toggle Switch mượt mà.
+  - Thanh trượt cường độ ẩn gọn khi OFF và bung ra với animation mượt khi ON.
+  - Tự động vừa vặn hoàn chỉnh trong kích thước 1382x725 không cần thanh cuộn.
+- Giữ nguyên 100% MediaPipe Face Landmarker 478 điểm & thuật toán SmartBeautyEngine,
+  không giới hạn thời gian và bảo toàn thiết lập sang ảnh kế tiếp.
 """
 
 import os
-import time
+import math
+import tempfile
 import logging
 from typing import Optional, List, Tuple, Dict, Any
 import numpy as np
@@ -22,29 +22,481 @@ from PIL import Image, ImageOps
 
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QSlider, QCheckBox, QFrame, QSizePolicy, QProgressBar
+    QSlider, QCheckBox, QFrame, QSizePolicy, QScrollArea, QAbstractButton,
+    QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, Signal, QThread, QTimer, QSize, QPoint
-from PySide6.QtGui import QPixmap, QImage, QColor, QFont, QPainter, QPen
+from PySide6.QtCore import (
+    Qt, Signal, Property, QThread, QTimer, QSize, QPointF, QRectF,
+    QPropertyAnimation, QEasingCurve
+)
+from PySide6.QtGui import (
+    QPixmap, QImage, QColor, QPainter, QPen, QIcon, QPainterPath,
+    QBrush, QGuiApplication
+)
 
-from vietphotobooth.filters.beauty_engine import SmartBeautyEngine
-from vietphotobooth.camera.face_detector import DetectedFace
+from vietphotobooth.filters.beauty_engine import SmartBeautyEngine, DEFAULT_ENABLED_EFFECTS
+from vietphotobooth.filters.face_analysis import (
+    FaceAnalysisResult,
+    draw_face_mesh_overlay,
+)
+from vietphotobooth.desktop.styles import (
+    FONT_FAMILY_PRIMARY,
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_LIVEVIEW, COLOR_SUCCESS, COLOR_ERROR
+)
 
 logger = logging.getLogger(__name__)
 
+# Mặc định hiển thị tại UI: 3 nhóm cơ bản bật sẵn để trượt nhanh, 4 vùng nâng cao gập gọn đến khi bật
+DEFAULT_DIALOG_UI_ENABLED: Dict[str, bool] = {
+    "brighten": True,
+    "smooth": True,
+    "lips": True,
+    "eye_brighten": False,
+    "cheek_rosy": False,
+    "nose_highlight": False,
+    "face_slim": False,
+    "ai_enhance": False,
+}
+
+
+def _make_beauty_icon(kind: str, color: str = "#292B29", size: int = 18) -> QIcon:
+    """Tạo bộ vector icon line-art Beauty Studio đồng nhất, sắc nét trên mọi độ phân giải HiDPI."""
+    dpr = 2.0
+    px_size = int(size * dpr)
+    pixmap = QPixmap(px_size, px_size)
+    pixmap.fill(Qt.transparent)
+    pixmap.setDevicePixelRatio(dpr)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    qcolor = QColor(color)
+    pen = QPen(qcolor, 1.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.NoBrush)
+
+    s = float(size)
+    c = s / 2.0
+
+    if kind == "sparkle":
+        path = QPainterPath()
+        r_out = s * 0.39
+        r_in = s * 0.12
+        pts = [
+            QPointF(c, c - r_out), QPointF(c + r_in, c - r_in),
+            QPointF(c + r_out, c), QPointF(c + r_in, c + r_in),
+            QPointF(c, c + r_out), QPointF(c - r_in, c + r_in),
+            QPointF(c - r_out, c), QPointF(c - r_in, c - r_in),
+        ]
+        path.moveTo(pts[0])
+        for p in pts[1:]:
+            path.lineTo(p)
+        path.closeSubpath()
+        painter.setBrush(QBrush(qcolor))
+        painter.drawPath(path)
+        painter.drawEllipse(QPointF(s * 0.80, s * 0.22), 1.2, 1.2)
+
+    elif kind == "sun":
+        painter.drawEllipse(QPointF(c, c), s * 0.19, s * 0.19)
+        r1 = s * 0.30
+        r2 = s * 0.41
+        for i in range(8):
+            ang = i * (math.pi / 4.0)
+            painter.drawLine(
+                QPointF(c + r1 * math.cos(ang), c + r1 * math.sin(ang)),
+                QPointF(c + r2 * math.cos(ang), c + r2 * math.sin(ang)),
+            )
+
+    elif kind == "smooth":
+        path = QPainterPath()
+        path.moveTo(c, s * 0.15)
+        path.cubicTo(s * 0.78, s * 0.45, s * 0.80, s * 0.83, c, s * 0.85)
+        path.cubicTo(s * 0.20, s * 0.83, s * 0.22, s * 0.45, c, s * 0.15)
+        painter.drawPath(path)
+        painter.drawArc(QRectF(c - s * 0.15, c, s * 0.30, s * 0.28), 205 * 16, 80 * 16)
+
+    elif kind == "eye_zone":
+        eye = QPainterPath()
+        eye.moveTo(s * 0.15, c - 1.0)
+        eye.cubicTo(s * 0.34, s * 0.24, s * 0.66, s * 0.24, s * 0.85, c - 1.0)
+        eye.cubicTo(s * 0.66, s * 0.64, s * 0.34, s * 0.64, s * 0.15, c - 1.0)
+        painter.drawPath(eye)
+        painter.drawEllipse(QPointF(c, c - 1.0), s * 0.09, s * 0.09)
+        painter.drawArc(QRectF(s * 0.22, c + 0.5, s * 0.56, s * 0.30), 200 * 16, 140 * 16)
+
+    elif kind == "cheek":
+        painter.drawEllipse(QPointF(c - s * 0.17, c), s * 0.16, s * 0.15)
+        painter.drawEllipse(QPointF(c + s * 0.17, c), s * 0.16, s * 0.15)
+
+    elif kind == "nose":
+        nose_p = QPainterPath()
+        nose_p.moveTo(c - s * 0.07, s * 0.19)
+        nose_p.lineTo(c - s * 0.13, s * 0.68)
+        nose_p.cubicTo(c - s * 0.05, s * 0.79, c + s * 0.05, s * 0.79, c + s * 0.13, s * 0.68)
+        nose_p.lineTo(c + s * 0.07, s * 0.19)
+        painter.drawPath(nose_p)
+
+    elif kind == "contour":
+        jaw = QPainterPath()
+        jaw.moveTo(s * 0.23, s * 0.22)
+        jaw.cubicTo(s * 0.21, s * 0.62, s * 0.36, s * 0.81, c, s * 0.85)
+        jaw.cubicTo(s * 0.64, s * 0.81, s * 0.79, s * 0.62, s * 0.77, s * 0.22)
+        painter.drawPath(jaw)
+
+    elif kind == "ai_portrait":
+        # Biểu tượng ngôi sao 4 cánh tinh tế + 2 tia sáng nhỏ biểu trưng cho làm đẹp AI
+        main_star = QPainterPath()
+        r_out = s * 0.34
+        r_in = s * 0.11
+        cx_s, cy_s = c - s * 0.05, c + s * 0.04
+        pts = [
+            QPointF(cx_s, cy_s - r_out), QPointF(cx_s + r_in, cy_s - r_in),
+            QPointF(cx_s + r_out, cy_s), QPointF(cx_s + r_in, cy_s + r_in),
+            QPointF(cx_s, cy_s + r_out), QPointF(cx_s - r_in, cy_s + r_in),
+            QPointF(cx_s - r_out, cy_s), QPointF(cx_s - r_in, cy_s - r_in),
+        ]
+        main_star.moveTo(pts[0])
+        for p in pts[1:]:
+            main_star.lineTo(p)
+        main_star.closeSubpath()
+        painter.drawPath(main_star)
+
+        sx, sy = s * 0.78, s * 0.24
+        r_m = s * 0.12
+        painter.drawLine(QPointF(sx - r_m, sy), QPointF(sx + r_m, sy))
+        painter.drawLine(QPointF(sx, sy - r_m), QPointF(sx, sy + r_m))
+
+    elif kind == "lips":
+        upper = QPainterPath()
+        upper.moveTo(s * 0.15, c + 0.4)
+        upper.cubicTo(s * 0.29, s * 0.27, s * 0.42, s * 0.31, c, s * 0.39)
+        upper.cubicTo(s * 0.58, s * 0.31, s * 0.71, s * 0.27, s * 0.85, c + 0.4)
+        upper.cubicTo(s * 0.68, c + 0.8, s * 0.32, c + 0.8, s * 0.15, c + 0.4)
+        painter.drawPath(upper)
+
+        lower = QPainterPath()
+        lower.moveTo(s * 0.17, c + 0.6)
+        lower.cubicTo(s * 0.34, s * 0.75, s * 0.66, s * 0.75, s * 0.83, c + 0.6)
+        painter.drawPath(lower)
+
+    elif kind == "reset":
+        arc_rect = QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60)
+        painter.drawArc(arc_rect, 45 * 16, 265 * 16)
+        arrow = QPainterPath()
+        arrow.moveTo(s * 0.20, s * 0.24)
+        arrow.lineTo(s * 0.20, s * 0.44)
+        arrow.lineTo(s * 0.38, s * 0.40)
+        painter.drawPath(arrow)
+
+    elif kind in ("eye", "eye_active"):
+        eye = QPainterPath()
+        eye.moveTo(s * 0.12, c)
+        eye.cubicTo(s * 0.32, s * 0.22, s * 0.68, s * 0.22, s * 0.88, c)
+        eye.cubicTo(s * 0.68, s * 0.78, s * 0.32, s * 0.78, s * 0.12, c)
+        painter.drawPath(eye)
+        if kind == "eye_active":
+            painter.setBrush(QBrush(qcolor))
+        painter.drawEllipse(QPointF(c, c), s * 0.13, s * 0.13)
+
+    painter.end()
+    return QIcon(pixmap)
+
+
+def _ensure_checkmark_icon_path() -> str:
+    """Tạo và lưu tạm icon dấu tích trắng sắc nét cho checkbox tái sử dụng."""
+    path = os.path.join(tempfile.gettempdir(), "1998team_beauty_check_white.png")
+    if not os.path.exists(path):
+        px = QPixmap(28, 28)
+        px.fill(Qt.transparent)
+        painter = QPainter(px)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        pen = QPen(QColor("#FFFFFF"), 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        painter.setPen(pen)
+        painter.drawLine(QPointF(6.0, 14.5), QPointF(11.5, 20.0))
+        painter.drawLine(QPointF(11.5, 20.0), QPointF(22.0, 8.0))
+        painter.end()
+        px.save(path, "PNG")
+    return path.replace("\\", "/")
+
+
+class ModernToggleSwitch(QAbstractButton):
+    """
+    Công tắc ON/OFF hiện đại dạng pill slider (QAbstractButton checkable).
+    Tông vàng Champagne khi ON (#B99A63) và kem/xám ấm dịu nhẹ khi OFF (#D8D4CA).
+    """
+
+    def __init__(self, checked: bool = False, parent=None):
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setChecked(checked)
+        self.setFixedSize(38, 20)
+        self.setCursor(Qt.PointingHandCursor)
+
+        self._thumb_pos: float = 1.0 if checked else 0.0
+        self._hovered: bool = False
+
+        self._anim = QPropertyAnimation(self, b"thumb_pos", self)
+        self._anim.setDuration(170)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+
+        self.toggled.connect(self._animate_to_state)
+
+    def _get_thumb_pos(self) -> float:
+        return self._thumb_pos
+
+    def _set_thumb_pos(self, val: float):
+        self._thumb_pos = val
+        self.update()
+
+    thumb_pos = Property(float, _get_thumb_pos, _set_thumb_pos)
+
+    def _animate_to_state(self, checked: bool):
+        target = 1.0 if checked else 0.0
+        if not self.isVisible():
+            self._anim.stop()
+            self._thumb_pos = target
+            self.update()
+            return
+        self._anim.stop()
+        self._anim.setStartValue(self._thumb_pos)
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def enterEvent(self, event):
+        self._hovered = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        w = float(self.width())
+        h = float(self.height())
+        radius = h / 2.0
+
+        # Nội suy mượt giữa màu nền OFF (#D7D3C9) và Champagne ON (#B99A63)
+        off_c = QColor("#D7D3C9" if not self._hovered else "#CCC7BC")
+        on_c = QColor("#B99A63" if not self._hovered else "#AD8D56")
+        t = max(0.0, min(1.0, self._thumb_pos))
+        bg = QColor(
+            int(off_c.red() + (on_c.red() - off_c.red()) * t),
+            int(off_c.green() + (on_c.green() - off_c.green()) * t),
+            int(off_c.blue() + (on_c.blue() - off_c.blue()) * t),
+        )
+
+        # Vẽ track bo tròn mềm
+        painter.setPen(QPen(QColor("#C6C1B5" if t < 0.5 else "#9E824E"), 0.8))
+        painter.setBrush(QBrush(bg))
+        painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), radius, radius)
+
+        # Nút tròn trắng di chuyển
+        pad = 2.5
+        thumb_d = h - 2.0 * pad
+        travel = w - 2.0 * pad - thumb_d
+        tx = pad + travel * t
+
+        # Đổ bóng nhẹ cho nút tròn
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(41, 43, 41, 24))
+        painter.drawEllipse(QRectF(tx, pad + 0.8, thumb_d, thumb_d))
+
+        painter.setPen(QPen(QColor(255, 255, 255, 220), 0.5))
+        painter.setBrush(QColor("#FFFFFF"))
+        painter.drawEllipse(QRectF(tx, pad, thumb_d, thumb_d))
+        painter.end()
+
+
+class BeautyEffectCard(QFrame):
+    """
+    Thẻ điều khiển độc lập cho từng hiệu ứng Beauty Studio:
+    - Dòng đầu: Icon + Tên hiệu ứng + Nhãn % (hiển thị khi bật) + ModernToggleSwitch.
+    - Ngăn kéo bên dưới chứa thanh QSlider, có animation mở/đóng (height 0 <-> 20px).
+    """
+
+    SLIDER_DRAWER_HEIGHT = 20
+
+    def __init__(
+        self,
+        key: str,
+        icon_kind: str,
+        active_color: str,
+        title: str,
+        initial_val: float,
+        initial_enabled: bool,
+        on_val_changed,
+        on_toggled,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.key = key
+        self._icon_kind = icon_kind
+        self._active_color = active_color
+        self._on_toggled_cb = on_toggled
+
+        self.setObjectName("beauty_fx_card")
+        self.setProperty("active", "true" if initial_enabled else "false")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # Đổ bóng nhẹ sang trọng, không lạm dụng phát sáng
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(10)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QColor(60, 52, 38, 18 if initial_enabled else 9))
+        self.setGraphicsEffect(shadow)
+        self._shadow = shadow
+
+        vbox = QVBoxLayout(self)
+        vbox.setContentsMargins(11, 3, 11, 3)
+        vbox.setSpacing(0)
+
+        # Dòng tiêu đề + % + Toggle Switch
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(8)
+
+        self.lbl_icon = QLabel()
+        self.lbl_icon.setFixedSize(18, 18)
+        self.lbl_icon.setAlignment(Qt.AlignCenter)
+        top_row.addWidget(self.lbl_icon)
+
+        self.lbl_title = QLabel(title)
+        top_row.addWidget(self.lbl_title)
+
+        top_row.addStretch()
+
+        val_int = int(round(initial_val))
+        self.lbl_val = QLabel(f"{val_int}%")
+        self.lbl_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lbl_val.setMinimumWidth(36)
+        top_row.addWidget(self.lbl_val)
+
+        self.toggle = ModernToggleSwitch(checked=initial_enabled)
+        self.toggle.toggled.connect(self._handle_toggled)
+        top_row.addWidget(self.toggle)
+
+        vbox.addLayout(top_row)
+
+        # Ngăn kéo thanh trượt (chỉ mở khi hiệu ứng bật, đóng mượt về 0 khi tắt)
+        self.drawer = QWidget()
+        self.drawer.setObjectName("beauty_fx_drawer")
+        drawer_layout = QVBoxLayout(self.drawer)
+        drawer_layout.setContentsMargins(0, 0, 0, 0)
+        drawer_layout.setSpacing(0)
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setObjectName("beauty_slider")
+        self.slider.setRange(0, 100)
+        self.slider.setSingleStep(1)
+        self.slider.setPageStep(5)
+        self.slider.setValue(val_int)
+        self.slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.slider.setCursor(Qt.PointingHandCursor)
+        self.slider.valueChanged.connect(on_val_changed)
+        drawer_layout.addWidget(self.slider)
+
+        self._drawer_anim = QPropertyAnimation(self.drawer, b"maximumHeight", self)
+        self._drawer_anim.setDuration(185)
+        self._drawer_anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._drawer_anim.finished.connect(self._on_drawer_anim_finished)
+
+        # Áp dụng trạng thái mở/đóng ngay lập tức ở lần khởi tạo đầu tiên
+        if initial_enabled:
+            self.drawer.setMaximumHeight(self.SLIDER_DRAWER_HEIGHT)
+            self.drawer.setVisible(True)
+        else:
+            self.drawer.setMaximumHeight(0)
+            self.drawer.setVisible(False)
+
+        vbox.addWidget(self.drawer)
+        self.refresh_visual_state(initial_enabled, val_int)
+
+    def _on_drawer_anim_finished(self):
+        if not self.toggle.isChecked():
+            self.drawer.setVisible(False)
+
+    def _animate_drawer(self, expand: bool):
+        if not self.isVisible():
+            self._drawer_anim.stop()
+            if expand:
+                self.drawer.setVisible(True)
+                self.drawer.setMaximumHeight(self.SLIDER_DRAWER_HEIGHT)
+            else:
+                self.drawer.setMaximumHeight(0)
+                self.drawer.setVisible(False)
+            return
+
+        self._drawer_anim.stop()
+        if expand:
+            self.drawer.setVisible(True)
+            self._drawer_anim.setStartValue(max(0, self.drawer.maximumHeight()))
+            self._drawer_anim.setEndValue(self.SLIDER_DRAWER_HEIGHT)
+        else:
+            self._drawer_anim.setStartValue(self.drawer.height())
+            self._drawer_anim.setEndValue(0)
+        self._drawer_anim.start()
+
+    def _handle_toggled(self, checked: bool):
+        self._animate_drawer(checked)
+        self.refresh_visual_state(checked, self.slider.value())
+        if self._on_toggled_cb:
+            self._on_toggled_cb(self.key, checked)
+
+    def refresh_visual_state(self, is_enabled: bool, val_int: int):
+        icon_col = self._active_color if is_enabled else "#9A958B"
+        self.lbl_icon.setPixmap(_make_beauty_icon(self._icon_kind, icon_col, 17).pixmap(17, 17))
+
+        title_col = COLOR_TEXT_PRIMARY if is_enabled else "#7D786E"
+        title_weight = "700" if is_enabled else "600"
+        self.lbl_title.setStyleSheet(
+            f"font-size: 12.5px; font-weight: {title_weight}; color: {title_col}; "
+            "border: none; background: transparent;"
+        )
+
+        if is_enabled:
+            self.lbl_val.setText(f"{val_int}%")
+            self.lbl_val.setVisible(True)
+            val_col = COLOR_CHAMPAGNE if val_int > 0 else "#8F8A7F"
+            self.lbl_val.setStyleSheet(
+                f"font-size: 12px; font-weight: 800; color: {val_col}; "
+                "border: none; background: transparent;"
+            )
+            self._shadow.setColor(QColor(60, 52, 38, 18))
+            self.setProperty("active", "true")
+        else:
+            self.lbl_val.setVisible(False)
+            self._shadow.setColor(QColor(60, 52, 38, 7))
+            self.setProperty("active", "false")
+
+        self.style().unpolish(self)
+        self.style().polish(self)
+
 
 class BeautyPreviewWorker(QThread):
-    """Worker render preview ảnh làm đẹp trong luồng nền."""
+    """Worker render preview ảnh làm đẹp đa vùng trong luồng nền không chặn UI."""
     preview_ready = Signal(int, np.ndarray)  # req_id, processed_bgr
 
     def __init__(self, engine: SmartBeautyEngine, parent=None):
         super().__init__(parent)
         self.engine = engine
         self._preview_bgr: Optional[np.ndarray] = None
-        self._faces: List[DetectedFace] = []
+        self._faces: List[Any] = []
         self._brighten = 0.0
         self._smooth = 0.0
         self._lips = 0.0
+        self._eye_brighten = 0.0
+        self._cheek_rosy = 0.0
+        self._nose_highlight = 0.0
+        self._face_slim = 0.0
+        self._ai_enhance = 0.0
+        self._enabled_effects: Dict[str, bool] = dict(DEFAULT_ENABLED_EFFECTS)
         self._req_id = 0
         self._pending = False
         self._running = True
@@ -53,10 +505,16 @@ class BeautyPreviewWorker(QThread):
         self,
         req_id: int,
         preview_bgr: np.ndarray,
-        faces: List[DetectedFace],
+        faces: List[Any],
         brighten: float,
         smooth: float,
-        lips: float
+        lips: float,
+        eye_brighten: float = 0.0,
+        cheek_rosy: float = 0.0,
+        nose_highlight: float = 0.0,
+        face_slim: float = 0.0,
+        enabled_effects: Optional[Dict[str, bool]] = None,
+        ai_enhance: float = 0.0,
     ):
         self._req_id = req_id
         self._preview_bgr = preview_bgr
@@ -64,6 +522,12 @@ class BeautyPreviewWorker(QThread):
         self._brighten = brighten
         self._smooth = smooth
         self._lips = lips
+        self._eye_brighten = eye_brighten
+        self._cheek_rosy = cheek_rosy
+        self._nose_highlight = nose_highlight
+        self._face_slim = face_slim
+        self._ai_enhance = ai_enhance
+        self._enabled_effects = dict(enabled_effects) if enabled_effects else dict(DEFAULT_ENABLED_EFFECTS)
         self._pending = True
 
     def stop(self):
@@ -77,31 +541,42 @@ class BeautyPreviewWorker(QThread):
                 cur_req = self._req_id
                 cur_bgr = self._preview_bgr
                 cur_faces = self._faces
-                cur_brighten = self._brighten
-                cur_smooth = self._smooth
-                cur_lips = self._lips
+                cur_b = self._brighten
+                cur_s = self._smooth
+                cur_l = self._lips
+                cur_e = self._eye_brighten
+                cur_c = self._cheek_rosy
+                cur_n = self._nose_highlight
+                cur_sl = self._face_slim
+                cur_ai = self._ai_enhance
+                cur_eff = dict(self._enabled_effects)
 
                 try:
                     res_bgr = self.engine.apply_beauty(
                         cur_bgr,
-                        skin_brighten_pct=cur_brighten,
-                        skin_smooth_pct=cur_smooth,
-                        lip_tint_pct=cur_lips,
-                        faces=cur_faces
+                        skin_brighten_pct=cur_b,
+                        skin_smooth_pct=cur_s,
+                        lip_tint_pct=cur_l,
+                        faces=cur_faces,
+                        eye_brighten_pct=cur_e,
+                        cheek_rosy_pct=cur_c,
+                        nose_highlight_pct=cur_n,
+                        face_slim_pct=cur_sl,
+                        enabled_effects=cur_eff,
+                        ai_enhance_pct=cur_ai,
                     )
                     if not self.isInterruptionRequested() and cur_req == self._req_id:
                         self.preview_ready.emit(cur_req, res_bgr)
                 except Exception as ex:
                     logger.error("Lỗi trong BeautyPreviewWorker: %s", ex)
 
-            # Nghỉ ngắn tránh chiếm dụng CPU
             self.msleep(15)
 
 
 class SmartBeautyDialog(QDialog):
     """
-    Hộp thoại làm đẹp thông minh hiển thị sau mỗi ảnh chụp thành công.
-    Tông màu chuẩn studio 1998 TEAM: Navy / Đen than & Vàng Champagne.
+    Hộp thoại làm đẹp Beauty Studio (MediaPipe 478 Landmarks).
+    Bố cục 2 cột: 68% xem trước ảnh studio / 32% menu làm đẹp cao cấp gọn gàng.
     """
 
     beauty_confirmed = Signal(object, dict, bool)  # PIL.Image, settings_dict, reuse_flag
@@ -112,19 +587,23 @@ class SmartBeautyDialog(QDialog):
         shot_index: int = 1,
         total_shots: int = 1,
         initial_settings: Optional[Dict[str, float]] = None,
+        initial_enabled_effects: Optional[Dict[str, bool]] = None,
         reuse_for_next: bool = False,
-        auto_timeout_sec: int = 25,
+        auto_timeout_sec: Optional[int] = None,
         engine: Optional[SmartBeautyEngine] = None,
-        parent=None
+        developer_mode: bool = False,
+        parent=None,
     ):
         super().__init__(parent)
         self.shot_index = shot_index
         self.total_shots = total_shots
-        self.auto_timeout_sec = auto_timeout_sec
+        self.auto_timeout_sec = 0
         self.reuse_for_next = reuse_for_next
+        self._owns_engine = engine is None
         self.engine = engine or SmartBeautyEngine()
+        self._developer_mode = bool(developer_mode)
 
-        # Tải ảnh gốc và chuẩn hóa góc xoay theo metadata EXIF nếu có
+        # Tải ảnh gốc (bảo toàn ảnh gốc trên đĩa & chuẩn hóa EXIF)
         self._original_pil = None
         self._original_path = None
         if isinstance(image_pil_or_path, str):
@@ -142,377 +621,731 @@ class SmartBeautyDialog(QDialog):
         else:
             raise ValueError("image_pil_or_path phải là str (đường dẫn) hoặc PIL.Image")
 
-        # Chuẩn bị ảnh BGR gốc
+        # Ảnh trung gian để xử lý (tuyệt đối không ghi trực tiếp lên ảnh gốc)
         rgb_arr = np.array(self._original_pil.convert("RGB"))
         self._full_bgr = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2BGR)
 
-        # Chuẩn bị ảnh preview tỉ lệ phù hợp cho giao diện
-        self._preview_bgr, self._preview_faces, self._scale_to_preview = self.engine.generate_scaled_preview(
-            self._full_bgr, max_dim=1080
-        )
-        self._full_faces = self.engine.map_faces_to_scale(
+        h, w = self._full_bgr.shape[:2]
+        if max(h, w) <= 1080:
+            self._scale_to_preview = 1.0
+            self._preview_bgr = self._full_bgr.copy()
+        else:
+            self._scale_to_preview = 1080.0 / float(max(h, w))
+            nw = max(1, int(w * self._scale_to_preview))
+            nh = max(1, int(h * self._scale_to_preview))
+            self._preview_bgr = cv2.resize(self._full_bgr, (nw, nh), interpolation=cv2.INTER_AREA)
+
+        self._analysis_result: FaceAnalysisResult = self.engine.analyze_faces(self._preview_bgr, is_bgr=True)
+        self._preview_faces: List[Any] = list(self._analysis_result.faces)
+        self._full_faces: List[Any] = self.engine.map_faces_to_scale(
             self._preview_faces, 1.0 / self._scale_to_preview if self._scale_to_preview > 0 else 1.0
         )
 
-        # Trạng thái thông số
+        # Trạng thái thông số làm đẹp & công tắc bật/tắt từng hiệu ứng
         init_s = initial_settings or {}
         self._brighten_val = float(init_s.get("brighten", 0.0))
         self._smooth_val = float(init_s.get("smooth", 0.0))
         self._lips_val = float(init_s.get("lips", 0.0))
+        self._eye_brighten_val = float(init_s.get("eye_brighten", 0.0))
+        self._cheek_rosy_val = float(init_s.get("cheek_rosy", 0.0))
+        self._nose_highlight_val = float(init_s.get("nose_highlight", 0.0))
+        self._face_slim_val = float(init_s.get("face_slim", 0.0))
+        self._ai_enhance_val = float(init_s.get("ai_enhance", 0.0))
+
+        self._enabled_effects: Dict[str, bool] = dict(DEFAULT_DIALOG_UI_ENABLED)
+        if initial_enabled_effects is not None:
+            self._enabled_effects.update(initial_enabled_effects)
+        else:
+            # Nếu truyền giá trị cường độ > 0 từ preset trước, tự động mở thẻ tương ứng
+            for k, val in (
+                ("brighten", self._brighten_val),
+                ("smooth", self._smooth_val),
+                ("lips", self._lips_val),
+                ("eye_brighten", self._eye_brighten_val),
+                ("cheek_rosy", self._cheek_rosy_val),
+                ("nose_highlight", self._nose_highlight_val),
+                ("face_slim", self._face_slim_val),
+                ("ai_enhance", self._ai_enhance_val),
+            ):
+                if val > 0.01:
+                    self._enabled_effects[k] = True
 
         self._showing_original = False
+        self._show_mesh_overlay = False
         self._current_preview_bgr = self._preview_bgr.copy()
         self._req_id = 0
         self._final_pil_result = self._original_pil
-        self._remaining_sec = self.auto_timeout_sec
 
-        # Khởi tạo giao diện
         self._init_window()
         self._init_ui()
 
-        # Khởi tạo worker render nền
         self._worker = BeautyPreviewWorker(self.engine, self)
         self._worker.preview_ready.connect(self._on_preview_ready)
         self._worker.start()
 
-        # Auto-timeout timer
-        self._timeout_timer = QTimer(self)
-        self._timeout_timer.timeout.connect(self._on_timeout_tick)
-        if self.auto_timeout_sec > 0:
-            self._timeout_timer.start(1000)
-
-        # Cập nhật lần đầu
-        if self._brighten_val > 0 or self._smooth_val > 0 or self._lips_val > 0:
+        if self._has_any_active_effect():
             self._request_render()
         else:
-            self._update_preview_display(self._preview_bgr)
+            self._refresh_current_preview()
+
+    def _has_any_active_effect(self) -> bool:
+        vals = {
+            "brighten": self._brighten_val,
+            "smooth": self._smooth_val,
+            "lips": self._lips_val,
+            "eye_brighten": self._eye_brighten_val,
+            "cheek_rosy": self._cheek_rosy_val,
+            "nose_highlight": self._nose_highlight_val,
+            "face_slim": self._face_slim_val,
+            "ai_enhance": self._ai_enhance_val,
+        }
+        return any(v > 0.01 and self._enabled_effects.get(k, True) for k, v in vals.items())
 
     def _init_window(self):
-        self.setWindowTitle("1998 TEAM — Smart Beauty Panel")
+        self.setObjectName("smart_beauty_dialog")
+        self.setWindowTitle("1998 TEAM — Smart Beauty Studio")
         self.setModal(True)
-        self.resize(1100, 720)
-        self.setMinimumSize(960, 600)
-        # Frameless with rounded styling
-        self.setStyleSheet(
-            "QDialog { background-color: #C8C5BD; border: 2px solid #AAA69D; border-radius: 16px; }"
-            "QLabel { color: #353631; font-family: 'Segoe UI', Arial, sans-serif; }"
-            "QCheckBox { color: #716F68; font-size: 13px; font-weight: 500; spacing: 8px; }"
-            "QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid #AAA69D; background-color: #D9D5CC; }"
-            "QCheckBox::indicator:checked { background-color: #AD905B; border-color: #8A703F; }"
-        )
+        self.setMinimumSize(960, 620)
+
+        parent_win = self.parentWidget().window() if self.parentWidget() is not None else None
+        if parent_win is not None and parent_win.width() >= 960 and parent_win.height() >= 600:
+            avail_w, avail_h = parent_win.width(), parent_win.height()
+        else:
+            screen = QGuiApplication.primaryScreen()
+            geo = screen.availableGeometry() if screen is not None else None
+            avail_w = geo.width() if geo else 1440
+            avail_h = geo.height() if geo else 900
+
+        target_w = max(960, min(int(avail_w * 0.90), avail_w - 32))
+        target_h = max(620, min(int(avail_h * 0.88), avail_h - 32))
+        self.resize(target_w, target_h)
+
+        chk_icon_url = _ensure_checkmark_icon_path()
+        self.setStyleSheet(f"""
+            QDialog#smart_beauty_dialog {{
+                background-color: {COLOR_BG};
+                border: 1px solid #DFDCD4;
+                border-radius: 16px;
+                font-family: {FONT_FAMILY_PRIMARY};
+            }}
+            QDialog#smart_beauty_dialog QLabel {{
+                color: {COLOR_TEXT_PRIMARY};
+                border: none;
+                background: transparent;
+            }}
+            QFrame#beauty_preview_container {{
+                background-color: {COLOR_LIVEVIEW};
+                border: 1.5px solid #2D3036;
+                border-radius: 16px;
+            }}
+            QDialog#smart_beauty_dialog QLabel#beauty_viewport {{
+                background: transparent;
+                border: none;
+            }}
+            QDialog#smart_beauty_dialog QLabel#beauty_compare_pill {{
+                background-color: rgba(255, 255, 255, 0.09);
+                color: #EDEAE2;
+                border: 1px solid rgba(255, 255, 255, 0.22);
+                border-radius: 10px;
+                padding: 4px 12px;
+                font-size: 11.5px;
+                font-weight: 700;
+                letter-spacing: 0.4px;
+            }}
+            QPushButton#btn_beauty_mesh_pill {{
+                background-color: rgba(255, 255, 255, 0.08);
+                color: #D9D5CC;
+                border: 1px solid rgba(255, 255, 255, 0.22);
+                border-radius: 10px;
+                padding: 4px 12px;
+                font-size: 11.5px;
+                font-weight: 600;
+            }}
+            QPushButton#btn_beauty_mesh_pill:hover {{
+                background-color: rgba(255, 255, 255, 0.16);
+                border-color: {COLOR_CHAMPAGNE};
+            }}
+            QPushButton#btn_beauty_mesh_pill:checked {{
+                background-color: rgba(185, 154, 99, 0.28);
+                border: 1px solid rgba(208, 188, 148, 0.80);
+                color: #F4E6C3;
+                font-weight: 700;
+            }}
+            QFrame#beauty_ctrl_card {{
+                background-color: #FCFBF8;
+                border: 1px solid #E4DFD4;
+                border-radius: 16px;
+            }}
+            QScrollArea#beauty_sliders_scroll, QWidget#beauty_sliders_viewport {{
+                background: transparent;
+                border: none;
+            }}
+            QFrame#beauty_fx_card {{
+                background-color: #F5F3ED;
+                border: 1px solid #E7E3D9;
+                border-radius: 11px;
+            }}
+            QFrame#beauty_fx_card:hover {{
+                border-color: #D4C5A8;
+            }}
+            QFrame#beauty_fx_card[active="true"] {{
+                background-color: #FFFFFF;
+                border: 1px solid #DDD1B8;
+            }}
+            QFrame#beauty_fx_card[active="true"]:hover {{
+                border: 1px solid {COLOR_CHAMPAGNE};
+            }}
+            QWidget#beauty_fx_drawer {{
+                background: transparent;
+                border: none;
+            }}
+            QFrame#beauty_reuse_card {{
+                background-color: #F6F4EE;
+                border: 1px solid #EAE6DC;
+                border-radius: 10px;
+            }}
+            QFrame#beauty_divider {{
+                background-color: #ECE8DF;
+                border: none;
+                min-height: 1px;
+                max-height: 1px;
+            }}
+            QSlider#beauty_slider {{
+                background: transparent;
+                border: none;
+                min-height: 20px;
+                max-height: 20px;
+            }}
+            QSlider#beauty_slider::groove:horizontal {{
+                border: none;
+                height: 6px;
+                background: #E6E2D8;
+                border-radius: 3px;
+            }}
+            QSlider#beauty_slider::sub-page:horizontal {{
+                border: none;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
+                border-radius: 3px;
+            }}
+            QSlider#beauty_slider::handle:horizontal {{
+                background: #FFFFFF;
+                border: 2px solid {COLOR_CHAMPAGNE};
+                width: 14px;
+                height: 14px;
+                margin: -6px 0px;
+                border-radius: 9px;
+            }}
+            QSlider#beauty_slider::handle:horizontal:hover {{
+                background: #FBF6EC;
+                border: 2px solid #967B49;
+            }}
+            QCheckBox#beauty_reuse_chk {{
+                color: {COLOR_TEXT_PRIMARY};
+                font-size: 12px;
+                font-weight: 600;
+                spacing: 9px;
+                border: none;
+                background: transparent;
+                padding: 1px 0px;
+            }}
+            QCheckBox#beauty_reuse_chk::indicator {{
+                width: 18px;
+                height: 18px;
+                border-radius: 5px;
+                border: 1.5px solid #C7C3B8;
+                background-color: #FFFFFF;
+            }}
+            QCheckBox#beauty_reuse_chk::indicator:hover {{
+                border-color: {COLOR_CHAMPAGNE};
+            }}
+            QCheckBox#beauty_reuse_chk::indicator:checked {{
+                background-color: {COLOR_CHAMPAGNE};
+                border-color: #967B49;
+                image: url("{chk_icon_url}");
+            }}
+            QPushButton#btn_beauty_secondary {{
+                background-color: #FFFFFF;
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid #DBD7CC;
+                border-radius: 10px;
+                padding: 6px 12px;
+                font-size: 12.5px;
+                font-weight: 700;
+            }}
+            QPushButton#btn_beauty_secondary:hover {{
+                background-color: #F4F1EA;
+                border-color: {COLOR_CHAMPAGNE};
+            }}
+            QPushButton#btn_beauty_secondary:pressed {{
+                background-color: #E7E3D9;
+            }}
+            QPushButton#btn_beauty_compare {{
+                background-color: #FFFFFF;
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid #DBD7CC;
+                border-radius: 10px;
+                padding: 6px 12px;
+                font-size: 12.5px;
+                font-weight: 700;
+            }}
+            QPushButton#btn_beauty_compare:hover {{
+                background-color: #F4F1EA;
+                border-color: {COLOR_CHAMPAGNE};
+            }}
+            QPushButton#btn_beauty_compare:checked {{
+                background-color: {COLOR_PALE_GOLD};
+                border: 1px solid {COLOR_CHAMPAGNE};
+                color: #6B5326;
+            }}
+            QPushButton#btn_beauty_compare:pressed {{
+                background-color: #E7E3D9;
+            }}
+            QPushButton#btn_beauty_confirm {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #AD905B, stop:1 #C7AA73);
+                color: #FFFFFF;
+                font-size: 15px;
+                font-weight: 800;
+                letter-spacing: 0.3px;
+                border: 1px solid #8A703F;
+                border-radius: 11px;
+                padding: 10px 16px;
+            }}
+            QPushButton#btn_beauty_confirm:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #BC9E68, stop:1 #D4B77E);
+            }}
+            QPushButton#btn_beauty_confirm:pressed {{
+                background: #8A703F;
+            }}
+        """)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 20, 24, 20)
-        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(20, 14, 20, 14)
+        main_layout.setSpacing(10)
 
         # -------------------------------------------------------------
-        # 1. HEADER BAR: Title, Progress Badge, Face Status & Countdown
+        # 1. HEADER BAR: Tiêu đề, Huy hiệu tiến độ, Trạng thái phân tích MediaPipe
         # -------------------------------------------------------------
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(14)
+        header_layout.setSpacing(10)
 
-        # Tiêu đề chính
-        lbl_title = QLabel("✨ ẢNH VỪA CHỤP")
-        lbl_title.setStyleSheet("font-size: 22px; font-weight: 900; color: #353631; letter-spacing: 0.5px;")
+        lbl_title_icon = QLabel()
+        lbl_title_icon.setFixedSize(24, 24)
+        lbl_title_icon.setAlignment(Qt.AlignCenter)
+        lbl_title_icon.setPixmap(_make_beauty_icon("sparkle", COLOR_CHAMPAGNE, 20).pixmap(20, 20))
+        header_layout.addWidget(lbl_title_icon)
+
+        lbl_title = QLabel("ẢNH VỪA CHỤP")
+        lbl_title.setStyleSheet(
+            f"font-size: 18px; font-weight: 800; color: {COLOR_TEXT_PRIMARY}; "
+            "letter-spacing: 0.6px; border: none; background: transparent;"
+        )
         header_layout.addWidget(lbl_title)
 
-        # Huy hiệu tiến độ (ví dụ: Đã chụp 1/6)
+        header_layout.addSpacing(4)
+
         self.lbl_progress = QLabel(f"Đã chụp {self.shot_index}/{self.total_shots}")
         self.lbl_progress.setStyleSheet(
-            "background-color: #B9B5AB; color: #353631; font-size: 14px; font-weight: bold; "
-            "border: 1.5px solid #AAA69D; padding: 4px 14px; border-radius: 12px;"
+            f"background-color: #EFECE4; color: {COLOR_TEXT_PRIMARY}; "
+            "font-size: 12.5px; font-weight: 700; border: 1px solid #DDD9CF; "
+            "padding: 4px 12px; border-radius: 12px;"
         )
         header_layout.addWidget(self.lbl_progress)
 
-        # Huy hiệu trạng thái nhận diện khuôn mặt
         num_faces = len(self._preview_faces)
-        if not self.engine.is_available:
-            status_text = "⚠️ AI Không Khả Dụng"
-            status_style = "background-color: rgba(239, 68, 68, 0.15); color: #DC2626; border: 1px solid #F87171;"
-        elif num_faces == 0:
-            status_text = "ℹ Không Phát Hiện Khuôn Mặt"
-            status_style = "background-color: rgba(119, 112, 103, 0.15); color: #716F68; border: 1px solid #AAA69D;"
-        elif num_faces == 1:
-            status_text = "👤 Đã Nhận Diện 1 Khuôn Mặt"
-            status_style = "background-color: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid #6EE7B7;"
+        if self._developer_mode:
+            if not self.engine.is_available:
+                status_text = "• Phân Tích Khuôn Mặt Không Khả Dụng"
+                status_style = f"background-color: #FDECEB; color: {COLOR_ERROR}; border: 1px solid #F3B8B5;"
+            elif num_faces == 0:
+                status_text = "• Không Phát Hiện Khuôn Mặt (Giữ nguyên ảnh)"
+                status_style = f"background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid #DCD9D0;"
+            elif self._analysis_result.source == "mediapipe_face_landmarker":
+                pts = self._preview_faces[0].landmark_count
+                ai_tag = "AI Ready" if self.engine.is_ai_available else "AI Off"
+                status_text = f"✓ MediaPipe {pts} Điểm · {num_faces} Khuôn Mặt · {ai_tag}"
+                status_style = f"background-color: #E7F2EB; color: {COLOR_SUCCESS}; border: 1px solid #B5D8C2;"
+            else:
+                status_text = f"✓ Nhận Diện {num_faces} Khuôn Mặt (Fallback)"
+                status_style = f"background-color: #E7F2EB; color: {COLOR_SUCCESS}; border: 1px solid #B5D8C2;"
         else:
-            status_text = f"👥 Đã Nhận Diện {num_faces} Khuôn Mặt"
-            status_style = "background-color: rgba(184, 149, 85, 0.15); color: #8A703F; border: 1px solid #CDB07B;"
+            # Giao diện khách hàng: thân thiện, tối giản, không hiển thị thuật ngữ kỹ thuật
+            if not self.engine.is_available:
+                status_text = "• Chế Độ Chỉnh Tay"
+                status_style = f"background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid #DCD9D0;"
+            elif num_faces == 0:
+                status_text = "• Không Phát Hiện Khuôn Mặt (Giữ nguyên ảnh)"
+                status_style = f"background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid #DCD9D0;"
+            elif num_faces == 1:
+                status_text = "✓ Sẵn Sàng Làm Đẹp · 1 Khuôn Mặt"
+                status_style = f"background-color: #E7F2EB; color: {COLOR_SUCCESS}; border: 1px solid #B5D8C2;"
+            else:
+                status_text = f"✓ Sẵn Sàng Làm Đẹp · {num_faces} Khuôn Mặt"
+                status_style = f"background-color: #E7F2EB; color: {COLOR_SUCCESS}; border: 1px solid #B5D8C2;"
 
         self.lbl_face_status = QLabel(status_text)
         self.lbl_face_status.setStyleSheet(
-            f"{status_style} font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 12px;"
+            f"{status_style} font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 12px;"
         )
         header_layout.addWidget(self.lbl_face_status)
 
         header_layout.addStretch()
-
-        # Huy hiệu đếm ngược tự động xác nhận
-        self.lbl_countdown = QLabel(f"Tự động tiếp tục sau: {self._remaining_sec}s")
-        self.lbl_countdown.setStyleSheet(
-            "color: #716F68; font-size: 12px; font-weight: 500; background: #D9D5CC; "
-            "padding: 4px 10px; border-radius: 8px; border: 1.5px solid #AAA69D;"
-        )
-        header_layout.addWidget(self.lbl_countdown)
-
         main_layout.addLayout(header_layout)
 
         # -------------------------------------------------------------
-        # 2. KHU VỰC CHÍNH: Preview Bên Trái (65%), Điều Khiển Bên Phải (35%)
+        # 2. KHU VỰC CHÍNH: Preview Bên Trái (68%), Beauty Studio Menu Bên Phải (32%)
         # -------------------------------------------------------------
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(20)
+        content_layout.setSpacing(16)
 
-        # KHUNG XEM TRƯỚC (PREVIEW VIEWPORT)
-        preview_container = QFrame()
-        preview_container.setStyleSheet(
-            "background-color: #17191C; border: 1.5px solid #2A2D33; border-radius: 14px;"
-        )
-        preview_vbox = QVBoxLayout(preview_container)
-        preview_vbox.setContentsMargins(8, 8, 8, 8)
+        # CỘT TRÁI — KHUNG XEM TRƯỚC STUDIO (68%, không thanh kỹ thuật thừa để ảnh rộng tối đa)
+        self.preview_container = QFrame()
+        self.preview_container.setObjectName("beauty_preview_container")
+        preview_vbox = QVBoxLayout(self.preview_container)
+        preview_vbox.setContentsMargins(12, 10 if self._developer_mode else 12, 12, 12)
+        preview_vbox.setSpacing(6 if self._developer_mode else 0)
+
+        if self._developer_mode:
+            preview_top_row = QHBoxLayout()
+            preview_top_row.setContentsMargins(0, 0, 0, 0)
+            preview_top_row.setSpacing(10)
+            preview_top_row.addStretch()
+
+            self.btn_toggle_mesh = QPushButton("Lưới 478 Điểm")
+            self.btn_toggle_mesh.setObjectName("btn_beauty_mesh_pill")
+            self.btn_toggle_mesh.setCheckable(True)
+            self.btn_toggle_mesh.setCursor(Qt.PointingHandCursor)
+            self.btn_toggle_mesh.setEnabled(num_faces > 0)
+            self.btn_toggle_mesh.toggled.connect(self._on_mesh_toggled)
+            preview_top_row.addWidget(self.btn_toggle_mesh)
+
+            preview_vbox.addLayout(preview_top_row)
 
         self.lbl_viewport = QLabel()
+        self.lbl_viewport.setObjectName("beauty_viewport")
         self.lbl_viewport.setAlignment(Qt.AlignCenter)
-        self.lbl_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.lbl_viewport.setMinimumSize(480, 420)
-        preview_vbox.addWidget(self.lbl_viewport)
+        self.lbl_viewport.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.lbl_viewport.setMinimumSize(420, 360)
+        preview_vbox.addWidget(self.lbl_viewport, stretch=1)
 
-        content_layout.addWidget(preview_container, stretch=65)
+        content_layout.addWidget(self.preview_container, stretch=68)
 
-        # BẢNG ĐIỀU KHIỂN LÀM ĐẸP (RIGHT CONTROLS)
-        ctrl_card = QFrame()
-        ctrl_card.setStyleSheet(
-            "background-color: #D9D5CC; border: 1.5px solid #AAA69D; border-radius: 14px;"
+        # CỘT PHẢI — BEAUTY STUDIO MENU HIỆN ĐẠI (32%)
+        self.ctrl_card = QFrame()
+        self.ctrl_card.setObjectName("beauty_ctrl_card")
+        self.ctrl_card.setMinimumWidth(360)
+        ctrl_vbox = QVBoxLayout(self.ctrl_card)
+        ctrl_vbox.setContentsMargins(15, 8, 15, 8)
+        ctrl_vbox.setSpacing(4)
+
+        # Tiêu đề sạch sẽ (đã loại bỏ mô tả chữ nhỏ kỹ thuật bên dưới)
+        lbl_ctrl_title = QLabel("TÙY CHỈNH LÀM ĐẸP TỰ NHIÊN")
+        lbl_ctrl_title.setWordWrap(True)
+        lbl_ctrl_title.setStyleSheet(
+            f"font-size: 14px; font-weight: 800; color: {COLOR_TEXT_PRIMARY}; "
+            "letter-spacing: 0.5px; border: none; background: transparent; padding-bottom: 1px;"
         )
-        ctrl_vbox = QVBoxLayout(ctrl_card)
-        ctrl_vbox.setContentsMargins(20, 20, 20, 20)
-        ctrl_vbox.setSpacing(18)
-
-        lbl_ctrl_title = QLabel("Tùy Chỉnh Làm Đẹp Tự Nhiên")
-        lbl_ctrl_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #353631;")
         ctrl_vbox.addWidget(lbl_ctrl_title)
 
-        lbl_desc = QLabel("Công nghệ AI nhận diện đa diện khuôn mặt, giữ nguyên texture chân thật của làn da.")
-        lbl_desc.setWordWrap(True)
-        lbl_desc.setStyleSheet("color: #716F68; font-size: 12px; line-height: 1.4;")
-        ctrl_vbox.addWidget(lbl_desc)
+        divider_top = QFrame()
+        divider_top.setObjectName("beauty_divider")
+        ctrl_vbox.addWidget(divider_top)
 
-        ctrl_vbox.addSpacing(6)
+        # Danh sách 8 thẻ hiệu ứng gọn gàng (tối ưu vừa vặn khung 1382x725 không cần cuộn)
+        sliders_scroll = QScrollArea()
+        sliders_scroll.setObjectName("beauty_sliders_scroll")
+        sliders_scroll.setWidgetResizable(True)
+        sliders_scroll.setFrameShape(QFrame.NoFrame)
+        sliders_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sliders_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
-        slider_style = """
-            QSlider::groove:horizontal {
-                height: 8px;
-                background: #B9B5AB;
-                border-radius: 4px;
-            }
-            QSlider::sub-page:horizontal {
-                background: #AD905B;
-                border-radius: 4px;
-            }
-            QSlider::handle:horizontal {
-                background: #D9D5CC;
-                border: 2.5px solid #AD905B;
-                width: 22px;
-                height: 22px;
-                margin-top: -7px;
-                margin-bottom: -7px;
-                border-radius: 11px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #AD905B;
-                border: 2.5px solid #D9D5CC;
-            }
-        """
+        sliders_host = QWidget()
+        sliders_host.setObjectName("beauty_sliders_viewport")
+        sliders_vbox = QVBoxLayout(sliders_host)
+        sliders_vbox.setContentsMargins(1, 0, 1, 0)
+        sliders_vbox.setSpacing(3)
 
-        # Thanh trượt 1: Sáng da (0 - 100%, step 5, default 0%)
-        l_s1 = QHBoxLayout()
-        lbl_s1_name = QLabel("☀ Sáng da")
-        lbl_s1_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #353631;")
-        self.lbl_s1_val = QLabel(f"{int(self._brighten_val)}%")
-        self.lbl_s1_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #AD905B;")
-        l_s1.addWidget(lbl_s1_name)
-        l_s1.addStretch()
-        l_s1.addWidget(self.lbl_s1_val)
-        ctrl_vbox.addLayout(l_s1)
+        self._effect_cards: Dict[str, BeautyEffectCard] = {}
 
-        self.slider_brighten = QSlider(Qt.Horizontal)
-        self.slider_brighten.setRange(0, 100)
-        self.slider_brighten.setSingleStep(5)
-        self.slider_brighten.setPageStep(10)
-        self.slider_brighten.setValue(int(self._brighten_val))
-        self.slider_brighten.setStyleSheet(slider_style)
-        self.slider_brighten.valueChanged.connect(self._on_slider_brighten_changed)
-        ctrl_vbox.addWidget(self.slider_brighten)
+        # Nhóm 1: Làn da
+        sliders_vbox.addWidget(self._make_section_label("LÀN DA"))
 
-        # Thanh trượt 2: Mịn da (0 - 100%, step 5, default 0%)
-        l_s2 = QHBoxLayout()
-        lbl_s2_name = QLabel("◉ Mịn da")
-        lbl_s2_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #353631;")
-        self.lbl_s2_val = QLabel(f"{int(self._smooth_val)}%")
-        self.lbl_s2_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #AD905B;")
-        l_s2.addWidget(lbl_s2_name)
-        l_s2.addStretch()
-        l_s2.addWidget(self.lbl_s2_val)
-        ctrl_vbox.addLayout(l_s2)
+        c_b = self._create_effect_card(
+            key="brighten", icon_kind="sun", icon_color=COLOR_CHAMPAGNE,
+            title="Sáng da mặt", initial_val=self._brighten_val,
+            on_val_changed=self._on_slider_brighten_changed,
+        )
+        self.slider_brighten, self.lbl_s1_val, self.btn_toggle_brighten = c_b.slider, c_b.lbl_val, c_b.toggle
+        sliders_vbox.addWidget(c_b)
 
-        self.slider_smooth = QSlider(Qt.Horizontal)
-        self.slider_smooth.setRange(0, 100)
-        self.slider_smooth.setSingleStep(5)
-        self.slider_smooth.setPageStep(10)
-        self.slider_smooth.setValue(int(self._smooth_val))
-        self.slider_smooth.setStyleSheet(slider_style)
-        self.slider_smooth.valueChanged.connect(self._on_slider_smooth_changed)
-        ctrl_vbox.addWidget(self.slider_smooth)
+        c_s = self._create_effect_card(
+            key="smooth", icon_kind="smooth", icon_color=COLOR_CHAMPAGNE,
+            title="Mịn da & đều trán", initial_val=self._smooth_val,
+            on_val_changed=self._on_slider_smooth_changed,
+        )
+        self.slider_smooth, self.lbl_s2_val, self.btn_toggle_smooth = c_s.slider, c_s.lbl_val, c_s.toggle
+        sliders_vbox.addWidget(c_s)
 
-        # Thanh trượt 3: Son môi (0 - 100%, step 5, default 0%)
-        l_s3 = QHBoxLayout()
-        lbl_s3_name = QLabel("💄 Son môi")
-        lbl_s3_name.setStyleSheet("font-size: 14px; font-weight: 600; color: #353631;")
-        self.lbl_s3_val = QLabel(f"{int(self._lips_val)}%")
-        self.lbl_s3_val.setStyleSheet("font-size: 14px; font-weight: bold; color: #AD905B;")
-        l_s3.addWidget(lbl_s3_name)
-        l_s3.addStretch()
-        l_s3.addWidget(self.lbl_s3_val)
-        ctrl_vbox.addLayout(l_s3)
+        # Nhóm 2: Đường nét & sắc thái khuôn mặt
+        lbl_grp2 = self._make_section_label("ĐƯỜNG NÉT & SẮC THÁI")
+        lbl_grp2.setContentsMargins(2, 2, 0, 0)
+        sliders_vbox.addWidget(lbl_grp2)
 
-        self.slider_lips = QSlider(Qt.Horizontal)
-        self.slider_lips.setRange(0, 100)
-        self.slider_lips.setSingleStep(5)
-        self.slider_lips.setPageStep(10)
-        self.slider_lips.setValue(int(self._lips_val))
-        self.slider_lips.setStyleSheet(slider_style)
-        self.slider_lips.valueChanged.connect(self._on_slider_lips_changed)
-        ctrl_vbox.addWidget(self.slider_lips)
+        c_e = self._create_effect_card(
+            key="eye_brighten", icon_kind="eye_zone", icon_color="#9C824E",
+            title="Giảm quầng thâm mắt", initial_val=self._eye_brighten_val,
+            on_val_changed=lambda val: self._on_region_slider_changed("eye_brighten", val),
+        )
+        self.slider_eye, self.lbl_eye_val, self.btn_toggle_eye = c_e.slider, c_e.lbl_val, c_e.toggle
+        sliders_vbox.addWidget(c_e)
 
-        ctrl_vbox.addSpacing(10)
+        c_c = self._create_effect_card(
+            key="cheek_rosy", icon_kind="cheek", icon_color="#C97A7E",
+            title="Hồng má & cân bằng", initial_val=self._cheek_rosy_val,
+            on_val_changed=lambda val: self._on_region_slider_changed("cheek_rosy", val),
+        )
+        self.slider_cheek, self.lbl_cheek_val, self.btn_toggle_cheek = c_c.slider, c_c.lbl_val, c_c.toggle
+        sliders_vbox.addWidget(c_c)
 
-        # Checkbox tái sử dụng cài đặt
+        c_n = self._create_effect_card(
+            key="nose_highlight", icon_kind="nose", icon_color=COLOR_CHAMPAGNE,
+            title="Ánh sáng sống mũi", initial_val=self._nose_highlight_val,
+            on_val_changed=lambda val: self._on_region_slider_changed("nose_highlight", val),
+        )
+        self.slider_nose, self.lbl_nose_val, self.btn_toggle_nose = c_n.slider, c_n.lbl_val, c_n.toggle
+        sliders_vbox.addWidget(c_n)
+
+        c_l = self._create_effect_card(
+            key="lips", icon_kind="lips", icon_color="#C26A6E",
+            title="Son môi tự nhiên", initial_val=self._lips_val,
+            on_val_changed=self._on_slider_lips_changed,
+        )
+        self.slider_lips, self.lbl_s3_val, self.btn_toggle_lips = c_l.slider, c_l.lbl_val, c_l.toggle
+        sliders_vbox.addWidget(c_l)
+
+        c_sl = self._create_effect_card(
+            key="face_slim", icon_kind="contour", icon_color="#7A776E",
+            title="Thon gọn viền mặt", initial_val=self._face_slim_val,
+            on_val_changed=lambda val: self._on_region_slider_changed("face_slim", val),
+        )
+        self.slider_slim, self.lbl_slim_val, self.btn_toggle_slim = c_sl.slider, c_sl.lbl_val, c_sl.toggle
+        sliders_vbox.addWidget(c_sl)
+
+        # Nhóm 3: Tăng cường chân dung AI (Hybrid AI Enhancement)
+        lbl_grp3 = self._make_section_label("TĂNG CƯỜNG CHÂN DUNG AI")
+        lbl_grp3.setContentsMargins(2, 1, 0, 0)
+        sliders_vbox.addWidget(lbl_grp3)
+
+        c_ai = self._create_effect_card(
+            key="ai_enhance", icon_kind="ai_portrait", icon_color=COLOR_CHAMPAGNE,
+            title="Tăng cường chân dung AI", initial_val=self._ai_enhance_val,
+            on_val_changed=lambda val: self._on_region_slider_changed("ai_enhance", val),
+        )
+        self.slider_ai_enhance, self.lbl_ai_val, self.btn_toggle_ai = c_ai.slider, c_ai.lbl_val, c_ai.toggle
+        if not self.engine.is_ai_available:
+            c_ai.setEnabled(False)
+            c_ai.toggle.setChecked(False)
+            self._enabled_effects["ai_enhance"] = False
+        sliders_vbox.addWidget(c_ai)
+
+        sliders_vbox.addStretch(1)
+        sliders_scroll.setWidget(sliders_host)
+        ctrl_vbox.addWidget(sliders_scroll, stretch=1)
+
+        # Checkbox giữ thiết lập cho các ảnh tiếp theo
+        reuse_card = QFrame()
+        reuse_card.setObjectName("beauty_reuse_card")
+        reuse_hbox = QHBoxLayout(reuse_card)
+        reuse_hbox.setContentsMargins(10, 6, 10, 6)
         self.chk_reuse = QCheckBox("Giữ thiết lập này cho các ảnh tiếp theo")
+        self.chk_reuse.setObjectName("beauty_reuse_chk")
+        self.chk_reuse.setCursor(Qt.PointingHandCursor)
         self.chk_reuse.setChecked(self.reuse_for_next)
-        ctrl_vbox.addWidget(self.chk_reuse)
+        reuse_hbox.addWidget(self.chk_reuse)
+        ctrl_vbox.addWidget(reuse_card)
 
-        ctrl_vbox.addStretch()
+        divider_bottom = QFrame()
+        divider_bottom.setObjectName("beauty_divider")
+        ctrl_vbox.addWidget(divider_bottom)
 
-        # HÀNG NÚT THAO TÁC (Đặt lại, Xem ảnh gốc, Xác nhận)
+        # HÀNG NÚT THAO TÁC (Đặt lại, Xem ảnh gốc, Xác nhận & Tiếp tục)
         btn_box = QVBoxLayout()
-        btn_box.setSpacing(10)
+        btn_box.setSpacing(6)
 
         h_sub_btns = QHBoxLayout()
-        h_sub_btns.setSpacing(10)
+        h_sub_btns.setSpacing(8)
 
-        self.btn_reset = QPushButton("🔄 Đặt Lại")
-        self.btn_reset.setStyleSheet(
-            "QPushButton { background-color: #EFE8DC; color: #353631; border: 1.5px solid #AAA69D; "
-            "border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #B9B5AB; border-color: #AD905B; color: #353631; }"
-            "QPushButton:pressed { background-color: #AAA69D; }"
-        )
+        self.btn_reset = QPushButton("Đặt Lại")
+        self.btn_reset.setObjectName("btn_beauty_secondary")
+        self.btn_reset.setIcon(_make_beauty_icon("reset", COLOR_TEXT_PRIMARY, 15))
+        self.btn_reset.setIconSize(QSize(15, 15))
+        self.btn_reset.setMinimumHeight(34)
+        self.btn_reset.setCursor(Qt.PointingHandCursor)
         self.btn_reset.clicked.connect(self._on_reset_clicked)
-        h_sub_btns.addWidget(self.btn_reset)
+        h_sub_btns.addWidget(self.btn_reset, stretch=1)
 
-        self.btn_compare = QPushButton("👁 Xem Ảnh Gốc")
+        self.btn_compare = QPushButton("Xem Ảnh Gốc")
+        self.btn_compare.setObjectName("btn_beauty_compare")
+        self.btn_compare.setIcon(_make_beauty_icon("eye", COLOR_TEXT_PRIMARY, 15))
+        self.btn_compare.setIconSize(QSize(15, 15))
+        self.btn_compare.setMinimumHeight(34)
         self.btn_compare.setCheckable(True)
-        self.btn_compare.setStyleSheet(
-            "QPushButton { background-color: #EFE8DC; color: #353631; border: 1.5px solid #AAA69D; "
-            "border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #B9B5AB; border-color: #AD905B; }"
-            "QPushButton:checked { background-color: #B9B5AB; border-color: #AD905B; color: #AD905B; }"
-            "QPushButton:pressed { background-color: #AAA69D; }"
-        )
+        self.btn_compare.setCursor(Qt.PointingHandCursor)
         self.btn_compare.toggled.connect(self._on_compare_toggled)
-        h_sub_btns.addWidget(self.btn_compare)
+        h_sub_btns.addWidget(self.btn_compare, stretch=1)
 
         btn_box.addLayout(h_sub_btns)
 
-        # Nút xác nhận khổng lồ vàng Champagne
-        self.btn_confirm = QPushButton("✓ Xác Nhận & Tiếp Tục")
-        self.btn_confirm.setStyleSheet(
-            "QPushButton { background: #AD905B; "
-            "color: #FFFFFF; font-size: 16px; font-weight: 900; border: 1px solid #8A703F; border-radius: 12px; "
-            "padding: 14px 20px; }"
-            "QPushButton:hover { background: #CDB07B; }"
-            "QPushButton:pressed { background: #8A703F; }"
-        )
+        self.btn_confirm = QPushButton("✓ Xác Nhận && Tiếp Tục")
+        self.btn_confirm.setObjectName("btn_beauty_confirm")
+        self.btn_confirm.setMinimumHeight(40)
+        self.btn_confirm.setCursor(Qt.PointingHandCursor)
         self.btn_confirm.clicked.connect(self._on_confirm_clicked)
         btn_box.addWidget(self.btn_confirm)
 
         ctrl_vbox.addLayout(btn_box)
 
-        content_layout.addWidget(ctrl_card, stretch=35)
-        main_layout.addLayout(content_layout)
+        content_layout.addWidget(self.ctrl_card, stretch=32)
+        main_layout.addLayout(content_layout, stretch=1)
 
-    def _reset_timeout(self):
-        """Khởi động lại đồng hồ đếm ngược mỗi khi người dùng tương tác."""
-        self._remaining_sec = max(20, self.auto_timeout_sec)
-        self.lbl_countdown.setText(f"Tự động tiếp tục sau: {self._remaining_sec}s")
+    @staticmethod
+    def _make_section_label(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setContentsMargins(2, 0, 0, 0)
+        lbl.setStyleSheet(
+            "font-size: 10px; font-weight: 700; color: #8F8A7F; "
+            "letter-spacing: 1.1px; border: none; background: transparent;"
+        )
+        return lbl
 
-    def _on_timeout_tick(self):
-        self._remaining_sec -= 1
-        if self._remaining_sec <= 0:
-            self._timeout_timer.stop()
-            self._on_confirm_clicked()
-        else:
-            self.lbl_countdown.setText(f"Tự động tiếp tục sau: {self._remaining_sec}s")
+    def _create_effect_card(
+        self,
+        key: str,
+        icon_kind: str,
+        icon_color: str,
+        title: str,
+        initial_val: float,
+        on_val_changed,
+    ) -> BeautyEffectCard:
+        card = BeautyEffectCard(
+            key=key,
+            icon_kind=icon_kind,
+            active_color=icon_color,
+            title=title,
+            initial_val=initial_val,
+            initial_enabled=self._enabled_effects.get(key, True),
+            on_val_changed=on_val_changed,
+            on_toggled=self._on_effect_toggled,
+        )
+        self._effect_cards[key] = card
+        return card
+
+    def _on_effect_toggled(self, key: str, checked: bool):
+        self._enabled_effects[key] = checked
+        self._request_render()
+
+    def _sync_card_value(self, key: str, val: int):
+        card = self._effect_cards.get(key)
+        if card is not None:
+            if val > 0 and not self._enabled_effects.get(key, True):
+                self._enabled_effects[key] = True
+                card.toggle.setChecked(True)
+            card.refresh_visual_state(self._enabled_effects.get(key, True), val)
 
     def _on_slider_brighten_changed(self, val: int):
-        val = int(round(val / 5.0) * 5)
+        val = max(0, min(100, int(val)))
         self._brighten_val = float(val)
-        self.lbl_s1_val.setText(f"{val}%")
-        self._reset_timeout()
+        self._sync_card_value("brighten", val)
         self._request_render()
 
     def _on_slider_smooth_changed(self, val: int):
-        val = int(round(val / 5.0) * 5)
+        val = max(0, min(100, int(val)))
         self._smooth_val = float(val)
-        self.lbl_s2_val.setText(f"{val}%")
-        self._reset_timeout()
+        self._sync_card_value("smooth", val)
         self._request_render()
 
     def _on_slider_lips_changed(self, val: int):
-        val = int(round(val / 5.0) * 5)
+        val = max(0, min(100, int(val)))
         self._lips_val = float(val)
-        self.lbl_s3_val.setText(f"{val}%")
-        self._reset_timeout()
+        self._sync_card_value("lips", val)
+        self._request_render()
+
+    def _on_region_slider_changed(self, key: str, val: int):
+        val = max(0, min(100, int(val)))
+        if key == "eye_brighten":
+            self._eye_brighten_val = float(val)
+        elif key == "cheek_rosy":
+            self._cheek_rosy_val = float(val)
+        elif key == "nose_highlight":
+            self._nose_highlight_val = float(val)
+        elif key == "face_slim":
+            self._face_slim_val = float(val)
+        elif key == "ai_enhance":
+            self._ai_enhance_val = float(val)
+        self._sync_card_value(key, val)
         self._request_render()
 
     def _on_reset_clicked(self):
-        self._reset_timeout()
-        self.slider_brighten.setValue(0)
-        self.slider_smooth.setValue(0)
-        self.slider_lips.setValue(0)
+        for key, card in self._effect_cards.items():
+            card.slider.blockSignals(True)
+            card.slider.setValue(0)
+            card.slider.blockSignals(False)
+
+            default_en = DEFAULT_DIALOG_UI_ENABLED.get(key, True)
+            self._enabled_effects[key] = default_en
+            if card.toggle.isChecked() != default_en:
+                card.toggle.setChecked(default_en)
+            card.refresh_visual_state(default_en, 0)
+
+        self._req_id += 1
         self._brighten_val = 0.0
         self._smooth_val = 0.0
         self._lips_val = 0.0
-        self._update_preview_display(self._preview_bgr)
+        self._eye_brighten_val = 0.0
+        self._cheek_rosy_val = 0.0
+        self._nose_highlight_val = 0.0
+        self._face_slim_val = 0.0
+        self._ai_enhance_val = 0.0
+        self._current_preview_bgr = self._preview_bgr.copy()
+        self._refresh_current_preview()
+
+    def _on_mesh_toggled(self, checked: bool):
+        self._show_mesh_overlay = checked
+        self._refresh_current_preview()
 
     def _on_compare_toggled(self, checked: bool):
         self._showing_original = checked
-        self._reset_timeout()
         if checked:
-            self._update_preview_display(self._preview_bgr)
-            self.btn_compare.setText("👁 Đang Xem Gốc")
+            self.btn_compare.setText("Đang Xem Gốc")
+            self.btn_compare.setIcon(_make_beauty_icon("eye_active", "#6B5326", 15))
         else:
-            self._update_preview_display(self._current_preview_bgr)
-            self.btn_compare.setText("👁 Xem Ảnh Gốc")
+            self.btn_compare.setText("Xem Ảnh Gốc")
+            self.btn_compare.setIcon(_make_beauty_icon("eye", COLOR_TEXT_PRIMARY, 15))
+        self._refresh_current_preview()
 
     def _request_render(self):
         if self._showing_original:
             return
 
-        if self._brighten_val <= 0.01 and self._smooth_val <= 0.01 and self._lips_val <= 0.01:
+        self._req_id += 1
+        if not self._has_any_active_effect():
             self._current_preview_bgr = self._preview_bgr.copy()
-            self._update_preview_display(self._preview_bgr)
+            self._refresh_current_preview()
             return
 
-        self._req_id += 1
         self._worker.update_params(
             self._req_id,
             self._preview_bgr,
             self._preview_faces,
             self._brighten_val,
             self._smooth_val,
-            self._lips_val
+            self._lips_val,
+            eye_brighten=self._eye_brighten_val,
+            cheek_rosy=self._cheek_rosy_val,
+            nose_highlight=self._nose_highlight_val,
+            face_slim=self._face_slim_val,
+            enabled_effects=self._enabled_effects,
+            ai_enhance=self._ai_enhance_val,
         )
 
     def _on_preview_ready(self, req_id: int, processed_bgr: np.ndarray):
@@ -520,7 +1353,15 @@ class SmartBeautyDialog(QDialog):
             return
 
         self._current_preview_bgr = processed_bgr
-        self._update_preview_display(processed_bgr)
+        self._refresh_current_preview()
+
+    def _refresh_current_preview(self):
+        base = self._preview_bgr if self._showing_original else self._current_preview_bgr
+        if self._show_mesh_overlay and not self._showing_original and self._preview_faces:
+            disp = draw_face_mesh_overlay(base, self._preview_faces, show_tesselation=True, show_regions=True, show_landmarks=True)
+        else:
+            disp = base
+        self._update_preview_display(disp)
 
     def _update_preview_display(self, bgr_img: np.ndarray):
         if bgr_img is None or bgr_img.size == 0:
@@ -532,7 +1373,6 @@ class SmartBeautyDialog(QDialog):
         qimg = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
         pixmap = QPixmap.fromImage(qimg)
-        # Scaled to viewport preserving aspect ratio
         view_size = self.lbl_viewport.size()
         if view_size.width() > 10 and view_size.height() > 10:
             scaled = pixmap.scaled(view_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -540,64 +1380,97 @@ class SmartBeautyDialog(QDialog):
         else:
             self.lbl_viewport.setPixmap(pixmap)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self._refresh_current_preview)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Tự động scale lại preview theo kích thước mới của khung hình
-        cur = self._preview_bgr if self._showing_original else self._current_preview_bgr
-        self._update_preview_display(cur)
+        self._refresh_current_preview()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            event.ignore()
+            return
+        super().keyPressEvent(event)
+
+    def _stop_worker(self):
+        if hasattr(self, "_worker") and self._worker is not None and self._worker.isRunning():
+            self._worker.stop()
+            self._worker.wait(500)
+
+    def _cleanup_engine(self):
+        try:
+            if getattr(self, "_owns_engine", False) and self.engine is not None:
+                self.engine.close()
+            elif self.engine is not None:
+                self.engine.clear_ai_cache()
+        except Exception:
+            pass
+
+    def _collect_numeric_settings(self) -> Dict[str, float]:
+        return {
+            "brighten": self._brighten_val,
+            "smooth": self._smooth_val,
+            "lips": self._lips_val,
+            "eye_brighten": self._eye_brighten_val,
+            "cheek_rosy": self._cheek_rosy_val,
+            "nose_highlight": self._nose_highlight_val,
+            "face_slim": self._face_slim_val,
+            "ai_enhance": self._ai_enhance_val,
+        }
+
+    def get_enabled_effects(self) -> Dict[str, bool]:
+        return dict(self._enabled_effects)
 
     def _on_confirm_clicked(self):
         """Xử lý xác nhận: áp dụng thông số lên ảnh gốc chất lượng cao đầy đủ."""
-        self._timeout_timer.stop()
+        self._stop_worker()
 
-        # Dừng worker
-        if self._worker.isRunning():
-            self._worker.stop()
-            self._worker.wait(300)
-
-        # Tính toán ảnh làm đẹp ở độ phân giải gốc đầy đủ
-        if self._brighten_val <= 0.01 and self._smooth_val <= 0.01 and self._lips_val <= 0.01:
-            # Nguyên bản byte-for-byte
+        if not self._has_any_active_effect():
             final_pil = self._original_pil.copy()
         else:
-            # Xử lý trên ảnh gốc độ phân giải cao
+            QGuiApplication.setOverrideCursor(Qt.WaitCursor)
             try:
                 final_bgr = self.engine.apply_beauty(
                     self._full_bgr,
                     skin_brighten_pct=self._brighten_val,
                     skin_smooth_pct=self._smooth_val,
                     lip_tint_pct=self._lips_val,
-                    faces=self._full_faces
+                    faces=self._full_faces,
+                    eye_brighten_pct=self._eye_brighten_val,
+                    cheek_rosy_pct=self._cheek_rosy_val,
+                    nose_highlight_pct=self._nose_highlight_val,
+                    face_slim_pct=self._face_slim_val,
+                    enabled_effects=self._enabled_effects,
+                    ai_enhance_pct=self._ai_enhance_val,
                 )
                 final_rgb = cv2.cvtColor(final_bgr, cv2.COLOR_BGR2RGB)
                 final_pil = Image.fromarray(final_rgb)
             except Exception as ex:
                 logger.error("Lỗi khi áp dụng làm đẹp lên ảnh gốc đầy đủ: %s", ex)
                 final_pil = self._original_pil.copy()
+            finally:
+                QGuiApplication.restoreOverrideCursor()
 
         self._final_pil_result = final_pil
-        settings = {
-            "brighten": self._brighten_val,
-            "smooth": self._smooth_val,
-            "lips": self._lips_val
-        }
+        settings = self._collect_numeric_settings()
         reuse = self.chk_reuse.isChecked()
 
         self.beauty_confirmed.emit(final_pil, settings, reuse)
+        self._cleanup_engine()
         self.accept()
 
     def get_result(self) -> Tuple[Image.Image, Dict[str, float], bool]:
-        """Trả về (final_pil_image, settings, reuse_flag)."""
-        settings = {
-            "brighten": self._brighten_val,
-            "smooth": self._smooth_val,
-            "lips": self._lips_val
-        }
-        return self._final_pil_result, settings, self.chk_reuse.isChecked()
+        """Trả về (final_pil_image, settings_dict, reuse_flag)."""
+        return self._final_pil_result, self._collect_numeric_settings(), self.chk_reuse.isChecked()
+
+    def reject(self):
+        self._stop_worker()
+        self._cleanup_engine()
+        super().reject()
 
     def closeEvent(self, event):
-        self._timeout_timer.stop()
-        if self._worker.isRunning():
-            self._worker.stop()
-            self._worker.wait(300)
+        self._stop_worker()
+        self._cleanup_engine()
         super().closeEvent(event)

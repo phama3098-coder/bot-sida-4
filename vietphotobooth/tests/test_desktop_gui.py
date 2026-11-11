@@ -19,7 +19,7 @@ def test_main_window_initialization(qapp):
     assert "Khung Ảnh" in window.tabs.tabText(1)
     assert "Máy Ảnh" in window.tabs.tabText(2)
     assert "Máy In" in window.tabs.tabText(3)
-    assert "Sự Kiện & Thư Viện" in window.tabs.tabText(4)
+    assert "Sự Kiện & Thư Viện" in window.tabs.tabText(4).replace("&&", "&")
     assert "Cài Đặt" in window.tabs.tabText(5)
     assert window.kiosk_page is not None
     assert window.frame_page is not None

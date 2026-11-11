@@ -79,6 +79,12 @@ def main():
     qt_app.setApplicationName("1998 TEAM — Photobooth")
     qt_app.setOrganizationName("1998 Studio")
 
+    # Khởi tạo phông chữ tiếng Việt chuẩn hóa và gán cho toàn bộ ứng dụng trước khi dựng giao diện
+    from vietphotobooth.core.font_registry import FontRegistry
+    FontRegistry.initialize()
+    default_app_font = FontRegistry.get_default_application_font(point_size=10)
+    qt_app.setFont(default_app_font)
+
     icon_path = os.path.abspath(os.path.join(root_dir, "Assets", "Branding", "app_icon.ico"))
     if os.path.exists(icon_path):
         from PySide6.QtGui import QIcon

@@ -1,0 +1,25 @@
+1998 TEAM PHOTOBOOTH — BUNDLED AI MODEL LICENSES & PROVENANCE
+====================================================================
+
+1. OpenCV YuNet Face Detector (Assets/Models/face_detection_yunet.onnx)
+   - Upstream: OpenCV Zoo (https://github.com/opencv/opencv_zoo)
+   - License: MIT License (Commercial use permitted)
+
+2. Google MediaPipe Face Landmarker (Assets/Models/face_landmarker.task)
+   - Upstream: Google AI Edge / MediaPipe Solutions
+   - License: Apache License 2.0 (Commercial use permitted)
+
+3. GFPGAN v1.4 FP16 ONNX Portrait Enhancement (Assets/Models/gfpgan_v1.4_fp16.onnx)
+   - Upstream Source Code & Checkpoints: TencentARC/GFPGAN (v1.4)
+   - ONNX Weights Conversion: sidkonduru/gfpgan-v1.4-onnx (Apache-2.0)
+   - Top-level Code License: Apache License 2.0
+   - Important Commercial Compliance Notice:
+     * Per upstream TencentARC/GFPGAN LICENSE, original PyTorch training/decoder
+       code included third-party components under the NVIDIA Source Code License
+       (stylegan2-pytorch, Section 3.3 Non-Commercial) and DFDNet (CC BY-NC-SA 4.0).
+     * Model weights were trained on the FFHQ dataset (CC BY-NC-SA 4.0).
+     * This application isolates the neural inference backend behind a swappable
+       adapter interface (`vietphotobooth/filters/ai_portrait_enhancer.py`) so that
+       operators can drop in alternative Apache-2.0 / MIT / proprietary commercial
+       ONNX weights (e.g. RestoreFormer++ or custom-trained commercial weights)
+       without modifying UI or pipeline code.

@@ -96,28 +96,37 @@ class SimulatorBackend(CameraBackendBase):
         return True
 
     def _generate_simulator_frame(self, w: int = 960, h: int = 640) -> np.ndarray:
-        """Tạo khung hình mô phỏng sắc nét chuẩn studio màu xanh navy + vàng champagne."""
-        img = Image.new("RGB", (w, h), color=(11, 18, 32))
+        """Tạo khung hình mô phỏng sắc nét chuẩn studio màu trắng ngà & vàng champagne."""
+        img = Image.new("RGB", (w, h), color=(240, 237, 230))
         draw = ImageDraw.Draw(img)
 
+        # Viền khung nhẹ
+        draw.rectangle([2, 2, w - 3, h - 3], outline=(218, 212, 200), width=2)
+
         # Vẽ lưới căn chỉnh
-        grid_color = (25, 40, 70)
+        grid_color = (215, 205, 185)
         for x in (w // 3, 2 * w // 3):
             draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
         for y in (h // 3, 2 * h // 3):
             draw.line([(0, y), (w, y)], fill=grid_color, width=1)
 
-        # Tâm ngắm
+        # Chân dung studio mô phỏng ở giữa
         cx, cy = w // 2, h // 2
-        draw.ellipse([cx - 50, cy - 50, cx + 50, cy + 50], outline=(212, 175, 55), width=2)
-        draw.line([cx - 20, cy, cx + 20, cy], fill=(212, 175, 55), width=2)
-        draw.line([cx, cy - 20, cx, cy + 20], fill=(212, 175, 55), width=2)
+        hr = min(w, h) // 8
+        draw.ellipse([cx - hr, cy - hr - int(hr * 0.3), cx + hr, cy + hr - int(hr * 0.3)], fill=(195, 185, 168), outline=(185, 154, 99), width=2)
+        sw = int(hr * 2.4)
+        draw.arc([cx - sw, cy + int(hr * 0.2), cx + sw, cy + int(hr * 0.2) + hr * 2], 180, 0, fill=(185, 154, 99), width=3)
+
+        # Tâm ngắm
+        draw.ellipse([cx - 40, cy - 40, cx + 40, cy + 40], outline=(185, 154, 99), width=2)
+        draw.line([cx - 15, cy, cx + 15, cy], fill=(185, 154, 99), width=2)
+        draw.line([cx, cy - 15, cx, cy + 15], fill=(185, 154, 99), width=2)
 
         # Nhãn thông tin
-        draw.text((30, 30), "1998 TEAM — PHOTOBOOTH (CHẾ ĐỘ MÔ PHỎNG)", fill=(212, 175, 55))
+        draw.text((30, 24), "1998 TEAM — PHOTOBOOTH STUDIO (ẢNH CHỤP MÔ PHỎNG)", fill=(41, 43, 41))
         now_str = time.strftime("%H:%M:%S") + f".{int(time.time() * 10) % 10}"
-        draw.text((30, 60), f"Live View Frame: {self._frame_count} | Thời gian: {now_str}", fill=(148, 163, 184))
-        draw.text((30, h - 50), f"Thông số: ISO {self._params['iso']} | {self._params['shutter_speed']} | {self._params['aperture']} | {self._params['white_balance']}", fill=(203, 213, 225))
+        draw.text((30, 48), f"Live View Frame: {self._frame_count} | Thời gian: {now_str}", fill=(110, 109, 103))
+        draw.text((30, h - 36), f"Thông số: ISO {self._params['iso']} | {self._params['shutter_speed']} | {self._params['aperture']} | {self._params['white_balance']}", fill=(75, 74, 69))
 
         self._frame_count += 1
         return np.array(img, dtype=np.uint8)

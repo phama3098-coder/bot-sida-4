@@ -29,7 +29,10 @@ from vietphotobooth.cloud import SyncManager
 from vietphotobooth.desktop.styles import (
     KIOSK_STYLE, THEME_BG_MAIN, THEME_SURFACE, THEME_BG_SECONDARY,
     THEME_BORDER, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY, THEME_GOLD,
-    THEME_INPUT_BG, THEME_SUCCESS, THEME_SUCCESS_BG, THEME_SUCCESS_BORDER
+    THEME_INPUT_BG, THEME_SUCCESS, THEME_SUCCESS_BG, THEME_SUCCESS_BORDER,
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY, COLOR_BORDER,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_CHAMPAGNE,
+    COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD
 )
 from vietphotobooth.desktop.widgets.kiosk_page import KioskPage
 from vietphotobooth.desktop.widgets.filter_editor_page import FilterEditorPage
@@ -84,20 +87,27 @@ class MainWindow(QMainWindow):
         self.sync_mgr = SyncManager(self.config_mgr)
         self.update_mgr = UpdateManager(self.config_mgr, self)
 
-        # Tối ưu hóa font chữ Windows cho tiếng Việt và emoji chuẩn
+        # Khởi tạo FontRegistry chuẩn hóa phông chữ tiếng Việt toàn ứng dụng
+        from vietphotobooth.core.font_registry import FontRegistry
         from PySide6.QtGui import QFontDatabase, QFont
+        FontRegistry.initialize()
+
+        # Nạp font emoji và biểu tượng bổ trợ của Windows
         for fpath in (
-            "C:/Windows/Fonts/segoeui.ttf",
-            "C:/Windows/Fonts/segoeuib.ttf",
             "C:/Windows/Fonts/seguiemj.ttf",
             "C:/Windows/Fonts/seguisym.ttf",
+            "C:/Windows/Fonts/segoeui.ttf",
             "C:/Windows/Fonts/arial.ttf"
         ):
             if os.path.exists(fpath):
                 QFontDatabase.addApplicationFont(fpath)
 
-        QFont.insertSubstitution("Segoe UI", "Segoe UI Emoji")
-        QFont.insertSubstitution("Segoe UI", "Segoe UI Symbol")
+        default_family = FontRegistry.get_default_font_family()
+        QFont.insertSubstitution(default_family, "Segoe UI Emoji")
+        QFont.insertSubstitution(default_family, "Segoe UI Symbol")
+        if default_family != "Segoe UI":
+            QFont.insertSubstitution("Segoe UI", "Segoe UI Emoji")
+            QFont.insertSubstitution("Segoe UI", "Segoe UI Symbol")
 
         # Áp dụng giao diện cảm ứng Kiosk Dark Theme
         self.setStyleSheet(KIOSK_STYLE)
@@ -142,20 +152,12 @@ class MainWindow(QMainWindow):
         self.brand_layout.addWidget(self.lbl_logo)
 
         self.lbl_title = QLabel("1998 TEAM")
-        self.lbl_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 13px; font-weight: 800; letter-spacing: 0.5px;")
+        self.lbl_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 13px; font-weight: 800; letter-spacing: 0.5px; border: none; background: transparent;")
         self.lbl_title.setToolTip(f"1998 TEAM Photobooth v{__version__} ({get_version_string()})")
         self.brand_layout.addWidget(self.lbl_title)
 
-        # Nút chuyển nhanh sang Buồng Lái Vận Hành (Dashboard) v2.0 - Đảm bảo đủ chiều rộng hiển thị trọn vẹn nhãn
-        self.btn_dashboard = QPushButton("📊 Dashboard")
-        self.btn_dashboard.setCursor(Qt.PointingHandCursor)
-        self.btn_dashboard.setStyleSheet(
-            f"QPushButton {{ background: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; font-weight: 700; font-size: 11px; "
-            f"border: 1.5px solid {THEME_BORDER}; border-radius: 6px; padding: 3px 8px; margin-left: 2px; }} "
-            f"QPushButton:hover {{ background: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; }}"
-        )
-        self.btn_dashboard.clicked.connect(self.show_dashboard)
-        self.brand_layout.addWidget(self.btn_dashboard)
+        # Dashboard được chuyển thành mục 'Tổng Quan Hệ Thống' bên trong Cài Đặt
+        # Thanh điều hướng cấp cao không còn nút Dashboard độc lập để đảm bảo cân đối thị giác.
 
         self.tabs.setCornerWidget(self.brand_widget, Qt.TopLeftCorner)
 
@@ -172,6 +174,7 @@ class MainWindow(QMainWindow):
         )
         self.kiosk_page.request_tab_switch.connect(self.switch_to_tab)
         self.kiosk_page.request_fullscreen.connect(self.toggle_fullscreen)
+        self.kiosk_page.request_capture_fullscreen.connect(self._on_kiosk_capture_fullscreen)
         self.tabs.addTab(self.kiosk_page, get_svg_icon("camera", 16, COLOR_GOLD), "Chụp Ảnh")
         self.tabs.setTabToolTip(0, "Chụp ảnh Photobooth (Kiosk)")
 
@@ -194,17 +197,21 @@ class MainWindow(QMainWindow):
 
         # 5. Sự kiện & Thư viện (Quản Lý Album, Mã QR, Sự Kiện)
         self.events_page = EventsPage(self.event_mgr, self.print_mgr, self.token_mgr, sync_mgr=self.sync_mgr, auth_mgr=self.auth_mgr)
-        self.tabs.addTab(self.events_page, get_svg_icon("calendar", 16, COLOR_GOLD), "Sự Kiện & Thư Viện")
+        self.tabs.addTab(self.events_page, get_svg_icon("calendar", 16, COLOR_GOLD), "Sự Kiện && Thư Viện")
         self.tabs.setTabToolTip(4, "Quản lý sự kiện & thư viện ảnh")
 
-        # 6. Cài đặt (Bảo Mật PIN, Kiosk, Quản Lý Bộ Lọc Màu & Bản Quyền)
+        # 6. Cài đặt (Tổng Quan Hệ Thống, Bảo Mật PIN, Kiosk, Bộ Lọc Màu & Bản Quyền)
         self.settings_page = SettingsPage(
             self.config_mgr,
             self.token_mgr,
             self.filter_engine,
             sync_mgr=self.sync_mgr,
             auth_mgr=self.auth_mgr,
-            update_mgr=self.update_mgr
+            update_mgr=self.update_mgr,
+            camera_mgr=self.camera_mgr,
+            print_mgr=self.print_mgr,
+            event_mgr=self.event_mgr,
+            parent=self
         )
         self.settings_page.toggle_fullscreen_requested.connect(self.toggle_fullscreen)
         self.settings_page.audio_settings_changed.connect(self._on_audio_settings_changed)
@@ -246,7 +253,7 @@ class MainWindow(QMainWindow):
             # Ngăn chặn vòng lặp kiểm tra nếu vừa cập nhật hoặc vừa khôi phục sau sự cố
             has_update_event = bool(self.update_info and (self.update_info.get("updated_to") or self.update_info.get("update_failed")))
             if not has_update_event:
-                QTimer.singleShot(2500, self._start_auto_update_check)
+                QTimer.singleShot(2500, self, self._start_auto_update_check)
 
         # Stack chính v2.0:
         # Index 0: Giao diện Tabs vận hành chi tiết (bảo toàn 100% 6 tabs của baseline)
@@ -260,14 +267,10 @@ class MainWindow(QMainWindow):
         self.idle_screen.admin_requested.connect(self._on_idle_admin_requested)
         self.window_stack.addWidget(self.idle_screen)  # Index 1
 
-        self.dashboard_page = DashboardPage(
-            event_mgr=self.event_mgr,
-            camera_mgr=self.camera_mgr,
-            print_mgr=self.print_mgr,
-            config_mgr=self.config_mgr,
-            frame_mgr=self.frame_mgr,
-            parent=self
-        )
+        # DashboardPage được tích hợp bên trong Cài Đặt (Tổng Quan Hệ Thống)
+        self.dashboard_page = self.settings_page.dashboard_page
+        self.btn_dashboard = self.settings_page.btn_overview_tab
+
         self.dashboard_page.start_kiosk_requested.connect(self.start_kiosk_mode)
         self.dashboard_page.open_studio_requested.connect(lambda: self.switch_to_tab(2))
         self.dashboard_page.open_templates_requested.connect(lambda: self.switch_to_tab(1))
@@ -275,7 +278,10 @@ class MainWindow(QMainWindow):
         self.dashboard_page.open_events_requested.connect(lambda: self.switch_to_tab(4))
         self.dashboard_page.open_devices_requested.connect(self.show_devices)
         self.dashboard_page.open_qr_requested.connect(self.show_qr_sharing)
-        self.window_stack.addWidget(self.dashboard_page)  # Index 2
+
+        # Index 2: Widget điều hướng chuyển tiếp về Cài Đặt -> Tổng quan hệ thống
+        self.dashboard_forwarder = QWidget()
+        self.window_stack.addWidget(self.dashboard_forwarder)  # Index 2
 
         self.devices_page = DevicesPage(
             camera_mgr=self.camera_mgr,
@@ -284,6 +290,7 @@ class MainWindow(QMainWindow):
             token_mgr=self.token_mgr,
             parent=self
         )
+        self.devices_page.back_requested.connect(self.return_to_previous_window)
         self.window_stack.addWidget(self.devices_page)  # Index 3
 
         self.qr_page = QRSharingPage(
@@ -292,6 +299,7 @@ class MainWindow(QMainWindow):
             config_mgr=self.config_mgr,
             parent=self
         )
+        self.qr_page.back_requested.connect(self.return_to_previous_window)
         self.window_stack.addWidget(self.qr_page)  # Index 4
 
         main_layout.addWidget(self.window_stack)
@@ -309,9 +317,9 @@ class MainWindow(QMainWindow):
         # Kiểm tra thông báo kết quả cập nhật (nếu vừa nâng cấp hoặc khôi phục)
         if self.update_info:
             if self.update_info.get("updated_to"):
-                QTimer.singleShot(600, self._show_update_success_notification)
+                QTimer.singleShot(600, self, self._show_update_success_notification)
             elif self.update_info.get("update_failed"):
-                QTimer.singleShot(600, lambda: self._show_update_failed_notification(self.update_info["update_failed"]))
+                QTimer.singleShot(600, self, lambda: self._show_update_failed_notification(self.update_info["update_failed"]))
 
     def _show_update_success_notification(self):
         info = self.update_info or {}
@@ -391,7 +399,7 @@ class MainWindow(QMainWindow):
         if not self.auth_mgr.is_pin_enabled:
             self.btn_auth_status.setText("🔓 Không Khóa PIN")
             self.btn_auth_status.setStyleSheet(
-                f"QPushButton {{ background-color: {THEME_INPUT_BG}; color: {THEME_TEXT_SECONDARY}; border: 1px solid {THEME_BORDER}; "
+                f"QPushButton {{ background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_SECONDARY}; border: 1px solid {COLOR_BORDER}; "
                 f"border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }}"
             )
         elif self.auth_mgr.is_authenticated():
@@ -401,7 +409,7 @@ class MainWindow(QMainWindow):
             if hasattr(self.btn_auth_status, "set_morph_state"):
                 self.btn_auth_status.set_morph_state(True)
             self.btn_auth_status.setStyleSheet(
-                f"QPushButton {{ background-color: {THEME_SUCCESS_BG}; color: {THEME_SUCCESS}; border: 1.5px solid {THEME_SUCCESS_BORDER}; "
+                f"QPushButton {{ background-color: #E2EFE2; color: #54836A; border: 1px solid #A5D6A7; "
                 f"border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }}"
                 f"QPushButton:hover {{ background-color: #D4E8D4; }}"
             )
@@ -410,15 +418,15 @@ class MainWindow(QMainWindow):
             if hasattr(self.btn_auth_status, "set_morph_state"):
                 self.btn_auth_status.set_morph_state(False)
             self.btn_auth_status.setStyleSheet(
-                f"QPushButton {{ background-color: {THEME_INPUT_BG}; color: {THEME_GOLD}; border: 1.5px solid {THEME_GOLD}; "
+                f"QPushButton {{ background-color: {COLOR_SURFACE}; color: {COLOR_CHAMPAGNE}; border: 1px solid {COLOR_CHAMPAGNE}; "
                 f"border-radius: 6px; padding: 2px 10px; font-weight: bold; font-size: 11px; }}"
-                f"QPushButton:hover {{ background-color: {THEME_SURFACE}; color: {THEME_TEXT_PRIMARY}; }}"
+                f"QPushButton:hover {{ background-color: {COLOR_SURFACE_SECONDARY}; color: {COLOR_TEXT_PRIMARY}; }}"
             )
 
     def _on_auth_timer_tick(self):
         if self.auth_mgr.is_authenticated():
             self._update_auth_ui()
-            if self.auth_mgr.get_remaining_seconds() <= 0:
+            if getattr(self.auth_mgr, "_authenticated", False) and self.auth_mgr.get_remaining_seconds() <= 0:
                 self.auth_mgr.lock()
                 self._update_auth_ui()
                 if self.tabs.currentIndex() in self.PROTECTED_TABS:
@@ -497,21 +505,41 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(target_index)
 
     def show_dashboard(self):
-        """Chuyển sang Buồng Lái Vận Hành (Operator Dashboard) trung tâm v2.0."""
-        self.window_stack.setCurrentIndex(2)
+        """Chuyển sang Tổng Quan Hệ Thống (Dashboard) bên trong Cài Đặt."""
+        self.window_stack.setCurrentIndex(0)
+        self._switching_tabs = True
+        self._prev_tab_index = 5
+        self.tabs.setCurrentIndex(5)
+        self._switching_tabs = False
+        if hasattr(self, "settings_page") and hasattr(self.settings_page, "show_overview"):
+            self.settings_page.show_overview()
 
     def show_devices(self):
         """Chuyển sang Bảng Giám Sát Thiết Bị & Cảm Biến Đa Kênh v2.0."""
         if not self.auth_mgr.is_authenticated():
             if not self.auth_mgr.prompt_pin_dialog(self, "Mở Khóa Giám Sát Thiết Bị"):
                 return
+        curr = self.window_stack.currentIndex()
+        if curr not in (3, 4):
+            self._prev_window_index = curr
         self.window_stack.setCurrentIndex(3)
         if hasattr(self, "devices_page"):
             self.devices_page.refresh_telemetry()
 
     def show_qr_sharing(self):
         """Chuyển sang Trung Tâm Chia Sẻ QR & Mạng LAN v2.0."""
+        curr = self.window_stack.currentIndex()
+        if curr not in (3, 4):
+            self._prev_window_index = curr
         self.window_stack.setCurrentIndex(4)
+
+    def return_to_previous_window(self):
+        """Quay về giao diện trước đó từ các màn hình phụ."""
+        prev = getattr(self, "_prev_window_index", 0)
+        if prev == 2:
+            self.show_dashboard()
+        else:
+            self.window_stack.setCurrentIndex(prev)
 
     def start_kiosk_mode(self):
         """Bắt đầu Kiosk Mode từ Dashboard hoặc phím F11."""
@@ -520,16 +548,42 @@ class MainWindow(QMainWindow):
         if not self.isFullScreen():
             self.toggle_fullscreen()
 
+    def _on_kiosk_capture_fullscreen(self, active: bool):
+        """Tự động mở Live View toàn màn hình khi chụp và khôi phục khi hoàn tất nếu bắt đầu từ cửa sổ."""
+        if active:
+            if self.isVisible() and not self.isFullScreen():
+                self._capture_auto_fullscreen = True
+                self.showFullScreen()
+                self.tabs.setCurrentIndex(0)
+                self.tabs.tabBar().hide()
+                if hasattr(self, "kiosk_page") and hasattr(self.kiosk_page, "set_fullscreen_mode"):
+                    self.kiosk_page.set_fullscreen_mode(True)
+            else:
+                self._capture_auto_fullscreen = False
+        else:
+            if getattr(self, "_capture_auto_fullscreen", False):
+                self._capture_auto_fullscreen = False
+                if self.isFullScreen():
+                    self.showNormal()
+                    self.tabs.tabBar().show()
+                    if hasattr(self, "kiosk_page") and hasattr(self.kiosk_page, "set_fullscreen_mode"):
+                        self.kiosk_page.set_fullscreen_mode(False)
+
     def toggle_fullscreen(self):
         """Bật/tắt chế độ toàn màn hình Kiosk Mode."""
         if self.isFullScreen():
             if self.auth_mgr.is_pin_enabled and not self.auth_mgr.is_authenticated():
                 if not self.auth_mgr.prompt_pin_dialog(self, "Thoát Chế Độ Kiosk"):
                     return
+            self._capture_auto_fullscreen = False
             self.showNormal()
             self.tabs.tabBar().show()
-            if hasattr(self, "kiosk_page") and hasattr(self.kiosk_page, "set_fullscreen_mode"):
-                self.kiosk_page.set_fullscreen_mode(False)
+            if hasattr(self, "kiosk_page"):
+                if getattr(self.kiosk_page, "_is_capture_immersive", False):
+                    self.kiosk_page.cancel_countdown()
+                    self.kiosk_page.set_capture_immersive_mode(False)
+                if hasattr(self.kiosk_page, "set_fullscreen_mode"):
+                    self.kiosk_page.set_fullscreen_mode(False)
         else:
             self.showFullScreen()
             # Ở chế độ Kiosk toàn màn hình, chuyển về tab Chụp Ảnh và ẩn thanh Tab bar
@@ -555,6 +609,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, "window_stack") and self.window_stack.currentIndex() == 1:
             self.hide_idle_screen()
             return
+        if hasattr(self, "kiosk_page") and getattr(self.kiosk_page, "_is_capture_immersive", False):
+            self.kiosk_page.cancel_countdown()
+            self.kiosk_page.set_capture_immersive_mode(False)
         if self.isFullScreen():
             self.toggle_fullscreen()
 
@@ -651,7 +708,7 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(1, "Khung Ảnh")
             self.tabs.setTabText(2, "Máy Ảnh")
             self.tabs.setTabText(3, "Máy In")
-            self.tabs.setTabText(4, "Sự Kiện & Thư Viện")
+            self.tabs.setTabText(4, "Sự Kiện && Thư Viện")
             self.tabs.setTabText(5, "Cài Đặt")
 
     def cleanup(self):
@@ -663,13 +720,20 @@ class MainWindow(QMainWindow):
         if hasattr(self, "auth_timer") and self.auth_timer.isActive():
             self.auth_timer.stop()
         if hasattr(self, "kiosk_page"):
-            if hasattr(self.kiosk_page, "camera_poll_timer") and self.kiosk_page.camera_poll_timer.isActive():
-                self.kiosk_page.camera_poll_timer.stop()
-            if hasattr(self.kiosk_page, "live_view_worker"):
-                self.kiosk_page.live_view_worker.stop()
-            self.kiosk_page.stop_live_view()
+            self.kiosk_page.cleanup()
         if hasattr(self, "camera_page"):
             self.camera_page.close()
+        if hasattr(self, "printing_page") and hasattr(self.printing_page, "status_timer"):
+            if self.printing_page.status_timer.isActive():
+                self.printing_page.status_timer.stop()
+        if hasattr(self, "dashboard_page"):
+            if hasattr(self.dashboard_page, "_timer") and self.dashboard_page._timer.isActive():
+                self.dashboard_page._timer.stop()
+            if hasattr(self, "camera_mgr") and hasattr(self.camera_mgr, "_on_status_changed_callbacks"):
+                try:
+                    self.camera_mgr._on_status_changed_callbacks.remove(self.dashboard_page._on_camera_status_changed)
+                except ValueError:
+                    pass
         if hasattr(self, "devices_page") and hasattr(self.devices_page, "_poll_timer") and self.devices_page._poll_timer.isActive():
             self.devices_page._poll_timer.stop()
         if hasattr(self, "sync_mgr"):

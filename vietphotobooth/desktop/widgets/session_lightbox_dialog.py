@@ -25,6 +25,12 @@ from vietphotobooth.core.events import EventManager
 from vietphotobooth.printing.manager import PrintManager
 from vietphotobooth.sharing.token_manager import TokenManager
 from vietphotobooth.cloud import SyncManager, SyncStatus
+from vietphotobooth.desktop.styles import (
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_BORDER, COLOR_BORDER_LIGHT,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR
+)
 from vietphotobooth.desktop.icons import (
     get_svg_icon, COLOR_GOLD, COLOR_GOLD_LIGHT, COLOR_WHITE,
     COLOR_NAVY, COLOR_SLATE, COLOR_GREEN
@@ -56,11 +62,15 @@ class SessionLightboxDialog(QDialog):
         self.setWindowTitle(f"1998 TEAM — Chi Tiết Lượt Chụp [{session_id}]")
         self.resize(960, 680)
         self.setMinimumSize(800, 560)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #C8C5BD;
-                color: #353631;
-            }
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLOR_BG};
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+            }}
         """)
 
         self.dirs = self.event_mgr.get_event_dirs(self.event_name)
@@ -109,12 +119,12 @@ class SessionLightboxDialog(QDialog):
 
         v_head = QVBoxLayout()
         v_head.setSpacing(2)
-        lbl_title = QLabel(f"LƯỢT CHỤP: <span style='color: #AD905B;'>{self.session_id}</span>")
-        lbl_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #353631;")
+        lbl_title = QLabel(f"LƯỢT CHỤP: <span style='color: {COLOR_CHAMPAGNE};'>{self.session_id}</span>")
+        lbl_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {COLOR_TEXT_PRIMARY}; border: none; background: transparent;")
         v_head.addWidget(lbl_title)
 
         lbl_sub = QLabel(f"Sự kiện: <b>{self.event_name}</b> • 1998 TEAM Photobooth Studio")
-        lbl_sub.setStyleSheet("font-size: 11px; color: #716F68;")
+        lbl_sub.setStyleSheet(f"font-size: 11px; color: {COLOR_TEXT_SECONDARY}; border: none; background: transparent;")
         v_head.addWidget(lbl_sub)
         h_head.addLayout(v_head)
 
@@ -124,41 +134,41 @@ class SessionLightboxDialog(QDialog):
         btn_export.setIcon(get_svg_icon("paper", 14, COLOR_SLATE))
         btn_export.setObjectName("btn_secondary")
         btn_export.setCursor(Qt.PointingHandCursor)
-        btn_export.setStyleSheet("""
-            QPushButton {
-                background-color: #D9D5CC;
-                border: 1.5px solid #AAA69D;
-                color: #353631;
+        btn_export.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                color: {COLOR_TEXT_PRIMARY};
                 font-weight: 600;
                 padding: 6px 14px;
                 border-radius: 6px;
                 font-size: 12px;
-            }
-            QPushButton:hover {
-                border-color: #AD905B;
-                background-color: #B9B5AB;
-            }
+            }}
+            QPushButton:hover {{
+                border-color: {COLOR_CHAMPAGNE};
+                background-color: {COLOR_SURFACE_SECONDARY};
+            }}
         """)
         btn_export.clicked.connect(self._export_session)
         h_head.addWidget(btn_export)
 
         btn_open_folder = QPushButton(" Mở Thư Mục")
-        btn_open_folder.setIcon(get_svg_icon("folder", 14, COLOR_GOLD))
+        btn_open_folder.setIcon(get_svg_icon("folder", 14, COLOR_CHAMPAGNE))
         btn_open_folder.setCursor(Qt.PointingHandCursor)
-        btn_open_folder.setStyleSheet("""
-            QPushButton {
-                background-color: #D9D5CC;
-                border: 1.5px solid #AAA69D;
-                color: #353631;
+        btn_open_folder.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                color: {COLOR_TEXT_PRIMARY};
                 font-weight: 600;
                 padding: 6px 14px;
                 border-radius: 6px;
                 font-size: 12px;
-            }
-            QPushButton:hover {
-                border-color: #AD905B;
-                background-color: #B9B5AB;
-            }
+            }}
+            QPushButton:hover {{
+                border-color: {COLOR_CHAMPAGNE};
+                background-color: {COLOR_SURFACE_SECONDARY};
+            }}
         """)
         btn_open_folder.clicked.connect(self._open_session_folder)
         h_head.addWidget(btn_open_folder)

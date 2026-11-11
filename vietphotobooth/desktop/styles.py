@@ -27,6 +27,24 @@ THEME_TEXT_PRIMARY = "#353631"
 THEME_TEXT_SECONDARY = "#716F68"
 THEME_TEXT_DISABLED = "#97948D"
 
+# =========================================================================
+# 1.2 MINIMAL LUXURY STUDIO DESIGN TOKENS (V1.1 DESIGN SYSTEM)
+# =========================================================================
+COLOR_BG = "#F8F7F3"               # Background (warm alabaster eggshell)
+COLOR_SURFACE = "#FFFFFF"          # Surface card (pure crisp white)
+COLOR_SURFACE_SECONDARY = "#F1F0EC"# Secondary surface / card fill
+COLOR_TEXT_PRIMARY = "#292B29"     # High-contrast charcoal graphite
+COLOR_TEXT_SECONDARY = "#6E6D67"   # Sophisticated warm slate
+COLOR_BORDER = "#E8E6E0"           # Hairline border divider
+COLOR_BORDER_LIGHT = "#F1F0EC"     # Subtle border tint
+COLOR_CHAMPAGNE = "#B99A63"        # Refined champagne gold accent
+COLOR_CHAMPAGNE_LIGHT = "#C8A870"  # Champagne gradient highlight
+COLOR_PALE_GOLD = "#E9DFC9"        # Soft gold badge tint
+COLOR_SUCCESS = "#54836A"          # Sage green
+COLOR_WARNING = "#C18A42"          # Warm amber
+COLOR_ERROR = "#C65D58"            # Terracotta red
+COLOR_LIVEVIEW = "#151719"         # Viewfinder obsidian deep black
+
 # Brand Identity Colors (1998 TEAM & 1998 Studio Phóng Sự Cưới)
 THEME_GOLD = "#AD905B"
 THEME_GOLD_LIGHT = "#D0BC94"
@@ -53,19 +71,123 @@ THEME_DANGER_BG = "#FDE8E8"
 THEME_DANGER_BORDER = "#FCA5A5"
 
 # =========================================================================
-# 2. GLOBAL SOFT TAUPE STYLESHEET (KIOSK_STYLE)
+# 1.1 CENTRALIZED TYPOGRAPHY SYSTEM (BE VIETNAM PRO & SOFT TAUPE HIERARCHY)
+# =========================================================================
+FONT_FAMILY_PRIMARY = '"Be Vietnam Pro", "Segoe UI", Arial, sans-serif'
+FONT_FAMILY_SERIF = '"Playfair Display", "Lora", "Times New Roman", serif'
+FONT_FAMILY_SCRIPT = '"Great Vibes", "Dancing Script", cursive'
+
+# Phân cấp kích thước font chuẩn hóa (Scale)
+FONT_SIZE_DISPLAY = "20px"       # Tiêu đề trang / Màn hình chính
+FONT_SIZE_TITLE_LG = "16px"      # Tiêu đề khu vực lớn / Dialog
+FONT_SIZE_TITLE = "14px"         # Tiêu đề Card / GroupBox
+FONT_SIZE_BODY = "13px"          # Nội dung chính, danh sách, bảng
+FONT_SIZE_SECONDARY = "12px"     # Mô tả phụ, hướng dẫn thao tác
+FONT_SIZE_CAPTION = "11px"       # Thông số kỹ thuật, huy hiệu, badge
+
+# Độ đậm (Font Weights - chuẩn hóa tương thích Be Vietnam Pro Regular & Bold)
+FONT_WEIGHT_NORMAL = "normal"
+FONT_WEIGHT_BOLD = "bold"
+
+# Các chuỗi định dạng Typography tái sử dụng
+TYPO_DISPLAY = f"font-size: {FONT_SIZE_DISPLAY}; font-weight: {FONT_WEIGHT_BOLD}; color: {THEME_TEXT_PRIMARY}; letter-spacing: 0.5px;"
+TYPO_SECTION_TITLE = f"font-size: {FONT_SIZE_TITLE_LG}; font-weight: {FONT_WEIGHT_BOLD}; color: {THEME_TEXT_PRIMARY};"
+TYPO_CARD_TITLE = f"font-size: {FONT_SIZE_TITLE}; font-weight: {FONT_WEIGHT_BOLD}; color: {THEME_TEXT_PRIMARY};"
+TYPO_BODY = f"font-size: {FONT_SIZE_BODY}; font-weight: {FONT_WEIGHT_NORMAL}; color: {THEME_TEXT_PRIMARY};"
+TYPO_SECONDARY = f"font-size: {FONT_SIZE_SECONDARY}; font-weight: {FONT_WEIGHT_NORMAL}; color: {THEME_TEXT_SECONDARY};"
+TYPO_CAPTION = f"font-size: {FONT_SIZE_CAPTION}; font-weight: {FONT_WEIGHT_NORMAL}; color: {THEME_TEXT_SECONDARY};"
+TYPO_BADGE = f"font-size: {FONT_SIZE_CAPTION}; font-weight: {FONT_WEIGHT_BOLD};"
+
+# Minimal Luxury Component Stylesheet Helpers
+STYLE_BTN_CHAMPAGNE = f"""
+QPushButton#btn_champagne {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
+    color: #1C1D1C;
+    font-weight: 800;
+    font-size: 13px;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+}}
+QPushButton#btn_champagne:hover {{
+    background: #A88952;
+    color: #FFFFFF;
+}}
+QPushButton#btn_champagne:pressed {{
+    background: #8F7240;
+    color: #FFFFFF;
+}}
+QPushButton#btn_champagne:disabled {{
+    background: #D9D5CC;
+    color: {COLOR_TEXT_SECONDARY};
+}}
+"""
+
+STYLE_BTN_SECONDARY = f"""
+QPushButton#btn_secondary {{
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
+    font-weight: 600;
+    font-size: 12px;
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 8px;
+    padding: 8px 18px;
+}}
+QPushButton#btn_secondary:hover {{
+    background-color: {COLOR_SURFACE_SECONDARY};
+    border-color: {COLOR_CHAMPAGNE};
+}}
+QPushButton#btn_secondary:pressed {{
+    background-color: #E2DED5;
+}}
+"""
+
+STYLE_NAV_ITEM = f"""
+QPushButton#nav_item {{
+    background: transparent;
+    color: {COLOR_TEXT_SECONDARY};
+    font-weight: 600;
+    font-size: 12px;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 6px;
+}}
+QPushButton#nav_item:hover {{
+    color: {COLOR_TEXT_PRIMARY};
+    background-color: {COLOR_SURFACE_SECONDARY};
+}}
+QPushButton#nav_item_active {{
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_CHAMPAGNE};
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid {COLOR_BORDER};
+    border-bottom: 2px solid {COLOR_CHAMPAGNE};
+    border-radius: 6px;
+    padding: 7px 12px;
+}}
+"""
+
+# =========================================================================
+# 2. GLOBAL MINIMAL LUXURY STYLESHEET (KIOSK_STYLE)
 # =========================================================================
 KIOSK_STYLE = f"""
-/* === Giao Diện Toàn Cục 1998 TEAM Photobooth (Soft Taupe Studio) === */
+/* === Giao Diện Toàn Cục 1998 TEAM Photobooth (Minimal Luxury Studio) === */
 QWidget {{
-    background-color: {THEME_BG_MAIN};
-    color: {THEME_TEXT_PRIMARY};
-    font-family: "Segoe UI", "Arial", "Tahoma", sans-serif;
-    font-size: 14px;
+    background-color: {COLOR_BG};
+    color: {COLOR_TEXT_PRIMARY};
+    font-family: {FONT_FAMILY_PRIMARY};
+    font-size: 13px;
 }}
 
 QMainWindow {{
-    background-color: {THEME_BG_MAIN};
+    background-color: {COLOR_BG};
+}}
+
+/* Triệt tiêu triệt để viền chữ nhật thừa trên tất cả QLabel */
+QLabel {{
+    border: none;
+    background: transparent;
 }}
 
 /* === Thanh Tiêu Đề & Navigation Bar === */
@@ -75,169 +197,177 @@ QTabBar {{
 }}
 
 QTabBar::tab {{
-    background: {THEME_SURFACE};
-    color: {THEME_TEXT_PRIMARY};
-    padding: 6px 16px;
+    background: {COLOR_SURFACE};
+    color: {COLOR_TEXT_SECONDARY};
+    padding: 7px 18px;
     font-size: 13px;
     font-weight: 600;
     border-radius: 8px;
-    border: 1.5px solid {THEME_BORDER};
+    border: 1px solid {COLOR_BORDER};
     margin: 2px 3px;
     min-width: 60px;
 }}
 
 QTabBar::tab:selected {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD});
-    color: #FFFFFF;
-    border: 1.5px solid {THEME_GOLD_DARK};
-    font-weight: 800;
+    background: {COLOR_SURFACE};
+    color: {COLOR_CHAMPAGNE};
+    border: 1px solid {COLOR_BORDER};
+    border-bottom: 2px solid {COLOR_CHAMPAGNE};
+    font-weight: 700;
 }}
 
 QTabBar::tab:hover:!selected {{
-    background: {THEME_BG_SECONDARY};
-    color: {THEME_TEXT_PRIMARY};
-    border: 1.5px solid {THEME_GOLD};
+    background: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_TEXT_PRIMARY};
+    border: 1px solid {COLOR_CHAMPAGNE};
 }}
 
 QTabBar QToolButton {{
-    background: {THEME_SURFACE};
-    border: 1.5px solid {THEME_BORDER};
+    background: {COLOR_SURFACE};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 6px;
-    color: {THEME_GOLD_DARK};
+    color: {COLOR_CHAMPAGNE};
     margin: 1px;
 }}
 
 QTabBar QToolButton:hover {{
-    background: {THEME_GOLD};
+    background: {COLOR_CHAMPAGNE};
     color: #FFFFFF;
 }}
 
 QTabWidget::pane {{
     border: none;
-    background: {THEME_BG_MAIN};
+    background: {COLOR_BG};
 }}
 
 /* === Nút Bấm Thao Tác (Buttons) === */
 QPushButton {{
-    background-color: {THEME_SURFACE};
-    color: {THEME_TEXT_PRIMARY};
-    font-size: 14px;
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
+    font-size: 13px;
     font-weight: 600;
-    border: 1.5px solid {THEME_BORDER};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
     padding: 8px 16px;
     min-height: 26px;
 }}
 
 QPushButton:hover {{
-    background-color: {THEME_BG_SECONDARY};
-    border: 1.5px solid {THEME_GOLD};
-    color: {THEME_TEXT_PRIMARY};
+    background-color: {COLOR_SURFACE_SECONDARY};
+    border: 1px solid {COLOR_CHAMPAGNE};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 QPushButton:pressed {{
-    background-color: #BAAEA0;
+    background-color: #E2DED5;
 }}
 
 QPushButton:disabled {{
-    background-color: #D5CDC0;
-    color: {THEME_TEXT_DISABLED};
-    border: 1px solid #C4B9AA;
+    background-color: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_TEXT_SECONDARY};
+    border: 1px solid {COLOR_BORDER};
 }}
 
 /* NÚT BẮT ĐẦU CHỤP KHỔNG LỒ - VÀNG CHAMPAGNE QUÝ PHÁI */
 QPushButton#btn_big_capture {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:0.45 {THEME_GOLD}, stop:1 {THEME_GOLD_DARK});
-    color: #FFFFFF;
-    font-size: 22px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    border: 2px solid {THEME_GOLD_PALE};
-    border-radius: 31px;
-    min-height: 60px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
+    color: #1C1D1C;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    border: none;
+    border-radius: 28px;
+    min-height: 56px;
     padding: 10px 36px;
 }}
 
 QPushButton#btn_big_capture:hover {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #D9C293, stop:0.45 #C4A364, stop:1 #AF8E4E);
-    border: 2px solid #FFFFFF;
+    background: #A88952;
+    color: #FFFFFF;
 }}
 
 QPushButton#btn_big_capture:pressed {{
-    background: {THEME_GOLD_DARK};
+    background: #8F7240;
+    color: #FFFFFF;
 }}
 
 QPushButton#btn_big_capture:disabled {{
-    background: {THEME_BG_SECONDARY};
-    color: {THEME_TEXT_SECONDARY};
-    border: 1px solid {THEME_BORDER};
+    background: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_TEXT_SECONDARY};
+    border: 1px solid {COLOR_BORDER};
 }}
 
 /* Nút Vàng Champagne Hành Động Chính */
 QPushButton#btn_champagne {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {THEME_GOLD_LIGHT}, stop:1 {THEME_GOLD});
-    color: #FFFFFF;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
+    color: #1C1D1C;
     font-weight: 800;
-    border: 1px solid {THEME_GOLD_DARK};
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
 }}
 
 QPushButton#btn_champagne:hover {{
-    background: {THEME_GOLD_LIGHT};
-    color: {THEME_TEXT_PRIMARY};
+    background: #A88952;
+    color: #FFFFFF;
 }}
 
 QPushButton#btn_secondary {{
-    background-color: {THEME_SURFACE};
-    color: {THEME_TEXT_PRIMARY};
-    border: 1.5px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 8px;
+    padding: 8px 18px;
 }}
 
 QPushButton#btn_secondary:hover {{
-    background-color: {THEME_BG_SECONDARY};
-    border: 1.5px solid {THEME_GOLD};
+    background-color: {COLOR_SURFACE_SECONDARY};
+    border: 1px solid {COLOR_CHAMPAGNE};
 }}
 
 QPushButton#btn_danger {{
-    background-color: {THEME_DANGER_BG};
-    color: {THEME_DANGER};
-    border: 1.5px solid {THEME_DANGER_BORDER};
+    background-color: #FDE8E8;
+    color: {COLOR_ERROR};
+    border: 1px solid #FCA5A5;
     font-weight: 700;
+    border-radius: 8px;
 }}
 
 QPushButton#btn_danger:hover {{
     background-color: #FCDCDC;
-    border: 1.5px solid {THEME_DANGER};
+    border: 1px solid {COLOR_ERROR};
 }}
 
 QPushButton#btn_success {{
-    background-color: {THEME_SUCCESS_BG};
-    color: {THEME_SUCCESS};
-    border: 1.5px solid {THEME_SUCCESS_BORDER};
+    background-color: #E2EFE2;
+    color: {COLOR_SUCCESS};
+    border: 1px solid #A5D6A7;
     font-weight: 700;
+    border-radius: 8px;
 }}
 
 QPushButton#btn_success:hover {{
     background-color: #C8E6C9;
-    border: 1.5px solid {THEME_SUCCESS};
+    border: 1px solid {COLOR_SUCCESS};
 }}
 
 /* === Khung Chứa & Thẻ (Cards / Panels) === */
 QFrame#card_panel, QFrame.card {{
-    background-color: {THEME_SURFACE};
-    border: 1.5px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 12px;
-    padding: 14px;
+    padding: 16px;
 }}
 
 QGroupBox {{
-    background-color: {THEME_SURFACE};
-    border: 1.5px solid {THEME_BORDER};
-    border-radius: 10px;
+    background-color: {COLOR_SURFACE};
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 12px;
     margin-top: 24px;
     font-weight: 700;
     font-size: 14px;
-    color: {THEME_TEXT_PRIMARY};
-    padding-top: 18px;
+    color: {COLOR_TEXT_PRIMARY};
+    padding: 18px 14px 14px 14px;
 }}
 
 QGroupBox::title {{
@@ -245,30 +375,30 @@ QGroupBox::title {{
     subcontrol-position: top left;
     left: 14px;
     padding: 0 8px;
-    background-color: {THEME_SURFACE};
-    color: {THEME_TEXT_PRIMARY};
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 /* === Ô Nhập Liệu & Danh Sách Lựa Chọn (Inputs & Selects) === */
 QLineEdit, QSpinBox, QComboBox {{
-    background-color: {THEME_INPUT_BG};
-    color: {THEME_TEXT_PRIMARY};
-    border: 1.5px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
     padding: 6px 12px;
-    font-size: 14px;
-    min-height: 26px;
+    font-size: 13px;
+    min-height: 28px;
 }}
 
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
-    border: 2px solid {THEME_GOLD};
-    background-color: #F8F3EB;
+    border: 1.5px solid {COLOR_CHAMPAGNE};
+    background-color: {COLOR_SURFACE};
 }}
 
 QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {{
-    background-color: #D5CDC0;
-    color: {THEME_TEXT_DISABLED};
-    border: 1px solid #C4B9AA;
+    background-color: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_TEXT_SECONDARY};
+    border: 1px solid {COLOR_BORDER};
 }}
 
 QComboBox::drop-down {{
@@ -277,109 +407,110 @@ QComboBox::drop-down {{
 }}
 
 QComboBox QAbstractItemView {{
-    background-color: {THEME_SURFACE};
-    color: {THEME_TEXT_PRIMARY};
-    selection-background-color: {THEME_BG_SECONDARY};
-    selection-color: {THEME_TEXT_PRIMARY};
-    border: 1.5px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
+    selection-background-color: {COLOR_SURFACE_SECONDARY};
+    selection-color: {COLOR_TEXT_PRIMARY};
+    border: 1px solid {COLOR_BORDER};
     outline: none;
     padding: 4px;
 }}
 
 /* === Hộp Kiểm (QCheckBox) & Radio Buttons === */
 QCheckBox, QRadioButton {{
-    color: {THEME_TEXT_PRIMARY};
-    font-size: 14px;
+    color: {COLOR_TEXT_PRIMARY};
+    font-size: 13px;
     font-weight: 500;
     spacing: 8px;
     background: transparent;
+    border: none;
 }}
 
 QCheckBox::indicator {{
     width: 18px;
     height: 18px;
-    border: 1.5px solid {THEME_BORDER};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 4px;
-    background-color: {THEME_SURFACE};
+    background-color: {COLOR_SURFACE};
 }}
 
 QCheckBox::indicator:hover {{
-    border-color: {THEME_GOLD};
+    border-color: {COLOR_CHAMPAGNE};
 }}
 
 QCheckBox::indicator:checked {{
-    background-color: {THEME_GOLD};
-    border-color: {THEME_GOLD_DARK};
+    background-color: {COLOR_CHAMPAGNE};
+    border-color: {COLOR_CHAMPAGNE};
 }}
 
 /* === Thanh Trượt Tham Số Bộ Lọc (Sliders) === */
 QSlider::groove:horizontal {{
     border: none;
     height: 6px;
-    background: {THEME_BORDER};
+    background: {COLOR_BORDER};
     border-radius: 3px;
 }}
 
 QSlider::sub-page:horizontal {{
-    background: {THEME_GOLD};
+    background: {COLOR_CHAMPAGNE};
     border-radius: 3px;
 }}
 
 QSlider::handle:horizontal {{
-    background: {THEME_SURFACE};
-    border: 2px solid {THEME_GOLD};
-    width: 20px;
-    margin-top: -7px;
-    margin-bottom: -7px;
-    border-radius: 10px;
+    background: {COLOR_SURFACE};
+    border: 2px solid {COLOR_CHAMPAGNE};
+    width: 18px;
+    margin-top: -6px;
+    margin-bottom: -6px;
+    border-radius: 9px;
 }}
 
 QSlider::handle:horizontal:hover {{
-    background: {THEME_GOLD_PALE};
+    background: {COLOR_PALE_GOLD};
 }}
 
 /* === Bảng Dữ Liệu (Tables) === */
 QTableWidget {{
-    background-color: {THEME_SURFACE};
-    alternate-background-color: {THEME_BG_SECONDARY};
-    gridline-color: {THEME_BORDER_LIGHT};
-    border: 1.5px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE};
+    alternate-background-color: #FAF9F6;
+    gridline-color: {COLOR_BORDER_LIGHT};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
-    color: {THEME_TEXT_PRIMARY};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 QTableWidget::item:selected {{
-    background-color: {THEME_GOLD_PALE};
-    color: {THEME_TEXT_PRIMARY};
+    background-color: {COLOR_PALE_GOLD};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 QHeaderView::section {{
-    background-color: {THEME_BG_SECONDARY};
-    color: {THEME_TEXT_PRIMARY};
+    background-color: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_TEXT_PRIMARY};
     font-weight: bold;
     border: none;
-    border-bottom: 2px solid {THEME_BORDER};
+    border-bottom: 1.5px solid {COLOR_BORDER};
     padding: 8px;
-    font-size: 13px;
+    font-size: 12px;
 }}
 
 /* === Thanh Cuộn Mượt (Scrollbars) === */
 QScrollBar:vertical {{
     border: none;
-    background: {THEME_BG_MAIN};
+    background: {COLOR_BG};
     width: 8px;
     margin: 0px;
     border-radius: 4px;
 }}
 
 QScrollBar::handle:vertical {{
-    background: {THEME_BORDER};
+    background: {COLOR_BORDER};
     min-height: 24px;
     border-radius: 4px;
 }}
 
 QScrollBar::handle:vertical:hover {{
-    background: {THEME_GOLD};
+    background: {COLOR_CHAMPAGNE};
 }}
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
@@ -388,20 +519,20 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 
 QScrollBar:horizontal {{
     border: none;
-    background: {THEME_BG_MAIN};
+    background: {COLOR_BG};
     height: 8px;
     margin: 0px;
     border-radius: 4px;
 }}
 
 QScrollBar::handle:horizontal {{
-    background: {THEME_BORDER};
+    background: {COLOR_BORDER};
     min-width: 24px;
     border-radius: 4px;
 }}
 
 QScrollBar::handle:horizontal:hover {{
-    background: {THEME_GOLD};
+    background: {COLOR_CHAMPAGNE};
 }}
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
@@ -410,14 +541,14 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 
 /* === Hộp Thoại, Menu ngữ cảnh & Tooltip (Dialogs, Menus, Tooltips) === */
 QDialog {{
-    background-color: {THEME_BG_MAIN};
-    color: {THEME_TEXT_PRIMARY};
+    background-color: {COLOR_BG};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 QMenu {{
-    background-color: {THEME_SURFACE};
-    color: {THEME_TEXT_PRIMARY};
-    border: 1.5px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT_PRIMARY};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
     padding: 4px;
 }}
@@ -428,36 +559,36 @@ QMenu::item {{
 }}
 
 QMenu::item:selected {{
-    background-color: {THEME_GOLD_PALE};
-    color: {THEME_TEXT_PRIMARY};
+    background-color: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_CHAMPAGNE};
 }}
 
 QToolTip {{
-    background-color: {THEME_TEXT_PRIMARY};
-    color: {THEME_GOLD_PALE};
-    border: 1px solid {THEME_TEXT_SECONDARY};
+    background-color: {COLOR_TEXT_PRIMARY};
+    color: #FFFFFF;
+    border: 1px solid {COLOR_TEXT_SECONDARY};
     border-radius: 6px;
     padding: 4px 8px;
     font-size: 12px;
 }}
 
 QProgressBar {{
-    background-color: {THEME_BG_SECONDARY};
-    border: 1px solid {THEME_BORDER};
+    background-color: {COLOR_SURFACE_SECONDARY};
+    border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
     text-align: center;
-    color: {THEME_TEXT_PRIMARY};
+    color: {COLOR_TEXT_PRIMARY};
     font-weight: 700;
 }}
 
 QProgressBar::chunk {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {THEME_GOLD}, stop:1 {THEME_GOLD_LIGHT});
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT});
     border-radius: 7px;
 }}
 
 /* === Tối Ưu Bố Cục Co Giãn Frame Designer (Responsive Designer Styles) === */
 FrameDesignerPage QPushButton {{
-    padding: 5px 12px;
+    padding: 5px 10px;
     font-size: 13px;
     font-weight: 600;
     min-height: 24px;
@@ -472,5 +603,70 @@ FrameDesignerPage QComboBox {{
     padding: 4px 8px;
     font-size: 13px;
     min-height: 24px;
+}}
+
+/* === Minimal Luxury Studio Global Helpers === */
+QPushButton#btn_champagne {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #B99A63, stop:1 #C8A870);
+    color: #1C1D1C;
+    font-weight: 800;
+    font-size: 13px;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+}}
+QPushButton#btn_champagne:hover {{
+    background: #A88952;
+    color: #FFFFFF;
+}}
+QPushButton#btn_champagne:pressed {{
+    background: #8F7240;
+    color: #FFFFFF;
+}}
+QPushButton#btn_champagne:disabled {{
+    background: #D9D5CC;
+    color: #6E6D67;
+}}
+
+QPushButton#btn_secondary {{
+    background-color: #FFFFFF;
+    color: #292B29;
+    font-weight: 600;
+    font-size: 12px;
+    border: 1px solid #E8E6E0;
+    border-radius: 8px;
+    padding: 8px 18px;
+}}
+QPushButton#btn_secondary:hover {{
+    background-color: #F1F0EC;
+    border-color: #B99A63;
+}}
+QPushButton#btn_secondary:pressed {{
+    background-color: #E2DED5;
+}}
+
+QPushButton#nav_item {{
+    background: transparent;
+    color: #85847D;
+    font-weight: 600;
+    font-size: 12px;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 6px;
+}}
+QPushButton#nav_item:hover {{
+    color: #292B29;
+    background-color: #F1F0EC;
+}}
+
+QPushButton#nav_item_active {{
+    background-color: #FFFFFF;
+    color: #B99A63;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid #E8E6E0;
+    border-bottom: 2px solid #B99A63;
+    border-radius: 6px;
+    padding: 7px 12px;
 }}
 """

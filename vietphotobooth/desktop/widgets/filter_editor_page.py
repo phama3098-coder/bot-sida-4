@@ -136,7 +136,7 @@ class FilterEditorPage(QWidget):
         sliders_layout.setSpacing(12)
 
         # Nhóm 1: Ánh sáng & Độ tương phản
-        grp_light = QGroupBox("1. Ánh Sáng & Tương Phản")
+        grp_light = QGroupBox("1. Ánh Sáng && Tương Phản")
         l_light = QVBoxLayout(grp_light)
         self.s_exposure = self._create_slider(l_light, "Phơi sáng (Exposure):", -100, 100, 0)
         self.s_brightness = self._create_slider(l_light, "Độ sáng (Brightness):", -100, 100, 0)
@@ -147,7 +147,7 @@ class FilterEditorPage(QWidget):
         sliders_layout.addWidget(grp_light)
 
         # Nhóm 2: Màu sắc & Cân bằng trắng
-        grp_color = QGroupBox("2. Màu Sắc & Cân Bằng Trắng")
+        grp_color = QGroupBox("2. Màu Sắc && Cân Bằng Trắng")
         l_color = QVBoxLayout(grp_color)
         self.s_saturation = self._create_slider(l_color, "Độ bão hòa (Saturation):", -100, 100, 0)
         self.s_temperature = self._create_slider(l_color, "Nhiệt độ màu (Temp):", -100, 100, 0)
@@ -159,7 +159,7 @@ class FilterEditorPage(QWidget):
         sliders_layout.addWidget(grp_color)
 
         # Nhóm 3: Hiệu ứng nghệ thuật & Làm mịn da
-        grp_fx = QGroupBox("3. Nghệ Thuật & Chân Dung")
+        grp_fx = QGroupBox("3. Nghệ Thuật && Chân Dung")
         l_fx = QVBoxLayout(grp_fx)
         self.s_soft_skin = self._create_slider(l_fx, "Làm mịn da (Soft Skin):", 0, 100, 0)
         self.s_sharpness = self._create_slider(l_fx, "Độ sắc nét (Sharpness):", 0, 100, 0)

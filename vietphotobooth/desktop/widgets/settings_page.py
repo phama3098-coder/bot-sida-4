@@ -13,8 +13,9 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QGroupBox, QCheckBox, QSpinBox, QLineEdit, QMessageBox, QInputDialog,
-    QScrollArea, QFrame, QFileDialog
+    QScrollArea, QFrame, QFileDialog, QStackedWidget
 )
+from vietphotobooth.desktop.widgets.dashboard_page import DashboardPage
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 
@@ -26,6 +27,12 @@ from vietphotobooth.cloud import SyncManager, GDriveAuth, GDriveClient
 from vietphotobooth.core.logger import get_logger
 from vietphotobooth.version import get_version_string, __release_date__, __version__, __build__
 from vietphotobooth.desktop.icons import get_brand_logo_pixmap
+from vietphotobooth.desktop.styles import (
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_BORDER, COLOR_BORDER_LIGHT,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR
+)
 from vietphotobooth.updates import UpdateManager, UpdateNotificationDialog, UpdateProgressDialog
 
 logger = get_logger()
@@ -44,6 +51,10 @@ class SettingsPage(QWidget):
         sync_mgr: Optional[SyncManager] = None,
         auth_mgr=None,
         update_mgr: Optional[UpdateManager] = None,
+        camera_mgr=None,
+        print_mgr=None,
+        event_mgr=None,
+        dashboard_page: Optional[DashboardPage] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -53,27 +64,129 @@ class SettingsPage(QWidget):
         self.sync_mgr = sync_mgr
         self.auth_mgr = auth_mgr
         self.update_mgr = update_mgr or UpdateManager(self.config_mgr, self)
+        self.camera_mgr = camera_mgr
+        self.print_mgr = print_mgr
+        self.event_mgr = event_mgr
+
+        # Buồng Lái Vận Hành (Dashboard) tích hợp nội bộ trong Cài Đặt (Tổng Quan Hệ Thống)
+        self.dashboard_page = dashboard_page or DashboardPage(
+            event_mgr=self.event_mgr,
+            camera_mgr=self.camera_mgr,
+            print_mgr=self.print_mgr,
+            config_mgr=self.config_mgr,
+            parent=self
+        )
 
         self._init_ui()
         self._load_config()
         self._update_gdrive_ui_status()
 
     def _init_ui(self):
+        self.setStyleSheet(f"background-color: {COLOR_BG};")
+
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # --- Thanh Điều Hướng Phụ (Sub-Navigation Header) ---
+        sub_nav = QWidget()
+        sub_nav.setObjectName("settings_sub_nav")
+        sub_nav.setStyleSheet(f"""
+            QWidget#settings_sub_nav {{
+                background-color: {COLOR_SURFACE};
+                border-bottom: 1px solid {COLOR_BORDER};
+            }}
+        """)
+        h_nav = QHBoxLayout(sub_nav)
+        h_nav.setContentsMargins(20, 8, 20, 8)
+        h_nav.setSpacing(10)
 
+        self.btn_overview_tab = QPushButton("📊 Tổng Quan Hệ Thống (System Overview)")
+        self.btn_overview_tab.setCursor(Qt.PointingHandCursor)
+        self.btn_overview_tab.setFixedHeight(34)
+
+        self.btn_config_tab = QPushButton("⚙️ Thiết Lập & Vận Hành (Configuration)")
+        self.btn_config_tab.setCursor(Qt.PointingHandCursor)
+        self.btn_config_tab.setFixedHeight(34)
+
+        # Alias tương thích ngược
+        self.btn_overview = self.btn_overview_tab
+
+        h_nav.addWidget(self.btn_overview_tab)
+        h_nav.addWidget(self.btn_config_tab)
+        h_nav.addStretch()
+        outer_layout.addWidget(sub_nav)
+
+        # --- Stack chứa 2 khu vực: Tổng quan và Cấu hình ---
+        self.settings_stack = QStackedWidget(self)
+
+        # Page 0: Tổng Quan Hệ Thống (DashboardPage)
+        self.settings_stack.addWidget(self.dashboard_page)
+
+        # Page 1: Thiết Lập & Vận Hành (ScrollArea cấu hình)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setStyleSheet(f"background-color: {COLOR_BG}; border: none;")
+
+        scroll = self.scroll
         content = QWidget()
+        content.setObjectName("settings_content")
+        content.setStyleSheet(f"""
+            QWidget#settings_content {{
+                background-color: {COLOR_BG};
+            }}
+            QGroupBox {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 12px;
+                margin-top: 14px;
+                font-weight: 700;
+                color: {COLOR_TEXT_PRIMARY};
+                padding: 16px 14px 14px 14px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 14px;
+                padding: 0 8px;
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border-radius: 4px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QLineEdit, QSpinBox {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 8px;
+                padding: 6px 10px;
+                color: {COLOR_TEXT_PRIMARY};
+                font-size: 13px;
+                min-height: 22px;
+            }}
+            QLineEdit:focus, QSpinBox:focus {{
+                border: 1.5px solid {COLOR_CHAMPAGNE};
+                background-color: #FFFFFF;
+            }}
+            QCheckBox {{
+                color: {COLOR_TEXT_PRIMARY};
+                font-size: 13px;
+                background: transparent;
+                border: none;
+                spacing: 8px;
+            }}
+        """)
         layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
         # 1. BẢO MẬT & MÃ PIN QUẢN TRỊ (PIN CODE PROTECTION)
-        grp_sec = QGroupBox("1. Bảo Mật & Mã PIN Quản Trị")
+        grp_sec = QGroupBox("1. Bảo Mật && Mã PIN Quản Trị")
         l_sec = QVBoxLayout(grp_sec)
 
         self.chk_pin_enabled = QCheckBox("Bảo vệ bằng mã PIN cho các mục quản trị (Máy ảnh, Máy in, Sự kiện, Cài đặt)")
@@ -130,7 +243,7 @@ class SettingsPage(QWidget):
         r2.addWidget(self.spin_timeout)
         l_kiosk.addLayout(r2)
 
-        self.chk_guest_review = QCheckBox("Cho phép khách chọn khung và chỉnh sửa sau khi chụp (Khung, Đổi ảnh ô, Lời chúc & Sticker)")
+        self.chk_guest_review = QCheckBox("Cho phép khách chọn khung và chỉnh sửa sau khi chụp (Khung, Đổi ảnh ô, Lời chúc && Sticker)")
         self.chk_guest_review.setChecked(True)
         l_kiosk.addWidget(self.chk_guest_review)
 
@@ -214,7 +327,7 @@ class SettingsPage(QWidget):
         layout.addWidget(grp_filter)
 
         # 6. LƯU TRỮ & ĐỒNG BỘ ĐÁM MÂY (GOOGLE DRIVE CLOUD SYNC)
-        grp_gdrive = QGroupBox("6. Lưu Trữ & Đồng Bộ Đám Mây (Google Drive Cloud Sync)")
+        grp_gdrive = QGroupBox("6. Lưu Trữ && Đồng Bộ Đám Mây (Google Drive Cloud Sync)")
         l_gd = QVBoxLayout(grp_gdrive)
 
         # Trạng thái kết nối Google Drive
@@ -291,7 +404,7 @@ class SettingsPage(QWidget):
         layout.addWidget(grp_gdrive)
 
         # 7. THÔNG TIN ỨNG DỤNG, BẢN QUYỀN & CẬP NHẬT PHIÊN BẢN
-        grp_sys = QGroupBox("7. Thông Tin Ứng Dụng & Cập Nhật Phiên Bản")
+        grp_sys = QGroupBox("7. Thông Tin Ứng Dụng && Cập Nhật Phiên Bản")
         l_sys = QVBoxLayout(grp_sys)
         l_sys.setSpacing(12)
 
@@ -306,18 +419,18 @@ class SettingsPage(QWidget):
 
         brand_info = QVBoxLayout()
         lbl_app_name = QLabel("<b>1998 TEAM — Photobooth</b>")
-        lbl_app_name.setStyleSheet("color: #AD905B; font-size: 18px; font-weight: bold;")
+        lbl_app_name.setStyleSheet(f"color: {COLOR_CHAMPAGNE}; font-size: 18px; font-weight: bold;")
         brand_info.addWidget(lbl_app_name)
         brand_info.addWidget(QLabel("Đơn vị sở hữu: <b>1998 Studio phóng sự cưới</b>"))
 
         lbl_ver_badge = QLabel(
             f"Phiên bản đang sử dụng: <b style='color:#059669;'>v{get_version_string()}</b> • Phát hành: <b>{__release_date__}</b>"
         )
-        lbl_ver_badge.setStyleSheet("font-size: 13px; color: #353631;")
+        lbl_ver_badge.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_PRIMARY};")
         brand_info.addWidget(lbl_ver_badge)
 
         self.lbl_server_ver = QLabel("Phiên bản mới nhất trên máy chủ: <b style='color:#716F68;'>Chưa kiểm tra</b>")
-        self.lbl_server_ver.setStyleSheet("font-size: 13px; color: #716F68;")
+        self.lbl_server_ver.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_SECONDARY};")
         brand_info.addWidget(self.lbl_server_ver)
 
         brand_info.addWidget(QLabel(f"Nền tảng: <b>{platform.system()} {platform.release()} (64-bit)</b> • Python {platform.python_version()} • PySide6"))
@@ -328,7 +441,7 @@ class SettingsPage(QWidget):
         # Phân cách mỏng
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("color: #AAA69D;")
+        line.setStyleSheet(f"color: {COLOR_BORDER}; background-color: {COLOR_BORDER}; height: 1px; border: none;")
         l_sys.addWidget(line)
 
         # Cấu hình kiểm tra cập nhật
@@ -342,7 +455,7 @@ class SettingsPage(QWidget):
         l_sys.addLayout(r_up1)
 
         lbl_up_hint = QLabel("💡 <i>Nguồn cập nhật mặc định: GitHub Release chính thức (phama3098-coder/bot-sida-4). Hỗ trợ GitHub Releases API hoặc file JSON manifest.</i>")
-        lbl_up_hint.setStyleSheet("color: #716F68; font-size: 11px;")
+        lbl_up_hint.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px;")
         l_sys.addWidget(lbl_up_hint)
 
         r_up2 = QHBoxLayout()
@@ -358,19 +471,74 @@ class SettingsPage(QWidget):
         l_sys.addLayout(r_up2)
 
         self.lbl_update_status = QLabel("Trạng thái: Sẵn sàng kiểm tra phiên bản mới.")
-        self.lbl_update_status.setStyleSheet("color: #716F68; font-size: 12px; font-style: italic;")
+        self.lbl_update_status.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 12px; font-style: italic;")
         l_sys.addWidget(self.lbl_update_status)
 
         layout.addWidget(grp_sys)
 
         # Nút Lưu
         btn_save = QPushButton("💾 Lưu Toàn Bộ Cài Đặt")
-        btn_save.setObjectName("btn_success")
+        btn_save.setObjectName("btn_champagne")
+        btn_save.setFixedHeight(44)
+        btn_save.setCursor(Qt.PointingHandCursor)
         btn_save.clicked.connect(self._save_config)
         layout.addWidget(btn_save)
 
         scroll.setWidget(content)
-        outer_layout.addWidget(scroll)
+        self.settings_stack.addWidget(self.scroll)
+        outer_layout.addWidget(self.settings_stack, 1)
+
+        self.btn_overview_tab.clicked.connect(self.show_overview)
+        self.btn_config_tab.clicked.connect(self.show_config)
+        self.show_overview()
+
+    def show_overview(self):
+        """Hiển thị khu vực Tổng Quan Hệ Thống (Dashboard)."""
+        self.settings_stack.setCurrentIndex(0)
+        self._update_tab_buttons_style(active_tab="overview")
+
+    def show_config(self):
+        """Hiển thị khu vực Thiết Lập & Cấu Hình."""
+        self.settings_stack.setCurrentIndex(1)
+        self._update_tab_buttons_style(active_tab="config")
+
+    def current_section(self) -> str:
+        return "overview" if self.settings_stack.currentIndex() == 0 else "config"
+
+    def _update_tab_buttons_style(self, active_tab: str):
+        active_style = f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_CHAMPAGNE};
+                font-weight: 800;
+                font-size: 13px;
+                border: 1px solid {COLOR_BORDER};
+                border-bottom: 2px solid {COLOR_CHAMPAGNE};
+                border-radius: 8px;
+                padding: 6px 18px;
+            }}
+        """
+        inactive_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {COLOR_TEXT_SECONDARY};
+                font-weight: 600;
+                font-size: 13px;
+                border: none;
+                border-radius: 8px;
+                padding: 6px 18px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_SECONDARY};
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+        """
+        if active_tab == "overview":
+            self.btn_overview_tab.setStyleSheet(active_style)
+            self.btn_config_tab.setStyleSheet(inactive_style)
+        else:
+            self.btn_overview_tab.setStyleSheet(inactive_style)
+            self.btn_config_tab.setStyleSheet(active_style)
 
     def _load_config(self):
         pin_en = self.config_mgr.get("security.pin_enabled", True)

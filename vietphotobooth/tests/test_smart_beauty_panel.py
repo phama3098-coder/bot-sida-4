@@ -337,3 +337,108 @@ class TestSmartBeautyDialog:
         dlg = SmartBeautyDialog(str(img_path), shot_index=1, total_shots=1, auto_timeout_sec=0)
         assert dlg._original_pil.size == (300, 200)
         dlg.close()
+
+    def test_no_countdown_or_auto_confirm_timer(self, sample_portrait_image, qapp):
+        """Đảm bảo đã loại bỏ hoàn toàn đếm ngược, auto-timeout và chặn phím Esc bỏ qua ảnh."""
+        from PySide6.QtWidgets import QLabel
+        from PySide6.QtTest import QTest
+
+        dlg = SmartBeautyDialog(
+            sample_portrait_image, shot_index=1, total_shots=4, auto_timeout_sec=25
+        )
+        assert not hasattr(dlg, "lbl_countdown")
+        assert not hasattr(dlg, "_timeout_timer")
+        for lbl in dlg.findChildren(QLabel):
+            assert "Tự động tiếp tục" not in lbl.text()
+
+        dlg.show()
+        qapp.processEvents()
+        QTest.keyClick(dlg, Qt.Key_Escape)
+        qapp.processEvents()
+        # Phím Esc không được phép tự đóng / bỏ qua ảnh
+        assert dlg.isVisible() is True
+        assert dlg.result() == 0
+        dlg.close()
+
+    def test_two_column_proportions_uniform_sliders_at_1920x1080(self, sample_portrait_image, qapp):
+        """Kiểm tra bố cục 2 cột (65-70% / 30-35%), slider đồng đều chiều rộng và tỉ lệ ảnh chuẩn ở 1920x1080."""
+        dlg = SmartBeautyDialog(sample_portrait_image, shot_index=2, total_shots=4)
+        dlg.resize(1920, 1080)
+        dlg.show()
+        qapp.processEvents()
+        qapp.processEvents()
+
+        p_w = dlg.preview_container.width()
+        c_w = dlg.ctrl_card.width()
+        total_w = p_w + c_w
+        assert total_w > 1200
+        preview_ratio = p_w / total_w
+        ctrl_ratio = c_w / total_w
+        assert 0.64 <= preview_ratio <= 0.71, f"Preview ratio {preview_ratio:.3f} ngoài vùng 65-70%"
+        assert 0.29 <= ctrl_ratio <= 0.36, f"Control ratio {ctrl_ratio:.3f} ngoài vùng 30-35%"
+
+        # 3 thanh trượt phải có cùng chiều rộng chính xác
+        w1 = dlg.slider_brighten.width()
+        w2 = dlg.slider_smooth.width()
+        w3 = dlg.slider_lips.width()
+        assert w1 >= 220
+        assert abs(w1 - w2) <= 2 and abs(w2 - w3) <= 2
+
+        # Không có label tiêu đề bị đóng viền input box ngoài ý muốn
+        assert "#AAA69D" not in dlg.ctrl_card.styleSheet()
+        assert "#beauty_ctrl_card" in dlg.styleSheet()
+
+        # Tỉ lệ pixmap giữ nguyên không kéo méo (sample_portrait_image là 640x480 => 4:3)
+        pm = dlg.lbl_viewport.pixmap()
+        assert pm is not None and not pm.isNull()
+        orig_ratio = sample_portrait_image.width / sample_portrait_image.height
+        pm_ratio = pm.width() / pm.height()
+        assert abs(pm_ratio - orig_ratio) < 0.05
+
+        dlg.close()
+
+    def test_sliders_apply_real_pixels_and_compare_toggles_original(self, sample_portrait_image, dummy_face_center, qapp):
+        """Điều chỉnh slider phải xử lý pixel thực tế qua BeautyPreviewWorker và nút Xem Ảnh Gốc hoàn trả ảnh gốc."""
+        import time
+        dlg = SmartBeautyDialog(sample_portrait_image, shot_index=1, total_shots=2)
+        dlg._preview_faces = [dummy_face_center]
+        dlg._full_faces = [dummy_face_center]
+        dlg.show()
+        qapp.processEvents()
+
+        orig_preview = dlg._preview_bgr.copy()
+        dlg.slider_brighten.setValue(60)
+        dlg.slider_smooth.setValue(50)
+        dlg.slider_lips.setValue(45)
+
+        t0 = time.time()
+        while np.array_equal(dlg._current_preview_bgr, orig_preview) and time.time() - t0 < 2.0:
+            qapp.processEvents()
+            time.sleep(0.02)
+
+        assert not np.array_equal(dlg._current_preview_bgr, orig_preview)
+        assert dlg.lbl_s1_val.text() == "60%"
+        assert dlg.lbl_s2_val.text() == "50%"
+        assert dlg.lbl_s3_val.text() == "45%"
+
+        # Toggling Xem Ảnh Gốc không làm mất giá trị slider (và không hiển thị nhãn kỹ thuật)
+        assert not hasattr(dlg, "lbl_compare_badge")
+        dlg.btn_compare.setChecked(True)
+        qapp.processEvents()
+        assert dlg._showing_original is True
+        assert "Đang Xem Gốc" in dlg.btn_compare.text()
+
+        dlg.btn_compare.setChecked(False)
+        qapp.processEvents()
+        assert dlg._showing_original is False
+        assert "Xem Ảnh Gốc" in dlg.btn_compare.text()
+
+        dlg.chk_reuse.setChecked(True)
+        dlg._on_confirm_clicked()
+        final_img, settings, reuse = dlg.get_result()
+        assert reuse is True
+        assert settings["brighten"] == 60.0
+        assert settings["smooth"] == 50.0
+        assert settings["lips"] == 45.0
+        assert not np.array_equal(np.array(final_img), np.array(sample_portrait_image))
+        dlg.close()

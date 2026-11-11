@@ -450,7 +450,7 @@ class CameraLiveViewport(QWidget):
                     bg_color = QColor(15, 23, 42, 210)   # Dark slate
                     border_c = QColor("#0284C7")
                     text_c = QColor("#38BDF8")
-                    badge_title = "🎯 EYE AF: ĐANG TÌM KHUÔN MẶT"
+                    badge_title = "🎯 EYE AF: TÌM GƯƠNG MẶT"
 
                 r = self._target_rect
                 bx = r.left() + 10

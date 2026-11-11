@@ -1,18 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
+mp_datas, mp_binaries, mp_hiddenimports = collect_all('mediapipe')
+ort_datas, ort_binaries, ort_hiddenimports = collect_all('onnxruntime')
 
 a = Analysis(
     ['vietphotobooth/main.py'],
     pathex=['.'],
-    binaries=[],
+    binaries=[] + mp_binaries + ort_binaries,
     datas=[
         ('Assets', 'Assets'),
         ('vietphotobooth/ui/templates', 'vietphotobooth/ui/templates'),
         ('vietphotobooth/ui/static', 'vietphotobooth/ui/static'),
         ('vietphotobooth/camera/backends/nikon_maid/bin', 'vietphotobooth/camera/backends/nikon_maid/bin'),
-    ],
+    ] + mp_datas + ort_datas,
     hiddenimports=[
         'PySide6',
         'PySide6.QtCore',
@@ -60,8 +63,15 @@ a = Analysis(
         'vietphotobooth.camera.backends.nikon_maid.nikon_d780_backend',
         'vietphotobooth.camera.face_detector',
         'vietphotobooth.camera.face_eye_af_controller',
+        'vietphotobooth.filters.face_analysis',
+        'vietphotobooth.filters.ai_portrait_enhancer',
         'vietphotobooth.filters.beauty_engine',
         'vietphotobooth.desktop.widgets.smart_beauty_panel',
+        'onnxruntime',
+        'mediapipe',
+        'mediapipe.tasks',
+        'mediapipe.tasks.python',
+        'mediapipe.tasks.python.vision',
         'vietphotobooth.printing.presets',
         'vietphotobooth.audio',
         'vietphotobooth.audio.constants',
@@ -85,11 +95,11 @@ a = Analysis(
         'cv2',
         'numpy',
         'qrcode'
-    ],
+    ] + mp_hiddenimports + ort_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['matplotlib', 'pandas', 'scipy', 'tkinter'],
+    excludes=['pandas', 'scipy', 'tkinter'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

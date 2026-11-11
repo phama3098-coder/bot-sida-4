@@ -24,18 +24,22 @@ def test_dashboard_navigation_switch(qapp):
     # Default stack is 0 (tabs)
     assert window.window_stack.currentIndex() == 0
 
-    # Chuyển sang Dashboard
+    # Chuyển sang Dashboard (nằm trong Cài Đặt -> Tổng quan hệ thống)
     window.show_dashboard()
-    assert window.window_stack.currentIndex() == 2
+    assert window.window_stack.currentIndex() == 0
+    assert window.tabs.currentIndex() == 5
+    assert window.settings_page.settings_stack.currentIndex() == 0
 
-    # Chuyển tab quay lại tabs container
+    # Chuyển tab quay lại Khung Ảnh (tab 1)
     window.switch_to_tab(1)
     assert window.window_stack.currentIndex() == 0
     assert window.tabs.currentIndex() == 1
 
     # Chuyển lại Dashboard
     window.show_dashboard()
-    assert window.window_stack.currentIndex() == 2
+    assert window.window_stack.currentIndex() == 0
+    assert window.tabs.currentIndex() == 5
+    assert window.settings_page.settings_stack.currentIndex() == 0
 
     window.close()
 
@@ -46,7 +50,8 @@ def test_dashboard_signals(qapp):
     window.auth_mgr.authenticate("1234")
 
     window.show_dashboard()
-    assert window.window_stack.currentIndex() == 2
+    assert window.window_stack.currentIndex() == 0
+    assert window.tabs.currentIndex() == 5
 
     # Bấm Open Studio -> Chuyển sang Tab Máy Ảnh (index 2)
     window.dashboard_page.open_studio_requested.emit()

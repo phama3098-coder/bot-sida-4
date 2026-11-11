@@ -45,9 +45,9 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 
 ; Packaging and Output
-OutputDir=c:\Users\Admin\Documents\photobooth\dist_installer
+OutputDir=dist_installer
 OutputBaseFilename={#MyOutputFilename}
-SetupIconFile=c:\Users\Admin\Documents\photobooth\Assets\Branding\app_icon.ico
+SetupIconFile=Assets\Branding\app_icon.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -71,7 +71,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "c:\Users\Admin\Documents\photobooth\dist\1998TeamPhotobooth\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\1998TeamPhotobooth\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"

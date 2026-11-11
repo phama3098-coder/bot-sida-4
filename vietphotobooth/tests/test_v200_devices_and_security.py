@@ -133,13 +133,24 @@ def test_main_window_v200_extended_navigation(qapp):
     window.show_devices()
     assert window.window_stack.currentIndex() == 3
 
+    # Bấm nút Quay lại trên DevicesPage
+    assert hasattr(window.devices_page, "btn_back")
+    window.devices_page.btn_back.click()
+    assert window.window_stack.currentIndex() == 0
+
     # Chuyển sang QR Sharing (index 4)
     window.show_qr_sharing()
     assert window.window_stack.currentIndex() == 4
 
-    # Quay lại Dashboard (index 2)
+    # Bấm nút Quay lại trên QRSharingPage
+    assert hasattr(window.qr_page, "btn_back")
+    window.qr_page.btn_back.click()
+    assert window.window_stack.currentIndex() == 0
+
+    # Quay lại Dashboard (tích hợp trong Cài Đặt -> Tổng quan hệ thống)
     window.show_dashboard()
-    assert window.window_stack.currentIndex() == 2
+    assert window.window_stack.currentIndex() == 0
+    assert window.tabs.currentIndex() == 5
 
     # Quay lại Tabs gốc (index 0)
     window.switch_to_tab(0)

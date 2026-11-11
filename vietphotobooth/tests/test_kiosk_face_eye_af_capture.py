@@ -129,6 +129,11 @@ def test_kiosk_trigger_shot_with_eye_target(kiosk_page, qapp):
     Khi có mắt được nhận diện, quy trình chụp gọi trigger_autofocus với điểm ngắm mắt
     trước khi thực hiện chụp ảnh.
     """
+    if hasattr(kiosk_page, "_face_service"):
+        kiosk_page._face_service.disable()
+    if hasattr(kiosk_page, "live_view_worker"):
+        kiosk_page.live_view_worker.pause()
+
     f = DetectedFace(x=200.0, y=200.0, w=150.0, h=150.0, confidence=0.95, right_eye=(245.0, 255.0))
     kiosk_page._latest_detected_faces = [f]
     kiosk_page._latest_frame_shape = (680, 1024)
@@ -171,6 +176,11 @@ def test_kiosk_trigger_shot_with_face_center_fallback(kiosk_page, qapp):
     Khi khuôn mặt không có mốc mắt (nhắm mắt / che mắt), quy trình chụp
     lấy nét vào tâm khuôn mặt (face center fallback).
     """
+    if hasattr(kiosk_page, "_face_service"):
+        kiosk_page._face_service.disable()
+    if hasattr(kiosk_page, "live_view_worker"):
+        kiosk_page.live_view_worker.pause()
+
     f = DetectedFace(x=200.0, y=200.0, w=150.0, h=150.0, confidence=0.95, right_eye=None, left_eye=None)
     kiosk_page._latest_detected_faces = [f]
     kiosk_page._latest_frame_shape = (680, 1024)

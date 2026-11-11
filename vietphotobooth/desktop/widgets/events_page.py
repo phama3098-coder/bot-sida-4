@@ -32,7 +32,11 @@ from vietphotobooth.desktop.styles import (
     THEME_BG_MAIN, THEME_SURFACE, THEME_BG_SECONDARY, THEME_INPUT_BG,
     THEME_BORDER, THEME_BORDER_LIGHT, THEME_TEXT_PRIMARY, THEME_TEXT_SECONDARY,
     THEME_GOLD, THEME_GOLD_LIGHT, THEME_GOLD_DARK, THEME_DANGER, THEME_DANGER_BG,
-    THEME_DANGER_BORDER, THEME_SUCCESS, THEME_SUCCESS_BG, THEME_SUCCESS_BORDER
+    THEME_DANGER_BORDER, THEME_SUCCESS, THEME_SUCCESS_BG, THEME_SUCCESS_BORDER,
+    COLOR_BG, COLOR_SURFACE, COLOR_SURFACE_SECONDARY,
+    COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_BORDER, COLOR_BORDER_LIGHT,
+    COLOR_CHAMPAGNE, COLOR_CHAMPAGNE_LIGHT, COLOR_PALE_GOLD,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR
 )
 from vietphotobooth.desktop.widgets.session_lightbox_dialog import SessionLightboxDialog
 
@@ -71,7 +75,7 @@ class EventsPage(QWidget):
             self.sync_mgr.worker.sync_failed.connect(lambda p, e: self._refresh_gallery())
 
     def _init_ui(self):
-        self.setStyleSheet(f"background-color: {THEME_BG_MAIN};")
+        self.setStyleSheet(f"background-color: {COLOR_BG};")
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -80,10 +84,10 @@ class EventsPage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(f"background-color: {THEME_BG_MAIN}; border: none;")
+        scroll.setStyleSheet(f"background-color: {COLOR_BG}; border: none;")
 
         content = QWidget()
-        content.setStyleSheet(f"background-color: {THEME_BG_MAIN}; border: none;")
+        content.setStyleSheet(f"background-color: {COLOR_BG}; border: none;")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(18, 16, 18, 18)
         layout.setSpacing(16)
@@ -95,18 +99,18 @@ class EventsPage(QWidget):
         header_bar.setSpacing(12)
 
         icon_lbl = QLabel()
-        icon_lbl.setPixmap(get_svg_icon("calendar", size=30, color=COLOR_GOLD).pixmap(30, 30))
+        icon_lbl.setPixmap(get_svg_icon("calendar", size=30, color=COLOR_CHAMPAGNE).pixmap(30, 30))
         icon_lbl.setStyleSheet("background: transparent; border: none;")
         header_bar.addWidget(icon_lbl)
 
         v_head = QVBoxLayout()
         v_head.setSpacing(2)
         lbl_title = QLabel("QUẢN LÝ SỰ KIỆN")
-        lbl_title.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {THEME_TEXT_PRIMARY}; letter-spacing: 0.5px; background: transparent; border: none;")
+        lbl_title.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {COLOR_TEXT_PRIMARY}; letter-spacing: 0.5px; background: transparent; border: none;")
         v_head.addWidget(lbl_title)
 
         lbl_subtitle = QLabel("1998 TEAM Photobooth • 1998 Studio phóng sự cưới")
-        lbl_subtitle.setStyleSheet(f"font-size: 12px; color: {THEME_TEXT_SECONDARY}; font-weight: 500; background: transparent; border: none;")
+        lbl_subtitle.setStyleSheet(f"font-size: 12px; color: {COLOR_TEXT_SECONDARY}; font-weight: 500; background: transparent; border: none;")
         v_head.addWidget(lbl_subtitle)
         header_bar.addLayout(v_head)
 
@@ -147,10 +151,14 @@ class EventsPage(QWidget):
         self.card_active.setObjectName("card_active_event")
         self.card_active.setStyleSheet(f"""
             QFrame#card_active_event {{
-                background-color: {THEME_SURFACE};
-                border: 1.5px solid {THEME_GOLD};
-                border-radius: 10px;
+                background-color: {COLOR_SURFACE};
+                border: 1.5px solid {COLOR_CHAMPAGNE};
+                border-radius: 12px;
                 padding: 4px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
             }}
         """)
         l_active = QVBoxLayout(self.card_active)
@@ -158,16 +166,16 @@ class EventsPage(QWidget):
         l_active.setSpacing(8)
 
         lbl_badge_active = QLabel("● SỰ KIỆN ĐANG HOẠT ĐỘNG")
-        lbl_badge_active.setStyleSheet(f"color: {THEME_SUCCESS}; font-weight: 800; font-size: 12px; letter-spacing: 0.5px; background: transparent; border: none;")
+        lbl_badge_active.setStyleSheet(f"color: {COLOR_SUCCESS}; font-weight: 800; font-size: 12px; letter-spacing: 0.5px; background: transparent; border: none;")
         l_active.addWidget(lbl_badge_active)
 
         self.lbl_active_name = QLabel("SuKien_MacDinh")
-        self.lbl_active_name.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-size: 20px; font-weight: 800; background: transparent; border: none;")
+        self.lbl_active_name.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 20px; font-weight: 800; background: transparent; border: none;")
         self.lbl_active_name.setWordWrap(True)
         l_active.addWidget(self.lbl_active_name)
 
         self.lbl_active_details = QLabel("Ngày tạo: -- • 0 ảnh thành phẩm • 0 MB")
-        self.lbl_active_details.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 13px; background: transparent; border: none;")
+        self.lbl_active_details.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px; background: transparent; border: none;")
         l_active.addWidget(self.lbl_active_details)
 
         l_active.addSpacing(4)
@@ -175,7 +183,7 @@ class EventsPage(QWidget):
         row_active_actions.setSpacing(8)
 
         self.btn_change_event = QPushButton(" Đổi Sự Kiện")
-        self.btn_change_event.setIcon(get_svg_icon("refresh", size=15, color=COLOR_GOLD))
+        self.btn_change_event.setIcon(get_svg_icon("refresh", size=15, color=COLOR_CHAMPAGNE))
         self.btn_change_event.setObjectName("btn_secondary")
         self.btn_change_event.setCursor(Qt.PointingHandCursor)
         self.btn_change_event.clicked.connect(self._prompt_switch_event)
@@ -185,17 +193,17 @@ class EventsPage(QWidget):
         self.btn_end_event.setIcon(get_svg_icon("stop", size=15, color="#DC2626"))
         self.btn_end_event.setStyleSheet(f"""
             QPushButton {{
-                background-color: {THEME_DANGER_BG};
-                border: 1.5px solid {THEME_DANGER_BORDER};
-                color: {THEME_DANGER};
+                background-color: #FDF2F2;
+                border: 1px solid #F5C6C6;
+                color: {COLOR_ERROR};
                 font-weight: 700;
                 padding: 6px 14px;
                 border-radius: 6px;
             }}
             QPushButton:hover {{
-                background-color: {THEME_DANGER};
+                background-color: {COLOR_ERROR};
                 color: #FFFFFF;
-                border-color: {THEME_DANGER};
+                border-color: {COLOR_ERROR};
             }}
         """)
         self.btn_end_event.setCursor(Qt.PointingHandCursor)
@@ -211,10 +219,14 @@ class EventsPage(QWidget):
         card_create.setObjectName("card_create_event")
         card_create.setStyleSheet(f"""
             QFrame#card_create_event {{
-                background-color: {THEME_SURFACE};
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 10px;
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 12px;
                 padding: 4px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
             }}
         """)
         l_create = QVBoxLayout(card_create)
@@ -222,26 +234,26 @@ class EventsPage(QWidget):
         l_create.setSpacing(8)
 
         lbl_create_title = QLabel("TẠO SỰ KIỆN MỚI")
-        lbl_create_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-weight: 800; font-size: 12px; letter-spacing: 0.5px; background: transparent; border: none;")
+        lbl_create_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-weight: 800; font-size: 12px; letter-spacing: 0.5px; background: transparent; border: none;")
         l_create.addWidget(lbl_create_title)
 
         lbl_create_hint = QLabel("Tạo không gian lưu ảnh độc lập cho khách cưới hoặc tiệc sinh nhật:")
-        lbl_create_hint.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 13px; background: transparent; border: none;")
+        lbl_create_hint.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px; background: transparent; border: none;")
         l_create.addWidget(lbl_create_hint)
 
         self.txt_new_event = QLineEdit()
         self.txt_new_event.setPlaceholderText("Nhập tên sự kiện (VD: Đám cưới Tuấn & Lan, Sinh nhật 18 tuổi...)")
         self.txt_new_event.setStyleSheet(f"""
             QLineEdit {{
-                background-color: {THEME_INPUT_BG};
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 6px;
-                padding: 7px 10px;
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 8px;
+                padding: 7px 12px;
+                color: {COLOR_TEXT_PRIMARY};
                 font-size: 13px;
             }}
             QLineEdit:focus {{
-                border: 1.5px solid {THEME_GOLD};
+                border: 1.5px solid {COLOR_CHAMPAGNE};
                 background-color: #FFFFFF;
             }}
         """)
@@ -249,7 +261,7 @@ class EventsPage(QWidget):
         l_create.addWidget(self.txt_new_event)
 
         row_create_actions = QHBoxLayout()
-        self.btn_create_submit = QPushButton(" Tạo Sự Kiện & Chọn")
+        self.btn_create_submit = QPushButton(" Tạo Sự Kiện && Chọn")
         self.btn_create_submit.setIcon(get_svg_icon("plus", size=16, color=COLOR_NAVY))
         self.btn_create_submit.setObjectName("btn_champagne")
         self.btn_create_submit.setCursor(Qt.PointingHandCursor)
@@ -268,12 +280,12 @@ class EventsPage(QWidget):
         grp_events = QGroupBox("Danh Sách Sự Kiện")
         grp_events.setStyleSheet(f"""
             QGroupBox {{
-                background-color: {THEME_SURFACE};
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 10px;
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 12px;
                 margin-top: 14px;
                 font-weight: 700;
-                color: {THEME_TEXT_PRIMARY};
+                color: {COLOR_TEXT_PRIMARY};
                 padding-top: 18px;
             }}
             QGroupBox::title {{
@@ -281,9 +293,13 @@ class EventsPage(QWidget):
                 subcontrol-position: top left;
                 left: 14px;
                 padding: 0 8px;
-                background-color: {THEME_SURFACE};
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
                 border-radius: 4px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
             }}
         """)
         l_table = QVBoxLayout(grp_events)
@@ -299,16 +315,16 @@ class EventsPage(QWidget):
         self.txt_search_event.addAction(get_svg_icon("search", size=14, color=COLOR_SLATE), QLineEdit.LeadingPosition)
         self.txt_search_event.setStyleSheet(f"""
             QLineEdit {{
-                background-color: {THEME_INPUT_BG};
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 6px;
-                padding: 6px 10px;
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 8px;
+                padding: 6px 12px;
+                color: {COLOR_TEXT_PRIMARY};
                 font-size: 13px;
                 max-width: 320px;
             }}
             QLineEdit:focus {{
-                border: 1.5px solid {THEME_GOLD};
+                border: 1.5px solid {COLOR_CHAMPAGNE};
                 background-color: #FFFFFF;
             }}
         """)
@@ -343,29 +359,29 @@ class EventsPage(QWidget):
         self.table_events.verticalHeader().setVisible(False)
         self.table_events.setStyleSheet(f"""
             QTableWidget {{
-                background-color: {THEME_SURFACE};
-                alternate-background-color: #D2CEC5;
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 6px;
-                gridline-color: {THEME_BORDER_LIGHT};
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                alternate-background-color: #FAF9F6;
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 8px;
+                gridline-color: {COLOR_BORDER_LIGHT};
+                color: {COLOR_TEXT_PRIMARY};
                 font-size: 13px;
             }}
             QTableWidget::item {{
                 padding: 8px 6px;
             }}
             QTableWidget::item:selected {{
-                background-color: #C8BCAC;
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_PALE_GOLD};
+                color: {COLOR_TEXT_PRIMARY};
             }}
             QHeaderView::section {{
-                background-color: {THEME_BG_SECONDARY};
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE_SECONDARY};
+                color: {COLOR_TEXT_PRIMARY};
                 font-weight: 700;
                 font-size: 12px;
                 padding: 6px;
                 border: none;
-                border-bottom: 2px solid {THEME_BORDER};
+                border-bottom: 1.5px solid {COLOR_BORDER};
             }}
         """)
         self.table_events.itemSelectionChanged.connect(self._on_event_row_selected)
@@ -376,15 +392,16 @@ class EventsPage(QWidget):
         # =========================================================================
         # 4. THƯ VIỆN LƯỢT CHỤP CỦA SỰ KIỆN (SESSION GALLERY)
         # =========================================================================
-        grp_gallery = QGroupBox("Thư Viện Lượt Chụp & In Lại")
+        self.grp_gallery = QGroupBox("Thư Viện Lượt Chụp && In Lại")
+        grp_gallery = self.grp_gallery
         grp_gallery.setStyleSheet(f"""
             QGroupBox {{
-                background-color: {THEME_SURFACE};
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 10px;
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 12px;
                 margin-top: 14px;
                 font-weight: 700;
-                color: {THEME_TEXT_PRIMARY};
+                color: {COLOR_TEXT_PRIMARY};
                 padding-top: 18px;
             }}
             QGroupBox::title {{
@@ -392,9 +409,13 @@ class EventsPage(QWidget):
                 subcontrol-position: top left;
                 left: 14px;
                 padding: 0 8px;
-                background-color: {THEME_SURFACE};
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
                 border-radius: 4px;
+            }}
+            QLabel {{
+                border: none;
+                background: transparent;
             }}
         """)
         l_gal = QVBoxLayout(grp_gallery)
@@ -404,24 +425,24 @@ class EventsPage(QWidget):
         # Gallery Top Controls
         bar_gal = QHBoxLayout()
         self.lbl_gallery_event_title = QLabel("Thư viện ảnh: SuKien_MacDinh")
-        self.lbl_gallery_event_title.setStyleSheet(f"color: {THEME_TEXT_PRIMARY}; font-weight: 700; font-size: 14px; background: transparent;")
+        self.lbl_gallery_event_title.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-weight: 700; font-size: 14px; background: transparent; border: none;")
         bar_gal.addWidget(self.lbl_gallery_event_title)
 
         self.lbl_storage_stats = QLabel("")
-        self.lbl_storage_stats.setStyleSheet(f"color: {THEME_TEXT_SECONDARY}; font-size: 12px; padding-left: 8px; background: transparent;")
+        self.lbl_storage_stats.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 12px; padding-left: 8px; background: transparent; border: none;")
         bar_gal.addWidget(self.lbl_storage_stats)
 
         bar_gal.addStretch(1)
 
         btn_preview = QPushButton(" Xem Trước Lượt Chụp")
-        btn_preview.setIcon(get_svg_icon("camera", size=15, color=COLOR_GOLD))
+        btn_preview.setIcon(get_svg_icon("camera", size=15, color=COLOR_CHAMPAGNE))
         btn_preview.setObjectName("btn_secondary")
         btn_preview.setCursor(Qt.PointingHandCursor)
         btn_preview.clicked.connect(lambda: self._preview_session_selected())
         bar_gal.addWidget(btn_preview)
 
         btn_reprint = QPushButton(" In Lại Lượt Đang Chọn")
-        btn_reprint.setIcon(get_svg_icon("printer", size=15, color=COLOR_GOLD))
+        btn_reprint.setIcon(get_svg_icon("printer", size=15, color=COLOR_CHAMPAGNE))
         btn_reprint.setObjectName("btn_secondary")
         btn_reprint.setCursor(Qt.PointingHandCursor)
         btn_reprint.clicked.connect(self._reprint_selected)
@@ -443,16 +464,16 @@ class EventsPage(QWidget):
         self.txt_search_session.addAction(get_svg_icon("search", size=14, color=COLOR_SLATE), QLineEdit.LeadingPosition)
         self.txt_search_session.setStyleSheet(f"""
             QLineEdit {{
-                background-color: {THEME_INPUT_BG};
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 6px;
-                padding: 6px 10px;
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 8px;
+                padding: 6px 12px;
+                color: {COLOR_TEXT_PRIMARY};
                 font-size: 12px;
                 max-width: 320px;
             }}
             QLineEdit:focus {{
-                border: 1.5px solid {THEME_GOLD};
+                border: 1.5px solid {COLOR_CHAMPAGNE};
                 background-color: #FFFFFF;
             }}
         """)
@@ -478,12 +499,12 @@ class EventsPage(QWidget):
         self.table_sessions.verticalHeader().setVisible(False)
         self.table_sessions.setStyleSheet(f"""
             QTableWidget {{
-                background-color: {THEME_SURFACE};
-                alternate-background-color: #D2CEC5;
-                border: 1.5px solid {THEME_BORDER};
-                border-radius: 6px;
-                gridline-color: {THEME_BORDER_LIGHT};
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE};
+                alternate-background-color: #FAF9F6;
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 8px;
+                gridline-color: {COLOR_BORDER_LIGHT};
+                color: {COLOR_TEXT_PRIMARY};
                 font-size: 13px;
                 min-height: 200px;
             }}
@@ -491,17 +512,17 @@ class EventsPage(QWidget):
                 padding: 6px;
             }}
             QTableWidget::item:selected {{
-                background-color: #C8BCAC;
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_PALE_GOLD};
+                color: {COLOR_TEXT_PRIMARY};
             }}
             QHeaderView::section {{
-                background-color: {THEME_BG_SECONDARY};
-                color: {THEME_TEXT_PRIMARY};
+                background-color: {COLOR_SURFACE_SECONDARY};
+                color: {COLOR_TEXT_PRIMARY};
                 font-weight: 700;
                 font-size: 12px;
                 padding: 6px;
                 border: none;
-                border-bottom: 2px solid {THEME_BORDER};
+                border-bottom: 1.5px solid {COLOR_BORDER};
             }}
         """)
         self.table_sessions.doubleClicked.connect(lambda idx: self._preview_session_selected())
@@ -582,28 +603,28 @@ class EventsPage(QWidget):
             h_action.setSpacing(6)
 
             cell_btn_style = (
-                f"QPushButton {{ background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_BORDER}; "
-                f"border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: {THEME_TEXT_PRIMARY}; }} "
-                f"QPushButton:hover {{ background-color: {THEME_INPUT_BG}; border-color: {THEME_GOLD}; color: {THEME_TEXT_PRIMARY}; }}"
+                f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; "
+                f"border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 600; color: {COLOR_TEXT_PRIMARY}; }} "
+                f"QPushButton:hover {{ background-color: {COLOR_SURFACE_SECONDARY}; border-color: {COLOR_CHAMPAGNE}; color: {COLOR_TEXT_PRIMARY}; }}"
             )
 
             if not is_active:
                 btn_pick = QPushButton("Chọn")
                 btn_pick.setStyleSheet(
-                    f"QPushButton {{ background-color: {THEME_GOLD}; border: 1.5px solid {THEME_GOLD_DARK}; "
-                    f"border-radius: 6px; padding: 3px 10px; font-size: 11px; font-weight: bold; color: #FFFFFF; }} "
-                    f"QPushButton:hover {{ background-color: {THEME_GOLD_LIGHT}; color: {THEME_TEXT_PRIMARY}; }}"
+                    f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_CHAMPAGNE}, stop:1 {COLOR_CHAMPAGNE_LIGHT}); "
+                    f"border: 1px solid {COLOR_CHAMPAGNE}; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: bold; color: #FFFFFF; }} "
+                    f"QPushButton:hover {{ background: {COLOR_CHAMPAGNE_LIGHT}; color: #FFFFFF; }}"
                 )
                 btn_pick.setCursor(Qt.PointingHandCursor)
                 btn_pick.clicked.connect(lambda _, n=ev_name: self._switch_to_event(n))
                 h_action.addWidget(btn_pick)
             else:
                 lbl_cur = QLabel("● Đang chạy")
-                lbl_cur.setStyleSheet(f"color: {THEME_SUCCESS}; font-size: 11px; font-weight: 700; background: transparent; padding: 0 4px;")
+                lbl_cur.setStyleSheet(f"color: {COLOR_SUCCESS}; font-size: 11px; font-weight: 700; background: transparent; padding: 0 4px;")
                 h_action.addWidget(lbl_cur)
 
             btn_open = QPushButton()
-            btn_open.setIcon(get_svg_icon("folder", size=14, color=COLOR_GOLD))
+            btn_open.setIcon(get_svg_icon("folder", size=14, color=COLOR_CHAMPAGNE))
             btn_open.setToolTip("Mở thư mục sự kiện")
             btn_open.setCursor(Qt.PointingHandCursor)
             btn_open.setStyleSheet(cell_btn_style)
@@ -887,9 +908,9 @@ class EventsPage(QWidget):
             h_act.setSpacing(6)
 
             sess_btn_style = (
-                f"QPushButton {{ background-color: {THEME_BG_SECONDARY}; border: 1.5px solid {THEME_BORDER}; "
-                f"color: {THEME_TEXT_PRIMARY}; padding: 3px 10px; border-radius: 6px; font-weight: bold; font-size: 11px; }} "
-                f"QPushButton:hover {{ background-color: {THEME_GOLD_LIGHT}; border-color: {THEME_GOLD}; }}"
+                f"QPushButton {{ background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_BORDER}; "
+                f"color: {COLOR_TEXT_PRIMARY}; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 11px; }} "
+                f"QPushButton:hover {{ background-color: {COLOR_SURFACE_SECONDARY}; border-color: {COLOR_CHAMPAGNE}; }}"
             )
 
             btn_v = QPushButton("Xem")

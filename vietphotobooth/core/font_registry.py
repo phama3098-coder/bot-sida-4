@@ -34,6 +34,7 @@ class FontRegistry:
     }
 
     _initialized = False
+    _qt_fonts_registered = False
     _fonts: List[FontItem] = []
 
     @classmethod
@@ -42,9 +43,41 @@ class FontRegistry:
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Fonts"))
 
     @classmethod
+    def _register_qt_fonts(cls):
+        """Nạp các phông chữ đóng gói vào QFontDatabase khi QGuiApplication đã khả dụng."""
+        from PySide6.QtGui import QGuiApplication, QFontDatabase
+        if QGuiApplication.instance() is None:
+            return
+        for f_item in cls._fonts:
+            if f_item.file_path and os.path.exists(f_item.file_path):
+                try:
+                    font_id = QFontDatabase.addApplicationFont(f_item.file_path)
+                    if font_id >= 0:
+                        loaded_families = QFontDatabase.applicationFontFamilies(font_id)
+                        if loaded_families:
+                            f_item.family_name = loaded_families[0]
+                except Exception as e:
+                    logger.warning(f"Không thể nạp font {f_item.id} vào QFontDatabase: {e}")
+
+        # Thiết lập cơ chế Qt Font Fallback chuẩn xác cấp engine (không chỉ phụ thuộc vào CSS)
+        from PySide6.QtGui import QFont
+        QFont.insertSubstitutions("Be Vietnam Pro", ["Segoe UI", "Arial", "Segoe UI Emoji", "Segoe UI Symbol"])
+        QFont.insertSubstitutions("Segoe UI", ["Segoe UI Emoji", "Segoe UI Symbol", "Arial"])
+        cls._qt_fonts_registered = True
+
+    @classmethod
     def initialize(cls):
-        """Khởi tạo danh mục phông chữ và nạp vào QFontDatabase của hệ thống."""
-        if cls._initialized:
+        """Khởi tạo danh mục phông chữ và nạp vào QFontDatabase của hệ thống (idempotent & thread-safe)."""
+        from PySide6.QtGui import QGuiApplication
+
+        # 1. Nếu đã nạp hoàn chỉnh cả danh mục lẫn Qt fonts -> an toàn thoát ngay lập tức
+        if cls._initialized and cls._qt_fonts_registered:
+            return
+
+        # 2. Nếu danh mục đã tạo nhưng trước đó QApplication chưa khởi tạo -> chỉ cần đăng ký Qt fonts
+        if cls._initialized and not cls._qt_fonts_registered:
+            if QGuiApplication.instance() is not None:
+                cls._register_qt_fonts()
             return
 
         cls._fonts = []
@@ -160,6 +193,8 @@ class FontRegistry:
 
         cls._initialized = True
         logger.info(f"Đã khởi tạo FontRegistry với {len(cls._fonts)} phông chữ tiếng Việt.")
+        if QGuiApplication.instance() is not None:
+            cls._register_qt_fonts()
 
     @classmethod
     def list_fonts(cls, category: str = "all") -> List[FontItem]:
@@ -219,3 +254,31 @@ class FontRegistry:
             return fallback_arial
 
         return None
+
+    @classmethod
+    def get_default_font_family(cls) -> str:
+        """Trả về family phông chữ mặc định của hệ thống, ưu tiên Be Vietnam Pro nếu khả dụng."""
+        cls.initialize()
+        try:
+            from PySide6.QtGui import QFontDatabase
+            available = QFontDatabase.families()
+            if "Be Vietnam Pro" in available:
+                return "Be Vietnam Pro"
+            if "Segoe UI" in available:
+                return "Segoe UI"
+            if "Arial" in available:
+                return "Arial"
+        except Exception:
+            pass
+        return "sans-serif"
+
+    @classmethod
+    def get_default_application_font(cls, point_size: int = 10, bold: bool = False):
+        """Trả về đối tượng QFont mặc định cho toàn ứng dụng với cơ chế fallback tin cậy."""
+        cls.initialize()
+        from PySide6.QtGui import QFont
+        family = cls.get_default_font_family()
+        font = QFont(family, point_size)
+        font.setWeight(QFont.Weight.Bold if bold else QFont.Weight.Normal)
+        font.setStyleHint(QFont.SansSerif)
+        return font
